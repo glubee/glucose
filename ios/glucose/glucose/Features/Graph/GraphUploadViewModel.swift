@@ -20,6 +20,8 @@ enum GraphUploadState: Equatable {
 final class GraphUploadViewModel {
 
     private(set) var state: GraphUploadState = .idle
+    /// 분석 실패 시 서버 오류 코드(GRAPH_NOT_RECOGNIZED / GRAPH_TOO_LITTLE_DATA 등). 하루 마무리가 화면을 고르는 데 쓴다
+    private(set) var failureCode: String?
     private var task: Task<Void, Never>?
 
     var isBusy: Bool {
@@ -40,9 +42,11 @@ final class GraphUploadViewModel {
     func reset() {
         task?.cancel()
         state = .idle
+        failureCode = nil
     }
 
     private func run(imageData: Data, contentType: String) async {
+        failureCode = nil
         state = .uploading
         let uploadId: UUID
         do {
@@ -81,6 +85,7 @@ final class GraphUploadViewModel {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
                 delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
             } catch APIError.server(_, let body) {
+                failureCode = body.code
                 state = .failed(Self.failureMessage(forCode: body.code))
                 return
             } catch {
