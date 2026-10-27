@@ -269,9 +269,9 @@
 				DEVELOPMENT_TEAM = MYCFDSZ48B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GlubeeWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = GlubeeWidgets;
+				INFOPLIST_KEY_CFBundleDisplayName = "글루비";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -300,9 +300,9 @@
 				DEVELOPMENT_TEAM = MYCFDSZ48B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GlubeeWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = GlubeeWidgets;
+				INFOPLIST_KEY_CFBundleDisplayName = "글루비";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

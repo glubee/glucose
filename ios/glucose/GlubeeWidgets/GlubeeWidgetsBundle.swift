@@ -5,14 +5,14 @@
 //  Created by DavePark on 10/27/26.
 //
 
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
 @main
 struct GlubeeWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        GlubeeWidgets()
-        GlubeeWidgetsControl()
-        GlubeeWidgetsLiveActivity()
+        QuickActionsWidget()
+        CaptureWidget()
+        InsulinWidget()
     }
 }
