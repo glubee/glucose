@@ -14,6 +14,7 @@ struct DesignCatalogView: View {
         ("mintSoft", .mintSoft), ("mintStrong", .mintStrong), ("insulinSoft", .insulinSoft), ("insulin", .insulin),
         ("alert", .alert), ("textPrimary", .textPrimary), ("textSecondary", .textSecondary),
         ("canvas", .canvas), ("surfaceMuted", .surfaceMuted), ("line", .line),
+        ("onBrandSoft", .onBrandSoft), ("buttonFill", .buttonFill), ("onButton", .onButton),
     ]
 
     var body: some View {
@@ -21,6 +22,7 @@ struct DesignCatalogView: View {
             VStack(alignment: .leading, spacing: Spacing.l) {
                 section("버튼") {
                     Button("기록 저장") {}.buttonStyle(.glubeePrimary)
+                    Button("음식 찍기") {}.buttonStyle(.glubeeAccent)
                     Button("아니에요") {}.buttonStyle(.glubeeSecondary)
                     Button("오늘 정리 마치기") {}.buttonStyle(.glubeeMuted)
                 }
@@ -61,6 +63,7 @@ struct DesignCatalogView: View {
                 }
 
                 section("글꼴") {
+                    Text("12").font(.bigNumber)
                     Text("연속 12일").font(.display)
                     Text("오늘의 흐름을 함께 볼까요?").font(.headline1)
                     Text("혈당 흐름").font(.headline2)

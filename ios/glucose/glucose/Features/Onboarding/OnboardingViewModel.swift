@@ -46,8 +46,8 @@ final class OnboardingViewModel {
         var attachment: ChatMessage.Attachment? = nil
     }
 
-    /// 위젯(W3)이 생기기 전에는 위젯 안내 단계를 건너뛴다
-    static let widgetsAvailable = false
+    /// 위젯 안내 단계를 보여줄지 (W3에서 위젯이 생겨 켬)
+    static let widgetsAvailable = true
     /// 한 글자가 찍히는 간격(초)
     static let characterInterval: Double = 0.045
     /// 한 문장을 다 찍은 뒤 다음 문장으로 넘어가기 전 쉬는 시간(초)
@@ -183,7 +183,7 @@ final class OnboardingViewModel {
             [BeeLine(pose: .cheer, text: "기록할 때를 알림으로 챙겨드릴까요?"),
              BeeLine(pose: .cheer, text: "하루 두 번까지만, 밤에는 조용히 있을게요.")]
         case .widget:
-            [BeeLine(pose: .point, text: "홈 화면에 저를 붙여두면 한 번에 기록돼요.")]
+            [BeeLine(pose: .pointLeft, text: "홈 화면에 저를 붙여두면 한 번에 기록돼요.")]
         case .signIn:
             [BeeLine(pose: .honeypot, text: "마지막이에요. 기록을 안전하게 보관할게요.")]
         }
