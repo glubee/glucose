@@ -83,25 +83,25 @@ final class OnboardingViewModel {
         if let reaction { return reaction }
         switch step {
         case .hello:
-            return "안녕! 나는 글루비야.\n너의 하루를 같이 모을 꿀벌이야."
+            return "안녕하세요! 저는 글루비예요.\n하루를 같이 모으는 꿀벌이에요."
         case .name:
-            return "너를 뭐라고 부르면 될까?"
+            return "뭐라고 불러드릴까요?"
         case .howTo:
-            return "먹을 때 한 번, 맞을 때 한 번.\n나머지는 밤에 같이 하자."
+            return "먹을 때 한 번, 맞을 때 한 번.\n나머지는 밤에 같이 해요."
         case .insulin:
-            return insulins.isEmpty ? "평소에 쓰는 인슐린을 알려줄래?" : "기억해둘게. 맞을 때 바로 채워줄게."
+            return insulins.isEmpty ? "평소에 쓰는 인슐린을 알려주세요." : "기억해둘게요. 맞을 때 바로 채워드릴게요."
         case .dayClose:
-            return "\(timeText(dayClose))에 꿀통 들고 찾아갈게."
+            return "\(timeText(dayClose))에 꿀통 들고 찾아갈게요."
         case .notifications:
             switch notificationChoice {
-            case .undecided: return "기록할 때를 알림으로 챙겨줄까?"
-            case .granted: return "약속! 잊을 때쯤 찾아갈게."
-            case .denied: return "괜찮아, 설정에서 언제든 불러줘."
+            case .undecided: return "기록할 때를 알림으로 챙겨드릴까요?"
+            case .granted: return "약속해요! 잊을 때쯤 찾아갈게요."
+            case .denied: return "괜찮아요. 설정에서 언제든 불러주세요."
             }
         case .widget:
-            return "여기 나를 붙여두면 한 번에 기록돼."
+            return "여기 저를 붙여두면 한 번에 기록돼요."
         case .signIn:
-            return "마지막이야. 기록을 안전하게 보관할게."
+            return "마지막이에요. 기록을 안전하게 보관할게요."
         }
     }
 
@@ -120,7 +120,7 @@ final class OnboardingViewModel {
 
     func commitName() {
         nickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        reaction = nickname.isEmpty ? nil : "\(nickname)! 예쁜 이름이다."
+        reaction = nickname.isEmpty ? nil : "\(nickname)님! 예쁜 이름이네요."
     }
 
     func addInsulin(name: String, units: Double?) {
