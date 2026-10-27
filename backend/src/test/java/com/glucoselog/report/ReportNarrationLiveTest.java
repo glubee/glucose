@@ -33,10 +33,10 @@ class ReportNarrationLiveTest {
                 new DailyReportResponse.GlucoseSummary(new BigDecimal("0.75"),new BigDecimal("138.2"),80,210,72,true),
                 List.of(new EpisodeSummary(Instant.parse("2026-10-26T00:00:00Z"),PhotoContext.MEAL,PhotoContext.MEAL,
                         false,Instant.parse("2026-10-26T04:00:00Z"),null,3)),
-                2,List.of(),List.of(),List.of());
+                2,List.of(),List.of(),List.of(),180);
         var week = new WeeklyReportResponse(LocalDate.of(2026,10,19),LocalDate.of(2026,10,25),5,0,
                 new BigDecimal("142.7"),12,1,10,4,1,2,List.of());
-        var missing = new DailyReportResponse(LocalDate.of(2026,10,26),null,List.of(),0,List.of(),List.of(),List.of());
+        var missing = new DailyReportResponse(LocalDate.of(2026,10,26),null,List.of(),0,List.of(),List.of(),List.of(),180);
 
         var normal = service.daily(day);
         assertThat(normal.source()).isEqualTo("AI");

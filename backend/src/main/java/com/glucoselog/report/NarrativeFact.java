@@ -19,7 +19,7 @@ public record NarrativeFact(String id, BigDecimal value, String unit, String lab
         PENDING_DAYS("pending_days", "일", "아직 집계 중인 날 수", "아직 집계 중인 날은 %s일이에요.", "집계가 끝나지 않은 날은 %s일이에요."),
         MISSING_DAYS("missing_days", "일", "지난 날 중 그래프가 없는 날 수", "지난 날 중 그래프가 없는 날은 %s일이에요.", "그래프가 없는 지난 날은 %s일이에요."),
         GROUPS("episode_groups", "건", "섭취 기록 묶음 수", "가까운 시각의 섭취 기록 묶음은 %s건이에요.", "섭취 기록 묶음은 %s건이에요."),
-        ABOVE("above_range_after_treatment_count", "건", "처치 기록 뒤 그래프 상단에 닿는 값이 읽힌 묶음 수", "처치 기록 뒤 그래프 상단에 닿는 값이 읽힌 기록 묶음은 %s건이에요.", "읽힌 구간에서 처치 기록 뒤 그래프 상단에 닿는 값이 관찰된 묶음은 %s건이에요.");
+        ABOVE("above_rebound_threshold_after_treatment_count", "건", "처치 기록 뒤 설정된 기준을 넘는 값이 읽힌 묶음 수", "처치 기록 뒤 설정된 기준을 넘는 값이 읽힌 기록 묶음은 %s건이에요.", "읽힌 구간에서 처치 기록 뒤 설정된 기준을 넘는 값이 관찰된 묶음은 %s건이에요.");
 
         final String id;
         final String unit;

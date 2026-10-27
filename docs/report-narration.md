@@ -21,7 +21,7 @@ AI는 수치·단위·사실·의학 지식을 생성하지 않는다. 서버가
 }
 ```
 
-WEEKLY의 필수 사실은 `days_with_data`, `sufficient_days`, `low_coverage_days`, `pending_days`, `missing_days`, `average_glucose`, `episode_groups`, `insulin_records`, `above_range_after_treatment_count`다. DAILY는 위 예시의 7개 사실이 필수다. 요청마다 해당 종류의 사실을 정확히 한 번씩 보내며 알 수 없는 값은 null이다. 음수·비유한 수·범위를 벗어난 일수·관측 수 및 소수인 건수는 거부한다. 단위·의미·사용자 지시문을 요청에 넣지 않는다.
+WEEKLY의 필수 사실은 `days_with_data`, `sufficient_days`, `low_coverage_days`, `pending_days`, `missing_days`, `average_glucose`, `episode_groups`, `insulin_records`, `above_rebound_threshold_after_treatment_count`다. `above_rebound_threshold_after_treatment_count`는 처치 기록 뒤 서버의 `episode.rebound-glucose-threshold`를 넘는 값이 읽힌 묶음 수이며, 그래프 상단 플래그의 개수가 아니다. DAILY는 위 예시의 7개 사실이 필수다. 요청마다 해당 종류의 사실을 정확히 한 번씩 보내며 알 수 없는 값은 null이다. 음수·비유한 수·범위를 벗어난 일수·관측 수 및 소수인 건수는 거부한다. 단위·의미·사용자 지시문을 요청에 넣지 않는다.
 
 ```json
 {

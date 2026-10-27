@@ -15,7 +15,7 @@ DAILY_IDS = frozenset({
 })
 WEEKLY_IDS = frozenset({
     "days_with_data", "sufficient_days", "low_coverage_days", "pending_days", "missing_days",
-    "average_glucose", "episode_groups", "insulin_records", "above_range_after_treatment_count",
+    "average_glucose", "episode_groups", "insulin_records", "above_rebound_threshold_after_treatment_count",
 })
 GLUCOSE_IDS = {"average_glucose", "minimum_glucose", "maximum_glucose"}
 DAY_IDS = {"days_with_data", "sufficient_days", "low_coverage_days", "pending_days", "missing_days"}

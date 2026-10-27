@@ -20,7 +20,7 @@ class ReportNarrationServiceTest {
     private DailyReportResponse day(boolean hasGraph) {
         var glucose = hasGraph ? new DailyReportResponse.GlucoseSummary(
                 new BigDecimal("0.75"),new BigDecimal("138.2"),80,210,72,true) : null;
-        return new DailyReportResponse(LocalDate.of(2026,10,1),glucose,List.of(),2,List.of(),List.of(),List.of());
+        return new DailyReportResponse(LocalDate.of(2026,10,1),glucose,List.of(),2,List.of(),List.of(),List.of(),180);
     }
 
     private String dailyPlan() {
@@ -91,5 +91,20 @@ class ReportNarrationServiceTest {
         assertThat(response.facts()).hasSize(9);
         assertThat(response.paragraphs().toString()).contains("집계 중인 날은 5일","그래프가 없는 날은 2일");
         assertThat(response.paragraphs().toString()).doesNotContain("반동","정상","때문에");
+    }
+
+    @Test
+    void weekly_describes_rebound_count_as_crossing_the_configured_threshold() {
+        var week = new WeeklyReportResponse(LocalDate.of(2026,10,5),LocalDate.of(2026,10,11),5,0,
+                new BigDecimal("142.7"),12,2,10,4,1,2,List.of());
+        var response = service.weekly(week);
+        var fact = response.facts().stream()
+                .filter(item -> item.id().equals("above_rebound_threshold_after_treatment_count"))
+                .findFirst().orElseThrow();
+        assertThat(fact.value()).isEqualByComparingTo("2");
+        assertThat(fact.label()).contains("설정된 기준을 넘는");
+        assertThat(response.paragraphs().toString())
+                .contains("설정된 기준을 넘는 값이 읽힌 기록 묶음은 2건")
+                .doesNotContain("그래프 상단에 닿는");
     }
 }

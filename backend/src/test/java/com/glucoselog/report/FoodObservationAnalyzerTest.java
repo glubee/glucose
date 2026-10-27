@@ -17,7 +17,7 @@ import com.glucoselog.photo.PhotoContext;
 class FoodObservationAnalyzerTest {
     static final LocalDate MONDAY=LocalDate.of(2026,10,19);
     static final Instant NOW=Instant.parse("2026-10-27T03:00:00Z");
-    final FoodObservationAnalyzer analyzer=new FoodObservationAnalyzer(new EpisodeProperties(90,4,2,12,70),
+    final FoodObservationAnalyzer analyzer=new FoodObservationAnalyzer(new EpisodeProperties(90,4,2,12,70,180),
             new ReportProperties(new BigDecimal("0.7")),new FoodObservationProperties(15,2,2));
 
     static Instant at(LocalDate date,String time) { return date.atTime(LocalTime.parse(time)).atZone(FoodObservationAnalyzer.KST).toInstant(); }

@@ -25,7 +25,7 @@ class FoodObservationServiceTest {
         when(repo.findForFoodReport(eq(user),any(),any())).thenReturn(List.of(record));
         when(insulin.findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(eq(user),any(),any())).thenReturn(List.of());
         when(timeline.loadRange(eq(user),any(),any())).thenReturn(FoodObservationAnalyzerTest.samples(record.getOccurredAt(),150));
-        var windows=new EpisodeProperties(90,4,2,12,70);var properties=new FoodObservationProperties(15,2,2);
+        var windows=new EpisodeProperties(90,4,2,12,70,180);var properties=new FoodObservationProperties(15,2,2);
         var service=new FoodObservationService(repo,insulin,timeline,new FoodObservationAnalyzerTest().analyzer,windows,properties,
                 Clock.fixed(FoodObservationAnalyzerTest.NOW,ZoneOffset.UTC));
         var result=service.daily(user,date);
