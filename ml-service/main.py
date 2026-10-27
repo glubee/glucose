@@ -18,6 +18,8 @@ from PIL import Image, UnidentifiedImageError
 from food_recognizer import FoodRecognizer, FoodRecognizerFailure, OpenAIFoodRecognizer
 from graph_parser import GraphParseFailure, LibreDailyGraphParser
 from models import ErrorResponse, FoodRecognitionResponse, GraphParseResponse
+from report_narrator import (OpenAIReportNarrator, ReportNarrationFailure,
+                             ReportNarrationRequest, ReportNarrationResponse)
 
 
 load_dotenv()
@@ -55,6 +57,11 @@ def get_graph_parser() -> LibreDailyGraphParser:
     return LibreDailyGraphParser()
 
 
+@lru_cache
+def get_report_narrator() -> OpenAIReportNarrator:
+    return OpenAIReportNarrator()
+
+
 app = FastAPI(title="Glucose Log ML Service", version="1.0.0")
 
 
@@ -84,7 +91,7 @@ async def request_validation_error_handler(request: Request, error: RequestValid
             ).model_dump(),
         )
     return JSONResponse(
-        status_code=422,
+        status_code=400 if request.url.path == "/v1/report/narrate" else 422,
         content=ErrorResponse(
             code="INVALID_REQUEST",
             message="요청 형식이 올바르지 않습니다",
@@ -204,6 +211,20 @@ async def validate_and_prepare_image(
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.post("/v1/report/narrate", response_model=ReportNarrationResponse,
+          dependencies=[Depends(verify_internal_token)])
+async def narrate_report(request: Request, payload: ReportNarrationRequest,
+                         narrator: OpenAIReportNarrator = Depends(get_report_narrator)):
+    try:
+        async with asyncio.timeout(10):
+            async with PROCESSING_LIMIT:
+                return await narrator.narrate(payload)
+    except (ReportNarrationFailure, asyncio.TimeoutError) as error:
+        code = error.code if isinstance(error, ReportNarrationFailure) else "TIMEOUT"
+        raise ServiceError(504 if code == "TIMEOUT" else 502, code,
+                           "리포트 문장화 결과를 확인하지 못했습니다", request.state.request_id) from error
 
 
 @app.post(

@@ -37,9 +37,15 @@ python -m uvicorn main:app --app-dir ml-service --reload
 - `GET /health`: 인증 없는 상태 확인
 - `POST /v1/food/recognize`: `image`, 선택 `context`를 받아 실제 음식 인식
 - `POST /v1/graph/parse`: 리브레 일일 그래프에서 날짜와 96개 혈당값 추출
+- `POST /v1/report/narrate`: 일일·주간 사실 ID의 문단 구성 및 표현 선택
 
-두 POST 요청은 `X-Internal-Token`을 요구하며, `X-Request-Id`가 없으면 서비스가
+POST 요청은 `X-Internal-Token`을 요구하며, `X-Request-Id`가 없으면 서비스가
 생성합니다. JPEG와 PNG만 허용하고 최대 크기는 8MB입니다.
+
+문장화는 JSON을 받으며 `REPORT_MODEL`로 모델을 설정합니다. AI에 전송하는 것은
+리포트 종류와 사실 ID뿐이며 수치·결측 여부·날짜·사용자 정보·자유 메모를 전송하지 않습니다.
+숫자와 최종 문장은 백엔드가 렌더링하고 오류나 검증 실패 시 고정 요약으로 대체합니다.
+자세한 계약과 한계는 [근거 기반 문장화](../docs/report-narration.md)를 참고하세요.
 
 ## 그래프 파서 전제
 

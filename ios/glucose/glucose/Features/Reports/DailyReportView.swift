@@ -32,6 +32,8 @@ struct DailyReportView: View {
                 }
             case .loaded(let report, let points):
                 glucoseSection(report: report, points: points)
+                FoodObservationSection(state: viewModel.foodAnalysis)
+                ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
                 episodesSection(report.episodes)
                 insulinSection(report: report)
                 educationSection(report.educationCards)
@@ -103,11 +105,16 @@ struct DailyReportView: View {
                 Text("근거: 15분 간격 기록 \(glucose.readingsCount)칸 · 하루의 \(Int((glucose.coverageRatio * 100).rounded()))% · 끊긴 구간은 비워둠")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if glucose.sufficient == false {
+                    Text("그래프가 일부만 읽혀 읽힌 구간의 수치만 보여드려요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("판단할 수 없어요", systemImage: "questionmark.circle")
                         .font(.headline)
-                    Text("이 날의 혈당 그래프가 없어서 혈당 변화와 반동 여부를 판단할 수 없어요.")
+                    Text("이 날의 혈당 그래프가 없어서 읽힌 혈당값을 확인할 수 없어요.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button {
@@ -141,7 +148,7 @@ struct DailyReportView: View {
 
     @ViewBuilder
     private func episodesSection(_ episodes: [DailyReport.Episode]) -> some View {
-        Section("먹은 기록 \(episodes.count)회") {
+        Section("섭취 기록 묶음 \(episodes.count)건") {
             if episodes.isEmpty {
                 Text("이 날 기록이 없어요.")
                     .foregroundStyle(.secondary)
@@ -223,13 +230,13 @@ private struct EpisodeRow: View {
             if episode.effectiveContext == .hypoTreatment {
                 switch episode.reboundDetected {
                 case .some(true):
-                    note("처치 후 \(ReportDay.timeString(from: episode.windowEndAt))까지 혈당이 목표범위보다 높아진 구간이 있어요",
+                    note("처치 기록 뒤 \(ReportDay.timeString(from: episode.windowEndAt))까지 읽힌 구간에 그래프 상단에 닿는 값이 있어요",
                          systemImage: "arrow.up.right")
                 case .some(false):
-                    note("처치 후 \(ReportDay.timeString(from: episode.windowEndAt))까지 목표범위 위로 오르지 않았어요",
-                         systemImage: "checkmark")
+                    note("처치 기록 뒤 \(ReportDay.timeString(from: episode.windowEndAt))까지 읽힌 구간에서는 그래프 상단에 닿는 값이 없어요",
+                         systemImage: "info.circle")
                 case .none:
-                    note("처치 후 혈당 데이터가 없어 반동 여부를 판단할 수 없어요", systemImage: "questionmark.circle")
+                    note("처치 기록 뒤 구간에 읽힌 값이 없어 확인할 수 없어요", systemImage: "questionmark.circle")
                 }
             }
         }

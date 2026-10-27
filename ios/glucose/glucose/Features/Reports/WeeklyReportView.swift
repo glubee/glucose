@@ -30,6 +30,8 @@ struct WeeklyReportView: View {
                 }
             case .loaded(let report):
                 glucoseSection(report)
+                FoodObservationSection(state: viewModel.foodAnalysis)
+                ReportNarrativeSection(kind: "WEEKLY", date: report.weekStart, summary: report.summary ?? [])
                 recordsSection(report)
             }
         }
@@ -77,18 +79,28 @@ struct WeeklyReportView: View {
             Text("근거: 그래프가 있는 날 \(report.daysWithData)일 / 7일")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let sufficient = report.sufficientDays, let limited = report.lowCoverageDays {
+                Text("지난 날 중 충분히 읽힌 날 \(sufficient)일 · 일부만 읽힌 날 \(limited)일")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let pending = report.pendingDays, pending > 0 {
+                Text("오늘과 이후 \(pending)일은 집계 중이에요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     @ViewBuilder
     private func recordsSection(_ report: WeeklyReport) -> some View {
         Section("기록") {
-            LabeledContent("먹은 기록", value: "\(report.episodesCount)회")
-            LabeledContent("저혈당 처치 후 반동", value: "\(report.reboundCount)회")
+            LabeledContent("섭취 기록 묶음", value: "\(report.episodesCount)건")
+            LabeledContent("처치 기록 뒤 그래프 상단 표시", value: "\(report.reboundCount)건")
             LabeledContent("인슐린 기록", value: "\(report.insulinEventsCount)건")
 
             if report.daysInsufficient > 0 {
-                Text("그래프가 없는 \(report.daysInsufficient)일은 반동 여부를 판단하지 못해 횟수에 들어가지 않아요.")
+                Text("그래프가 없는 지난 \(report.daysInsufficient)일은 그래프 상단 표시 건수에 포함하지 않았어요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
