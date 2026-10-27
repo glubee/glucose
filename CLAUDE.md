@@ -1,4 +1,4 @@
-# CLAUDE.md — 혈당 기록·리포트 앱 (KHU-glucose/glucose)
+# CLAUDE.md — 혈당 기록·리포트 앱 (glubee/glucose)
 
 ## 프로젝트 한 줄 요약
 CGM(연속혈당측정기, 예: FreeStyle Libre)을 쓰며 인슐린을 맞는 사람이 **식사/저혈당 처치 사진과 인슐린 기록**을 남기면,
@@ -54,6 +54,9 @@ AI_use_organize/               경진대회 제출용 AI 활용 기록 (건드�
 ## 현재 상태와 다음 할 일
 - 백엔드 완료(머지): A1, B0(`docs/backend-api.md`), B1(Sign in with Apple + JWT), B2(사진 업로드 R2 presigned URL), B3(job 워커 + ml-service 연동), B4(intake/insulin_event CRUD, `food_catalog` 시드, 음식 인식 결과 조회), B5(혈당 그래프 업로드·분석), B6(에피소드/반동 판정 `EpisodeAnalyzer`), B7(일일·주간 리포트). ml-service 실제 음식 인식 + 그래프 파서, 모델명 버그 수정(#20)도 머지됨.
 - iOS 완료(머지): I0(뼈대), I1(기록 화면), I2(Sign in with Apple), I3(사진 촬영), I4(R2 업로드), I5(인식 결과 확인·수정), I6(인슐린 기록), I7(기록 목록 Live 전환), I8(그래프 업로드), I9(일일 리포트), I10(주간 리포트).
+- iOS v5(2026-10-27~): 계획·결정은 **`docs/ios-design-v4.md`**(핵심 흐름 = 위젯 원탭 기록 + 하루 끝 완성 + 연속 완성일). 머지: D0 디자인 기본값, D1 공통 컴포넌트, O1 글루비 온보딩(해요체, 한 문장씩 타이핑), W1 빠른 촬영 + 확인 대기 사진, W2 인슐린 투여 확인, W3 위젯(+Siri·단축어), v5 마스코트·앱 아이콘, v5 색·버튼·Pretendard. 올라간 PR(머지 순서): #57 계정 삭제 시 기기 데이터 지우기 → #54 하루 마무리 v5 → #58 홈·연속 완성일·꿀단지·쉬어가기 → #59 위젯 v5 + App Group → #60 알림(NudgeScheduler) → #61 v5 탭·음식 기록 시트·설정.
+- iOS 확인 팁: 화면마다 DEBUG 실행 인자가 있다(`-designCatalog`, `-onboardingStep N`, `-insulinConfirm`, `-dayClose -dayCloseStep N`, `-home [-homeSeed|-homeRest]`, `-tabs`, `-settings`, `-review`, `-printNudges`). 로그인 없이 시뮬레이터에서 볼 수 있다.
+- iOS 작업 주의: Xcode가 새 파일을 자동으로 스테이징하므로 `git commit -a`를 쓰지 않고 경로를 지정해 커밋한다(위젯 타깃이 문서 커밋에 섞인 일이 있음). App Group `group.com.glubee.glubee`(앱·위젯)는 Apple Developer 계정에 등록돼야 실기기에 설치된다.
 - 진행: **상세 작업 순서는 `docs/backend-plan.md`**(백엔드), `ios-plan.md`(iOS, Downloads에 있던 원본). 운영에서 음식 사진 인식(잡채)·그래프 업로드(96칸)까지 실제로 동작 확인(2026-10-08).
 - B8 진행: **백업 복구 테스트 완료**(2026-10-08 서버에서 `infra/restore-test.sh`로 실제 백업 복구 성공, 3초). 매일 04:00 백업 정상. 남은 것: 레이트 리밋, OpenAPI, 로그 민감정보 점검, 백업 실패 알림 켜기.
 - 열린 작업: 계정 삭제 시 R2 파일·job 정리(#37). 음식 인식 대분류는 제 안(#34: name을 대분류로)과 팀원 안(#38: name 유지 + `food_group` 필드)이 겹쳐 방향 결정 필요.
@@ -62,7 +65,7 @@ AI_use_organize/               경진대회 제출용 AI 활용 기록 (건드�
 - **스택 PR 주의**: 아래 PR을 위 PR의 브랜치를 base로 쌓으면, 위 PR이 main에 머지된 뒤 아래 PR의 base를 main으로 바꾸지 않고 머지했을 때 main에 안 들어간다(#17~#19, #22~#23에서 실제로 발생 → landing PR로 복구). 저장소 설정 "Automatically delete head branches"를 켜면 GitHub가 자동으로 base를 옮겨준다.
 - Bundle ID는 `com.glubee.glubee`로 확정(앱 실제 이름 Glubee). `com.glucose.glucose`는 쓰지 않음 — 저장소/패키지명(`com.glucoselog`)은 그대로 유지.
 - 비용: AWS 크레딧(Free Tier)으로 Lightsail $12/월 차감 예정. 크레딧 소진 시점 확인 필요.
-- 결정됨: 그래프 재업로드는 **덮어쓰기**. 반동 판정은 **처치 후 분석 창 안에서 180 mg/dL 초과**(`episode.rebound-glucose-threshold`, 2026-10-12 Dave 결정). 이전 설명 "ABOVE_RANGE=사용자별 목표범위"는 틀렸음 — ABOVE_RANGE는 그래프 상단(약 350)에 붙은 값이다. 리포트 문장(AI 요약)은 **지금은 안 만듦** — 숫자/건수만 반환(ml-service에 리포트용 엔드포인트가 없어서, 필요해지면 계약 문서부터 고치고 팀원과 협의).
+- 결정됨: 그래프 재업로드는 **덮어쓰기**. 반동 판정은 **처치 후 분석 창 안에서 180 mg/dL 초과**(`episode.rebound-glucose-threshold`, 2026-10-12 Dave 결정). 이전 설명 "ABOVE_RANGE=사용자별 목표범위"는 틀렸음 — ABOVE_RANGE는 그래프 상단(약 350)에 붙은 값이다. 리포트 문장은 #45에서 **근거 기반 문장화**로 들어감(`docs/report-narration.md`): AI는 사실 ID 묶음과 표현 유형만 고르고 숫자·문장은 서버가 만든다. OpenAI에는 사실 ID만 보내고 수치는 보내지 않음. `REPORT_NARRATION_ENABLED` 기본 true(2026-10-27 Dave 확인). 리포트에 일반 목표 비교 문구는 넣지 않는다.
 - 미결정: 저장소 공개 여부(경진대회 요건 확인 후 private 전환 검토 — 지금은 public 유지), 그래프 파서 담당 범위/진행 상황(현재는 팀원이 실제 OpenCV+OCR 구현 완료).
 
 ## 작업 방식 선호
