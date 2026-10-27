@@ -445,28 +445,43 @@ private struct DayCompleteView: View {
     @State private var milestone: Int?
 
     var body: some View {
-        VStack(spacing: Spacing.l) {
+        // v5 프로토타입: 문장 → 큰 연속 숫자(96) → 이번 주 벌집 → "오늘 칸에 꿀이 찼어요" → 글루비 → 좋아요
+        VStack(spacing: 18) {
             Spacer()
             Text(viewModel.recordOnly ? "오늘 기록을 저장했어요" : "\(dayWord) 그래프가 완성됐어요")
-                .font(.headline2)
+                .font(.pretendard(17, relativeTo: .headline, weight: .medium))
                 .foregroundStyle(Color.textSecondary)
-            StreakNumber(value: streak)
+            StreakNumber(value: streak, font: .pretendard(96, relativeTo: .largeTitle, weight: .black))
             WeekHoneycomb(states: viewModel.weekStates(fillingToday: !filled),
                           animatingIndex: todayIndex, fillProgress: fill)
-                .padding(.horizontal, Spacing.gutter)
+            Text("오늘 칸에 꿀이 찼어요")
+                .font(.caption1)
+                .foregroundStyle(Color.textSecondary)
+                .opacity(filled ? 1 : 0)
             MascotView(pose: pose, size: 140, motion: pose == .happy ? .jump : .pop)
             Spacer()
+            Button("좋아요") {
+                // 기념일이면 축하 화면, 아니면 닫는다
+                if MilestoneCelebrationView.milestones.contains(viewModel.streakAfter) {
+                    milestone = viewModel.streakAfter
+                } else {
+                    onClose()
+                }
+            }
+            .buttonStyle(.glubeePrimary)
             NavigationLink { DailyReportView(viewModel: viewModel.report) } label: { Text("하루 그래프 보기") }
-                .buttonStyle(.glubeePrimary)
-            Button("닫기", action: onClose)
-                .font(.body2).foregroundStyle(Color.textSecondary)
+                .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
+                .foregroundStyle(Color.textSecondary)
         }
         .padding(.horizontal, Spacing.gutter)
         .padding(.bottom, Spacing.s)
         .task { await play() }
         .sensoryFeedback(.success, trigger: streak)
         .fullScreenCover(item: Binding(get: { milestone.map(Milestone.init) }, set: { milestone = $0?.days })) { item in
-            MilestoneCelebrationView(days: item.days) { milestone = nil }
+            MilestoneCelebrationView(days: item.days, earnedHoneypot: item.days % DayCloseStore.daysPerHoneypot == 0) {
+                milestone = nil
+                onClose()
+            }
         }
     }
 
@@ -500,10 +515,6 @@ private struct DayCompleteView: View {
         filled = true
         withAnimation(.snappy) { streak = viewModel.streakAfter }
         pose = .happy
-        if MilestoneCelebrationView.milestones.contains(viewModel.streakAfter) {
-            try? await Task.sleep(for: .milliseconds(900))
-            milestone = viewModel.streakAfter
-        }
     }
 }
 

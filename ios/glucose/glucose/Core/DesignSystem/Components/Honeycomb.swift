@@ -159,6 +159,8 @@ struct MilestoneCelebrationView: View {
     static let milestones: Set<Int> = [3, 7, 14, 30, 50, 100]
 
     var days: Int
+    /// 이번에 꿀단지를 받았으면 "꿀단지 1개를 받았어요"
+    var earnedHoneypot = false
     var onClose: () -> Void
 
     var body: some View {
@@ -169,7 +171,13 @@ struct MilestoneCelebrationView: View {
                 Spacer()
                 MascotView(pose: .celebrate, size: 230, motion: .jump)
                 Text("\(days)").font(.pretendard(120, relativeTo: .largeTitle, weight: .black)).monospacedDigit()
-                Text("일 연속으로 하루를 완성했어요").font(.headline1)
+                Text("일 연속으로 하루를 완성했어요").font(.pretendard(22, relativeTo: .title2, weight: .bold))
+                if earnedHoneypot {
+                    Text("꿀단지 1개를 받았어요")
+                        .font(.pretendard(13, relativeTo: .footnote, weight: .semibold))
+                        .padding(.horizontal, Spacing.s).padding(.vertical, 7)
+                        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.field))
+                }
                 Spacer()
                 Button("계속하기", action: onClose).buttonStyle(.glubeePrimary)
             }

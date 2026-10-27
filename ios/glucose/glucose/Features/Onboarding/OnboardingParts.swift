@@ -2,34 +2,10 @@
 //  OnboardingParts.swift
 //  glucose
 //
-//  온보딩 부품: 한 글자씩 찍히는 글, 쓰는 법 카드.
+//  쓰는 법 카드(설정의 도움말에서 쓴다).
 //
 
 import SwiftUI
-
-/// startedAt부터 한 글자씩 보여주는 글. 다 찍히면 타이머를 멈춘다
-struct TypewriterText: View {
-    let text: String
-    let startedAt: Date
-
-    private var characters: [Character] { Array(text) }
-
-    var body: some View {
-        let total = characters.count
-        let finished = Date.now.timeIntervalSince(startedAt) >= OnboardingViewModel.typingDuration(of: text)
-        TimelineView(.animation(minimumInterval: 0.03, paused: finished)) { context in
-            let elapsed = context.date.timeIntervalSince(startedAt)
-            let count = min(total, max(0, Int(elapsed / OnboardingViewModel.characterInterval) + 1))
-            // 다 찍힌 글을 투명하게 깔아 말풍선 크기가 처음부터 고정되게 한다
-            ZStack(alignment: .topLeading) {
-                Text(text).hidden()
-                Text(String(characters.prefix(count)))
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel(text)
-    }
-}
 
 struct HowToCard: View {
     private let items: [(icon: String, title: String, detail: String)] = [

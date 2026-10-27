@@ -19,6 +19,8 @@ struct GlubeeButtonStyle: ButtonStyle {
         case secondary
         /// 회색 캡슐. 아직 끝낼 수 없는 단계의 마무리 버튼 등
         case muted
+        /// 회색 바탕 + 진한 글씨(홈의 "인슐린")
+        case soft
     }
 
     let kind: Kind
@@ -48,6 +50,7 @@ struct GlubeeButtonStyle: ButtonStyle {
         case .accent: .onBrand
         case .secondary: .textPrimary
         case .muted: .textSecondary
+        case .soft: .textPrimary
         }
     }
 
@@ -56,7 +59,7 @@ struct GlubeeButtonStyle: ButtonStyle {
         case .primary: .buttonFill
         case .accent: .brand
         case .secondary: .canvas
-        case .muted: .surfaceMuted
+        case .muted, .soft: .surfaceMuted
         }
     }
 }
@@ -66,6 +69,7 @@ extension ButtonStyle where Self == GlubeeButtonStyle {
     static var glubeeAccent: GlubeeButtonStyle { GlubeeButtonStyle(kind: .accent) }
     static var glubeeSecondary: GlubeeButtonStyle { GlubeeButtonStyle(kind: .secondary) }
     static var glubeeMuted: GlubeeButtonStyle { GlubeeButtonStyle(kind: .muted) }
+    static var glubeeSoft: GlubeeButtonStyle { GlubeeButtonStyle(kind: .soft) }
 }
 
 #Preview {

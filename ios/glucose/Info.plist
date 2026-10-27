@@ -16,7 +16,12 @@
 		<true/>
 	</dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>ko</string>
+	<!-- 한국어 앱: Sign in with Apple 버튼 같은 시스템 문구를 한국어로 -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ko</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
