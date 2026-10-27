@@ -46,8 +46,8 @@ final class OnboardingViewModel {
         var attachment: ChatMessage.Attachment? = nil
     }
 
-    /// 위젯(W3)이 생기기 전에는 위젯 안내 단계를 건너뛴다
-    static let widgetsAvailable = false
+    /// 위젯 안내 단계를 보여줄지 (W3에서 위젯이 생겨 켬)
+    static let widgetsAvailable = true
     /// 한 글자가 찍히는 간격(초)
     static let characterInterval: Double = 0.045
     /// 한 문장을 다 찍은 뒤 다음 문장으로 넘어가기 전 쉬는 시간(초)
