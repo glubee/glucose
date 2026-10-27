@@ -13,6 +13,15 @@ struct PhotoCaptureView: View {
     @State private var photosPickerItem: PhotosPickerItem?
     @State private var showRecognitionResult = false
     @Environment(\.dismiss) private var dismiss
+    /// 음식 기록 시트에서 "찍기"로 열면 카메라를 바로 띄운다
+    private let opensCamera: Bool
+
+    init(context: IntakeContext = .meal, opensCamera: Bool = false) {
+        let viewModel = PhotoCaptureViewModel()
+        viewModel.context = context
+        _viewModel = State(initialValue: viewModel)
+        self.opensCamera = opensCamera
+    }
 
     private var isCameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
@@ -79,6 +88,9 @@ struct PhotoCaptureView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
                 }
+            }
+            .onAppear {
+                if opensCamera && isCameraAvailable && viewModel.previewImage == nil { showCamera = true }
             }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { image in

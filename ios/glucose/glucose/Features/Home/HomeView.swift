@@ -10,7 +10,8 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var viewModel = HomeViewModel()
-    @State private var showPhotoCapture = false
+    @State private var showFoodSheet = false
+    @State private var photoCapture: PhotoCaptureRequest?
     @State private var showInsulin = false
     @State private var showRest = false
 
@@ -39,7 +40,12 @@ struct HomeView: View {
             }
             .refreshable { await viewModel.refresh() }
             .task { await viewModel.refresh() }
-            .sheet(isPresented: $showPhotoCapture, onDismiss: refresh) { PhotoCaptureView() }
+            .sheet(isPresented: $showFoodSheet) {
+                FoodRecordSheet { request in photoCapture = request }
+            }
+            .sheet(item: $photoCapture, onDismiss: refresh) { request in
+                PhotoCaptureView(context: request.context, opensCamera: request.opensCamera)
+            }
             .sheet(isPresented: $showInsulin, onDismiss: refresh) { InsulinConfirmView() }
             .sheet(isPresented: $showRest) {
                 RestSheet { reason, days in Task { await viewModel.startRest(reason, days: days) } }
@@ -106,7 +112,7 @@ struct HomeView: View {
             }
 
             HStack(spacing: Spacing.s) {
-                Button { showPhotoCapture = true } label: { Label("음식 찍기", systemImage: "camera.fill") }
+                Button { showFoodSheet = true } label: { Label("음식 찍기", systemImage: "camera.fill") }
                     .buttonStyle(.glubeeAccent)
                 Button { showInsulin = true } label: { Label("인슐린", systemImage: "syringe.fill") }
                     .buttonStyle(.glubeeMuted)
@@ -162,10 +168,11 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
-            MascotView(pose: .breakTime, size: 180, floats: true)
+            MascotView(pose: .breakTime, size: 150, floats: true)
             Text("천천히 와도 돼요").font(.headline1).foregroundStyle(Color.textPrimary)
             Text("쉬는 동안은 연속일이 줄지 않아요.\n알림도 보내지 않아요.")
                 .font(.body2).foregroundStyle(Color.textSecondary).multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             WeekHoneycomb(states: viewModel.weekStates)
             Spacer()
             Button("다시 시작하기") { Task { await viewModel.endRest() } }.buttonStyle(.glubeeSecondary)
@@ -175,8 +182,8 @@ struct HomeView: View {
     }
 }
 
-/// 쉬어가기: 이유와 기간
-private struct RestSheet: View {
+/// 쉬어가기: 이유와 기간(설정에서도 연다)
+struct RestSheet: View {
     let onStart: (RestPeriod.Reason, Int) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var reason: RestPeriod.Reason = .resting
