@@ -3,7 +3,7 @@
 //  glucose
 //
 //  글루비와 대화하며 첫 설정을 하는 흐름 (docs/ios-design-v4.md 0-2장).
-//  글루비 말은 왼쪽에 한 글자씩, 사용자 답은 오른쪽 말풍선으로 쌓인다.
+//  글루비는 한 번에 한 문장씩 말하고(한 글자씩 찍힘), 사용자는 아래 입력칸으로 답한다.
 //
 
 import Foundation
@@ -50,6 +50,8 @@ final class OnboardingViewModel {
     static let widgetsAvailable = false
     /// 한 글자가 찍히는 간격(초)
     static let characterInterval: Double = 0.045
+    /// 한 문장을 다 찍은 뒤 다음 문장으로 넘어가기 전 쉬는 시간(초)
+    static let readingPause: Double = 1.0
 
     private(set) var step: Step = .hello
     private(set) var messages: [ChatMessage] = []
@@ -94,6 +96,11 @@ final class OnboardingViewModel {
         return Double(index + 1) / Double(steps.count)
     }
 
+    /// 화면에 크게 보이는, 글루비가 지금 하는 말
+    var currentLine: ChatMessage? {
+        messages.last { if case .bee = $0.speaker { true } else { false } }
+    }
+
     /// 첫 인사와 로그인은 건너뛸 수 없다
     var canSkip: Bool { step != .hello && step != .signIn }
 
@@ -124,8 +131,8 @@ final class OnboardingViewModel {
             messages.append(ChatMessage(speaker: .bee(line.pose), text: line.text, attachment: line.attachment,
                                         startedAt: instant ? .distantPast : .now))
             if !instant {
-                // 다 찍힌 뒤 읽을 틈을 조금 둔다. 건너뛰기를 누르면 바로 다음 문장으로
-                let deadline = Date.now.addingTimeInterval(Self.typingDuration(of: line.text) + 0.35)
+                // 다 찍힌 뒤 읽을 틈을 둔다(다음 문장이 이 문장을 대신한다). 건너뛰기를 누르면 바로 다음 문장으로
+                let deadline = Date.now.addingTimeInterval(Self.typingDuration(of: line.text) + Self.readingPause)
                 while Date.now < deadline && !skipRequested {
                     try? await Task.sleep(for: .milliseconds(50))
                 }

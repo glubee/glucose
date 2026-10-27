@@ -2,8 +2,8 @@
 //  OnboardingView.swift
 //  glucose
 //
-//  글루비와 대화하는 첫 설정. 위는 진행 막대와 글루비(탭하면 꿈틀),
-//  가운데는 대화, 아래는 글루비가 말을 마친 뒤 올라오는 입력칸.
+//  글루비 첫 설정. 왼쪽 위에 글루비가 지금 하는 말 한 문장(한 글자씩), 가운데 큰 글루비(탭하면 꿈틀),
+//  아래는 글루비가 말을 마친 뒤 올라오는 입력칸. 디자이너 시안이 나오면 맞춰 다듬는다.
 //
 
 import SwiftUI
@@ -15,36 +15,40 @@ struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        VStack(alignment: .leading, spacing: 0) {
+            ProgressView(value: viewModel.progress)
+                .tint(Color.brand)
+                .accessibilityLabel("첫 설정 진행")
+                .padding(.top, Spacing.s)
 
-            ScrollView {
-                LazyVStack(spacing: Spacing.s) {
-                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                        ChatBubbleRow(message: message, showsAvatar: showsAvatar(at: index))
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .bottom).combined(with: .opacity),
-                                removal: .opacity))
-                    }
-                }
-                .padding(.horizontal, Spacing.gutter)
-                .padding(.vertical, Spacing.m)
-            }
-            .defaultScrollAnchor(.bottom)
-            .scrollDismissesKeyboard(.interactively)
-            // 말하는 중에 탭하면 바로 끝까지 보여준다
-            .onTapGesture { viewModel.skipTyping() }
+            line
+                .padding(.top, Spacing.xl)
+
+            Spacer(minLength: Spacing.m)
+
+            MascotView(pose: viewModel.pose, size: 220)
+                .id(viewModel.pose)
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
+                .rotationEffect(.degrees(wiggle.isMultiple(of: 2) ? 0 : 6))
+                .animation(.spring(duration: 0.25, bounce: 0.6), value: wiggle)
+                .onTapGesture { wiggle += 1 }
+                .sensoryFeedback(.impact(weight: .light), trigger: wiggle)
+                .frame(maxWidth: .infinity)
+
+            Spacer(minLength: Spacing.m)
 
             if !viewModel.isBeeTalking {
                 OnboardingInputPanel(viewModel: viewModel, authViewModel: authViewModel)
-                    .padding(.horizontal, Spacing.gutter)
-                    .padding(.top, Spacing.s)
-                    .padding(.bottom, Spacing.xs)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .padding(.horizontal, Spacing.gutter)
+        .padding(.bottom, Spacing.xs)
         .background(Color.canvas)
-        .animation(.spring(duration: 0.35), value: viewModel.messages.count)
+        // 말하는 중에 화면을 탭하면 바로 끝까지 보여준다
+        .contentShape(Rectangle())
+        .onTapGesture { viewModel.skipTyping() }
+        .animation(.spring(duration: 0.35), value: viewModel.pose)
         .animation(.spring(duration: 0.35), value: viewModel.isBeeTalking)
         .onAppear {
             viewModel.reduceMotion = reduceMotion
@@ -55,29 +59,24 @@ struct OnboardingView: View {
         }
     }
 
-    private func showsAvatar(at index: Int) -> Bool {
-        let next = index + 1
-        guard next < viewModel.messages.count else { return true }
-        return viewModel.messages[next].speaker == .user
-    }
-
-    private var header: some View {
-        VStack(spacing: Spacing.s) {
-            ProgressView(value: viewModel.progress)
-                .tint(Color.brand)
-                .accessibilityLabel("첫 설정 진행")
-                .padding(.horizontal, Spacing.gutter)
-
-            MascotView(pose: viewModel.pose, size: 88)
-                .id(viewModel.pose)
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
-                .rotationEffect(.degrees(wiggle.isMultiple(of: 2) ? 0 : 8))
-                .animation(.spring(duration: 0.25, bounce: 0.6), value: wiggle)
-                .onTapGesture { wiggle += 1 }
-                .sensoryFeedback(.impact(weight: .light), trigger: wiggle)
+    /// 글루비가 지금 하는 말. 다음 문장이 오면 이 자리를 대신한다
+    @ViewBuilder
+    private var line: some View {
+        if let message = viewModel.currentLine {
+            VStack(alignment: .leading, spacing: Spacing.m) {
+                TypewriterText(text: message.text, startedAt: message.startedAt)
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if message.attachment == .howTo {
+                    HowToCard()
+                }
+            }
+            .id(message.id)
+            .transition(.opacity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("글루비: \(message.text)")
         }
-        .padding(.top, Spacing.s)
-        .animation(.spring(duration: 0.35), value: viewModel.pose)
     }
 }
 
