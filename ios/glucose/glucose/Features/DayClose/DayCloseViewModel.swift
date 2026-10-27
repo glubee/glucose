@@ -176,6 +176,7 @@ final class DayCloseViewModel {
         dayCloseStore.markClosed(day, recordOnly: recordOnly)
         isFinished = true
         step = .done
+        WidgetSnapshot.refresh()
         // 마무리한 날의 알림은 빼고 다시 예약한다
         await DayCloseReminder.refresh()
     }

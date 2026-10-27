@@ -193,6 +193,7 @@ struct InsulinConfirmView: View {
             preferences.usualInsulins = [UsualInsulin(name: viewModel.kind.trimmingCharacters(in: .whitespaces),
                                                       units: viewModel.units)]
         }
+        WidgetSnapshot.refresh(noteRecord: true)
         onSaved()
         withAnimation(.spring(duration: 0.35)) { saved = true }
     }

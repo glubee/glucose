@@ -22,6 +22,7 @@ struct GlucoseApp: App {
             if phase == .active {
                 Task { await PendingPhotoStore.shared.uploadPending() }
                 DayCloseStore.shared.applyHoneypots()
+                WidgetSnapshot.refresh()
                 Task { await DayCloseReminder.refresh() }
             }
         }

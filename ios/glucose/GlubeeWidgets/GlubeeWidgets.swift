@@ -2,8 +2,9 @@
 //  GlubeeWidgets.swift
 //  GlubeeWidgets
 //
-//  빠른 기록 위젯. 누르면 앱이 카메라(glubee://capture) 또는 인슐린 투여 확인(glubee://insulin)으로
-//  바로 열린다(docs/ios-design-v4.md 0장 위젯 구성). 위젯은 앱을 여는 역할만 하고 서버를 부르지 않는다.
+//  빠른 기록 위젯(v5). 누르면 앱이 카메라(glubee://capture) 또는 인슐린 투여 확인(glubee://insulin)으로
+//  바로 열린다. 위젯에는 연속일과 글루비 얼굴만 있고 혈당·음식·인슐린 내용은 없다.
+//  틴트(단색) 모드에서는 색이 빠지므로 버튼을 색이 아닌 아이콘과 글자로 구분한다.
 //
 
 import SwiftUI
@@ -26,67 +27,117 @@ enum QuickAction {
         }
     }
 
+    var shortTitle: String {
+        switch self {
+        case .capture: "사진 찍기"
+        case .insulin: "인슐린"
+        }
+    }
+
     var systemImage: String {
         switch self {
-        case .capture: "camera.fill"
-        case .insulin: "syringe.fill"
+        case .capture: "camera"
+        case .insulin: "syringe"
+        }
+    }
+
+    /// v5: 사진은 노랑, 인슐린은 연보라
+    var fill: Color {
+        switch self {
+        case .capture: .widgetBrand
+        case .insulin: .widgetLavender
         }
     }
 }
 
-/// 앱 Assets의 색과 같은 값(위젯은 별도 타깃이라 직접 둔다)
+/// 앱 Assets 색과 같은 값(위젯은 별도 타깃이라 직접 둔다)
 private extension Color {
-    static let glubeeBrand = Color(red: 0xF6 / 255, green: 0xCF / 255, blue: 0x52 / 255)
-    static let glubeeOnBrand = Color(red: 0x1E / 255, green: 0x24 / 255, blue: 0x2A / 255)
+    static let widgetBrand = Color(red: 0xF6 / 255, green: 0xCF / 255, blue: 0x52 / 255)
+    static let widgetInk = Color(red: 0x1E / 255, green: 0x24 / 255, blue: 0x2A / 255)
+    static let widgetLavender = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x28 / 255, green: 0x21 / 255, blue: 0x2F / 255, alpha: 1)
+        : UIColor(red: 0xF7 / 255, green: 0xF0 / 255, blue: 0xFB / 255, alpha: 1) })
+    static let widgetText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xEF / 255, alpha: 1)
+        : UIColor(red: 0x1E / 255, green: 0x24 / 255, blue: 0x2A / 255, alpha: 1) })
+    static let widgetSub = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xA4 / 255, green: 0xAA / 255, blue: 0xB1 / 255, alpha: 1)
+        : UIColor(red: 0x5F / 255, green: 0x66 / 255, blue: 0x70 / 255, alpha: 1) })
 }
 
-// MARK: - 타임라인 (내용이 바뀌지 않는 위젯)
+// MARK: - 타임라인
 
-struct StaticEntry: TimelineEntry {
+struct GlubeeEntry: TimelineEntry {
     let date: Date
+    let snapshot: WidgetSnapshot
+
+    var face: String { WidgetMood.face(snapshot, at: date) }
 }
 
-struct StaticProvider: TimelineProvider {
-    func placeholder(in context: Context) -> StaticEntry { StaticEntry(date: .now) }
-
-    func getSnapshot(in context: Context, completion: @escaping (StaticEntry) -> Void) {
-        completion(StaticEntry(date: .now))
+struct GlubeeProvider: TimelineProvider {
+    func placeholder(in context: Context) -> GlubeeEntry {
+        GlubeeEntry(date: .now, snapshot: WidgetSnapshot(streak: 12))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<StaticEntry>) -> Void) {
-        completion(Timeline(entries: [StaticEntry(date: .now)], policy: .never))
+    func getSnapshot(in context: Context, completion: @escaping (GlubeeEntry) -> Void) {
+        completion(context.isPreview ? placeholder(in: context) : GlubeeEntry(date: .now, snapshot: .load()))
+    }
+
+    /// 얼굴은 13시, 마무리 시각, 자정에 바뀔 수 있다. 앱이 값을 바꾸면 앱이 다시 그리게 한다
+    func getTimeline(in context: Context, completion: @escaping (Timeline<GlubeeEntry>) -> Void) {
+        let now = Date.now
+        let snapshot = WidgetSnapshot.load()
+        let dates = [now] + WidgetMood.changePoints(after: now, snapshot: snapshot)
+        completion(Timeline(entries: dates.map { GlubeeEntry(date: $0, snapshot: snapshot) }, policy: .atEnd))
     }
 }
 
-// MARK: - 중간 크기: 버튼 2개
+// MARK: - 중간 크기: 얼굴 + 연속일 + 버튼 2개
 
 struct QuickActionsWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "QuickActionsWidget", provider: StaticProvider()) { _ in
-            QuickActionsView()
-                .containerBackground(.fill.tertiary, for: .widget)
+        StaticConfiguration(kind: "QuickActionsWidget", provider: GlubeeProvider()) { entry in
+            QuickActionsView(entry: entry)
+                .containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("빠른 기록")
-        .description("사진 찍기와 인슐린 기록을 한 번에 열어요.")
+        .description("연속일을 보고, 사진 찍기와 인슐린 기록을 한 번에 열어요.")
         .supportedFamilies([.systemMedium])
     }
 }
 
 struct QuickActionsView: View {
+    let entry: GlubeeEntry
+
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach([QuickAction.capture, .insulin], id: \.title) { action in
-                Link(destination: action.url) {
-                    VStack(spacing: 8) {
-                        Image(systemName: action.systemImage)
-                            .font(.title)
-                            .widgetAccentable()
-                        Text(action.title)
-                            .font(.headline)
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image("face_\(entry.face)")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("연속").font(.caption).foregroundStyle(Color.widgetSub)
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text("\(entry.snapshot.streak)").font(.title.weight(.black)).monospacedDigit()
+                        Text("일").font(.subheadline.weight(.bold))
                     }
-                    .foregroundStyle(Color.glubeeOnBrand)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.glubeeBrand, in: RoundedRectangle(cornerRadius: 16))
+                    .foregroundStyle(Color.widgetText)
+                }
+                .accessibilityElement(children: .combine)
+                Spacer()
+            }
+            HStack(spacing: 10) {
+                ForEach([QuickAction.capture, .insulin], id: \.title) { action in
+                    Link(destination: action.url) {
+                        Label(action.shortTitle, systemImage: action.systemImage)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(action == .capture ? Color.widgetInk : Color.widgetText)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(action.fill, in: RoundedRectangle(cornerRadius: 14))
+                            .widgetAccentable()
+                    }
                 }
             }
         }
@@ -109,7 +160,7 @@ struct InsulinWidget: Widget {
 
 /// small은 누를 수 있는 곳이 하나뿐이라 widgetURL로 연다
 private func singleActionConfiguration(_ action: QuickAction, kind: String, description: String) -> some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: StaticProvider()) { _ in
+    StaticConfiguration(kind: kind, provider: GlubeeProvider()) { _ in
         SingleActionView(action: action)
             .widgetURL(action.url)
     }
@@ -134,20 +185,16 @@ struct SingleActionView: View {
             .accessibilityLabel(action.title)
             .containerBackground(.clear, for: .widget)
         default:
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 8) {
                 Image(systemName: action.systemImage)
-                    .font(.largeTitle)
+                    .font(.system(size: 34, weight: .semibold))
                     .widgetAccentable()
-                Spacer()
                 Text(action.title)
                     .font(.headline)
-                Text("글루비")
-                    .font(.caption)
-                    .opacity(0.7)
             }
-            .foregroundStyle(Color.glubeeOnBrand)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .containerBackground(Color.glubeeBrand, for: .widget)
+            .foregroundStyle(action == .capture ? Color.widgetInk : Color.widgetText)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .containerBackground(action.fill, for: .widget)
         }
     }
 }
@@ -155,11 +202,11 @@ struct SingleActionView: View {
 #Preview(as: .systemMedium) {
     QuickActionsWidget()
 } timeline: {
-    StaticEntry(date: .now)
+    GlubeeEntry(date: .now, snapshot: WidgetSnapshot(streak: 12))
 }
 
 #Preview(as: .systemSmall) {
     CaptureWidget()
 } timeline: {
-    StaticEntry(date: .now)
+    GlubeeEntry(date: .now, snapshot: WidgetSnapshot())
 }
