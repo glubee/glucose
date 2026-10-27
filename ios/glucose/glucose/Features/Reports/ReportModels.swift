@@ -8,6 +8,75 @@
 
 import Foundation
 
+enum FoodAnalysisState {
+    case loading
+    case loaded(FoodObservationReport)
+    case failed
+}
+
+struct FoodObservationReport: Decodable {
+    let kind: String
+    let observations: [Observation]
+    let repeatedFoods: [RepeatedFood]
+    let limitations: [String]
+
+    struct Food: Decodable {
+        let name: String
+        let count: Int?
+        let unit: String?
+        var displayName: String {
+            guard let count, let unit, !unit.isEmpty else { return name }
+            return "\(name) \(count)\(unit)"
+        }
+    }
+    struct Reading: Decodable {
+        let time: Date
+        let value: Int
+    }
+    struct Observation: Decodable, Identifiable {
+        let intakeId: String
+        let occurredAt: Date
+        let context: IntakeContext
+        let foods: [Food]
+        let windowEndAt: Date
+        let windowMinutes: Int
+        let status: String
+        let baseline: Reading?
+        let peak: Reading?
+        let peakDelta: Int?
+        let endReading: Reading?
+        let endDelta: Int?
+        let readingsCount: Int
+        let expectedReadingsCount: Int
+        let coverageRatio: Double
+        let clippedReadingsCount: Int
+        let overlappingIntakeIds: [String]
+        let insulinEventsCount: Int
+        let comparable: Bool
+        let notes: [String]
+        let summary: String
+        var id: String { intakeId }
+        var foodNames: String { foods.isEmpty ? "음식명 없는 섭취" : foods.map(\.displayName).joined(separator: " · ") }
+    }
+    struct RepeatedFood: Decodable, Identifiable {
+        let id: String
+        let context: IntakeContext
+        let foods: [Food]
+        let recordsCount: Int
+        let comparableCount: Int
+        let comparisonDays: Int
+        let insulinAccompaniedCount: Int
+        let amountUnknown: Bool
+        let meanPeakDelta: Decimal?
+        let minPeakDelta: Int?
+        let maxPeakDelta: Int?
+        let intakeIds: [String]
+        let comparableIntakeIds: [String]
+        let summary: String
+        var foodNames: String { foods.map(\.displayName).joined(separator: " · ") }
+    }
+}
+
 struct DailyReport: Decodable {
     let date: String
     /// nil이면 그날 분석된 그래프가 없다 = 판단 불가
@@ -17,6 +86,7 @@ struct DailyReport: Decodable {
     /// 서버가 아직 이 필드를 안 보내는 버전이면 nil (마커만 안 그려진다)
     let insulinEvents: [InsulinMarker]?
     let educationCards: [EducationCard]
+    let summary: [String]?
     /// 반동 판정 기준(mg/dL, 이 값을 넘으면 반동). 서버 설정값이라 앱에 숫자를 따로 두지 않는다. 옛 서버면 nil
     let reboundGlucoseThreshold: Int?
 
@@ -26,6 +96,7 @@ struct DailyReport: Decodable {
         let min: Int?
         let max: Int?
         let readingsCount: Int
+        let sufficient: Bool?
     }
 
     struct Episode: Decodable, Identifiable {
@@ -62,11 +133,40 @@ struct WeeklyReport: Decodable {
     let weekEnd: String
     let daysWithData: Int
     let daysInsufficient: Int
-    /// 그래프가 있는 날들의 일평균을 다시 평균낸 값. 그래프가 하나도 없으면 nil
+    /// 읽힌 관측값 수로 가중한 평균. 읽힌 값이 없으면 nil
     let averageGlucose: Double?
     let episodesCount: Int
     let reboundCount: Int
     let insulinEventsCount: Int
+    let sufficientDays: Int?
+    let lowCoverageDays: Int?
+    let pendingDays: Int?
+    let summary: [String]?
+}
+
+struct ReportNarrative: Decodable {
+    let kind: String
+    let source: String
+    let paragraphs: [Paragraph]
+    let facts: [Fact]
+    let limitations: [String]
+
+    struct Paragraph: Decodable {
+        let text: String
+        let factIds: [String]
+    }
+
+    struct Fact: Decodable, Identifiable {
+        let id: String
+        let value: Decimal?
+        let unit: String
+        let label: String
+
+        var displayValue: String {
+            guard let value else { return "확인할 수 없음" }
+            return "\(NSDecimalNumber(decimal: value).stringValue) \(unit)"
+        }
+    }
 }
 
 struct GlucoseReadings: Decodable {

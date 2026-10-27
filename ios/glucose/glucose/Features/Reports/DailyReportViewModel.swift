@@ -18,6 +18,8 @@ final class DailyReportViewModel {
 
     private(set) var day: Date
     private(set) var state: State = .loading
+    private(set) var foodAnalysis: FoodAnalysisState = .loading
+    private var loadID = UUID()
 
     init(day: Date = ReportDay.today()) {
         self.day = day
@@ -39,19 +41,34 @@ final class DailyReportViewModel {
     }
 
     func load() async {
+        let activeID = UUID()
+        loadID = activeID
         let requestedDay = day
         let dayString = ReportDay.apiString(from: requestedDay)
         state = .loading
+        foodAnalysis = .loading
+        async let foodRequest = fetchFoodAnalysis(dayString: dayString)
 
         do {
             let report: DailyReport = try await APIClient.shared.send(path: "/v1/reports/daily/\(dayString)")
             let points = report.glucose == nil ? [] : await fetchPoints(dayString: dayString, day: requestedDay)
-            guard requestedDay == day else { return } // 그 사이 다른 날로 넘어갔으면 버린다
+            guard requestedDay == day, loadID == activeID else { return }
             state = .loaded(report, points)
+            let analysis = await foodRequest
+            guard requestedDay == day, loadID == activeID else { return }
+            foodAnalysis = analysis
         } catch {
-            guard requestedDay == day else { return }
+            guard requestedDay == day, loadID == activeID else { return }
             state = .failed(Self.message(for: error))
         }
+    }
+
+    private func fetchFoodAnalysis(dayString: String) async -> FoodAnalysisState {
+        do {
+            let report: FoodObservationReport = try await APIClient.shared.send(
+                path: "/v1/reports/daily/\(dayString)/food-observations")
+            return .loaded(report)
+        } catch { return .failed }
     }
 
     private func fetchPoints(dayString: String, day: Date) async -> [GlucosePoint] {

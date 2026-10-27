@@ -73,6 +73,13 @@ r2:
   presign-ttl-seconds: 600    # 10분
 
 report:
+  food-observation:
+    baseline-max-age-minutes: 15
+    minimum-repeat-records: 2
+    minimum-repeat-days: 2
+  narration:
+    enabled: ${REPORT_NARRATION_ENABLED:true}
+    timeout-ms: 10000
   sufficient-coverage-ratio: 0.7  # 이 비율 이상 읽힌 날을 "기록 충분"으로 표시. 임시 제품 기준(의학 기준 아님), 운영 분포 보고 조정
 
 # CLAUDE.md 분석 규칙(에피소드/반동 판정). AI 없는 순수 함수의 파라미터 - 숫자를 코드에 박지 않고 여기서 조정한다
