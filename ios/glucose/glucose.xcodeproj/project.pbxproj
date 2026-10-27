@@ -6,13 +6,64 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B13F48ED3090657100582C80 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B13F48EC3090657100582C80 /* WidgetKit.framework */; };
+		B13F48EF3090657100582C80 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B13F48EE3090657100582C80 /* SwiftUI.framework */; };
+		B13F49003090657200582C80 /* GlubeeWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B13F48EA3090657100582C80 /* GlubeeWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B13F48FE3090657200582C80 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B1F927113074EBCC008B72CB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B13F48E93090657100582C80;
+			remoteInfo = GlubeeWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B13F49053090657200582C80 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B13F49003090657200582C80 /* GlubeeWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0A7D6DD1BB9044308376F49A /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		AD0BBAC1F9F6443E8BE335E1 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		B13F48EA3090657100582C80 /* GlubeeWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GlubeeWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B13F48EC3090657100582C80 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		B13F48EE3090657100582C80 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		B1F927193074EBCC008B72CB /* glucose.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = glucose.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B13F49013090657200582C80 /* Exceptions for "GlubeeWidgets" folder in "GlubeeWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B13F48E93090657100582C80 /* GlubeeWidgetsExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		B13F48F03090657100582C80 /* GlubeeWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B13F49013090657200582C80 /* Exceptions for "GlubeeWidgets" folder in "GlubeeWidgetsExtension" target */,
+			);
+			path = GlubeeWidgets;
+			sourceTree = "<group>";
+		};
 		B1F9271B3074EBCC008B72CB /* glucose */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = glucose;
@@ -21,6 +72,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B13F48E73090657100582C80 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B13F48EF3090657100582C80 /* SwiftUI.framework in Frameworks */,
+				B13F48ED3090657100582C80 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1F927163074EBCC008B72CB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -40,11 +100,22 @@
 			path = Config;
 			sourceTree = "<group>";
 		};
+		B13F48EB3090657100582C80 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B13F48EC3090657100582C80 /* WidgetKit.framework */,
+				B13F48EE3090657100582C80 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		B1F927103074EBCC008B72CB = {
 			isa = PBXGroup;
 			children = (
 				1A466DFD3A084B04B710753D /* Config */,
 				B1F9271B3074EBCC008B72CB /* glucose */,
+				B13F48F03090657100582C80 /* GlubeeWidgets */,
+				B13F48EB3090657100582C80 /* Frameworks */,
 				B1F9271A3074EBCC008B72CB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -53,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				B1F927193074EBCC008B72CB /* glucose.app */,
+				B13F48EA3090657100582C80 /* GlubeeWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -60,6 +132,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		B13F48E93090657100582C80 /* GlubeeWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B13F49023090657200582C80 /* Build configuration list for PBXNativeTarget "GlubeeWidgetsExtension" */;
+			buildPhases = (
+				B13F48E63090657100582C80 /* Sources */,
+				B13F48E73090657100582C80 /* Frameworks */,
+				B13F48E83090657100582C80 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B13F48F03090657100582C80 /* GlubeeWidgets */,
+			);
+			name = GlubeeWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = GlubeeWidgetsExtension;
+			productReference = B13F48EA3090657100582C80 /* GlubeeWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B1F927183074EBCC008B72CB /* glucose */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B1F927243074EBCD008B72CB /* Build configuration list for PBXNativeTarget "glucose" */;
@@ -67,10 +161,12 @@
 				B1F927153074EBCC008B72CB /* Sources */,
 				B1F927163074EBCC008B72CB /* Frameworks */,
 				B1F927173074EBCC008B72CB /* Resources */,
+				B13F49053090657200582C80 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B13F48FF3090657200582C80 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B1F9271B3074EBCC008B72CB /* glucose */,
@@ -92,6 +188,9 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					B13F48E93090657100582C80 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					B1F927183074EBCC008B72CB = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -112,11 +211,19 @@
 			projectRoot = "";
 			targets = (
 				B1F927183074EBCC008B72CB /* glucose */,
+				B13F48E93090657100582C80 /* GlubeeWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		B13F48E83090657100582C80 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1F927173074EBCC008B72CB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -127,6 +234,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B13F48E63090657100582C80 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1F927153074EBCC008B72CB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -136,7 +250,77 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		B13F48FF3090657200582C80 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B13F48E93090657100582C80 /* GlubeeWidgetsExtension */;
+			targetProxy = B13F48FE3090657200582C80 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		B13F49033090657200582C80 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MYCFDSZ48B;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GlubeeWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GlubeeWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glubee.glubee.GlubeeWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B13F49043090657200582C80 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MYCFDSZ48B;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GlubeeWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GlubeeWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glubee.glubee.GlubeeWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		B1F927223074EBCD008B72CB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -329,6 +513,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		B13F49023090657200582C80 /* Build configuration list for PBXNativeTarget "GlubeeWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B13F49033090657200582C80 /* Debug */,
+				B13F49043090657200582C80 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B1F927143074EBCC008B72CB /* Build configuration list for PBXProject "glucose" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
