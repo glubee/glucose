@@ -34,6 +34,13 @@ struct GlucoseApp: App {
         // 실행 인자 -designCatalog 로 켜면 디자인 카탈로그를 바로 띄운다(시뮬레이터 확인용)
         if ProcessInfo.processInfo.arguments.contains("-designCatalog") {
             DesignCatalogView()
+        } else if ProcessInfo.processInfo.arguments.contains("-tabs") {
+            // 로그인 없이 탭 화면 보기
+            RootTabView()
+        } else if ProcessInfo.processInfo.arguments.contains("-settings") {
+            SettingsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-review") {
+            ReviewView()
         } else if ProcessInfo.processInfo.arguments.contains("-home") {
             // 로그인 없이 홈만 보기. -homeSeed: 최근 6일 완성 + 꿀단지, -homeRest: 쉬어가는 중
             HomeView()

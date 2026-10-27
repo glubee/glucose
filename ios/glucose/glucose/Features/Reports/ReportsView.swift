@@ -16,6 +16,8 @@ struct ReportsView: View {
     @State private var mode: Mode = .daily
     @State private var dailyViewModel = DailyReportViewModel()
     @State private var weeklyViewModel = WeeklyReportViewModel()
+    /// 기록 탭이 없어져서(v5 탭: 홈·리포트·리뷰·설정) 지난 기록 목록은 여기서 연다
+    @State private var showRecords = false
 
     var body: some View {
         NavigationStack {
@@ -28,7 +30,11 @@ struct ReportsView: View {
                 }
             }
             .navigationTitle("리포트")
+            .sheet(isPresented: $showRecords) { RecordsView() }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("전체 기록") { showRecords = true }
+                }
                 ToolbarItem(placement: .principal) {
                     Picker("보기", selection: $mode) {
                         ForEach(Mode.allCases, id: \.self) { mode in
