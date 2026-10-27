@@ -184,19 +184,11 @@ final class DayCloseViewModel {
 
     /// 이번 주(월~일) 벌집 상태. 마무리하는 날은 연출 전까지 .today
     func weekStates(fillingToday: Bool) -> [HoneyCellState] {
-        let calendar = ReportDay.calendar
-        let weekday = calendar.component(.weekday, from: day) // 1=일 … 7=토
-        let mondayOffset = (weekday + 5) % 7
-        guard let monday = calendar.date(byAdding: .day, value: -mondayOffset, to: calendar.startOfDay(for: day)) else {
-            return Array(repeating: .empty, count: 7)
+        var states = dayCloseStore.weekStates(containing: day, today: day)
+        if fillingToday {
+            let index = (ReportDay.calendar.component(.weekday, from: day) + 5) % 7
+            states[index] = .today
         }
-        return (0..<7).map { offset in
-            guard let date = calendar.date(byAdding: .day, value: offset, to: monday) else { return .empty }
-            if calendar.isDate(date, inSameDayAs: day) && fillingToday { return .today }
-            let key = ReportDay.apiString(from: date)
-            if dayCloseStore.recordOnlyDays.contains(key) { return .recordOnly }
-            if dayCloseStore.closedDays.contains(key) { return .done }
-            return .empty
-        }
+        return states
     }
 }

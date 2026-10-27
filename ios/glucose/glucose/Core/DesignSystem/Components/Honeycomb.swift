@@ -122,7 +122,9 @@ struct WeekHoneycomb: View {
         HStack {
             ForEach(0..<7, id: \.self) { index in
                 VStack(spacing: Spacing.xxs) {
-                    HoneyCell(state: states[index], fillProgress: index == animatingIndex ? fillProgress : 1)
+                    // 연출 중이 아닌 "오늘" 칸은 비어 있다(테두리만)
+                    HoneyCell(state: states[index],
+                              fillProgress: index == animatingIndex ? fillProgress : (states[index] == .today ? 0 : 1))
                     Text(days[index]).font(.sectionLabel).foregroundStyle(Color.textSecondary)
                 }
                 .frame(maxWidth: .infinity)

@@ -36,7 +36,7 @@ enum DayCloseReminder {
 
         for offset in 0..<daysAhead {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today),
-                  !store.isClosed(day),
+                  !store.isClosed(day), !store.isRest(day),
                   let fireDate = calendar.date(bySettingHour: time.hour ?? 21, minute: time.minute ?? 0,
                                                second: 0, of: day),
                   fireDate > now else { continue }
