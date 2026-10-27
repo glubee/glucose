@@ -106,6 +106,7 @@ final class RecognitionResultViewModel {
             )
             let _: IntakeResponse = try await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
             state = .saved
+            await MainActor.run { WidgetSnapshot.refresh(noteRecord: true) }
             return true
         } catch {
             saveErrorMessage = "저장에 실패했습니다. 다시 시도해주세요."

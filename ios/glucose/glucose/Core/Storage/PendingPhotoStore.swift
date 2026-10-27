@@ -59,6 +59,7 @@ final class PendingPhotoStore {
         }
         photos.append(photo)
         save()
+        WidgetSnapshot.refresh(noteRecord: true)
         Task { await uploadPending() }
         return photo
     }
