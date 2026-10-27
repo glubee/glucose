@@ -183,7 +183,7 @@ final class OnboardingViewModel {
             [BeeLine(pose: .cheer, text: "기록할 때를 알림으로 챙겨드릴까요?"),
              BeeLine(pose: .cheer, text: "하루 두 번까지만, 밤에는 조용히 있을게요.")]
         case .widget:
-            [BeeLine(pose: .point, text: "홈 화면에 저를 붙여두면 한 번에 기록돼요.")]
+            [BeeLine(pose: .pointLeft, text: "홈 화면에 저를 붙여두면 한 번에 기록돼요.")]
         case .signIn:
             [BeeLine(pose: .honeypot, text: "마지막이에요. 기록을 안전하게 보관할게요.")]
         }
