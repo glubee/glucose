@@ -81,6 +81,13 @@ final class PendingPhotoStore {
         save()
     }
 
+    /// 계정을 지웠을 때: 대기 사진과 파일을 모두 지운다
+    func removeAll() {
+        for photo in photos { try? FileManager.default.removeItem(at: imageURL(for: photo)) }
+        photos.removeAll()
+        save()
+    }
+
     /// 아직 안 올라간 사진을 차례로 올린다. 앱이 다시 열릴 때도 부른다.
     /// 앱이 백그라운드로 가도 끝낼 수 있게 시간을 요청한다
     func uploadPending() async {

@@ -68,6 +68,11 @@ final class UserPreferences {
         set { stored.onboardingCompleted = newValue }
     }
 
+    /// 계정을 지웠을 때: 처음 설치한 상태로(온보딩부터 다시)
+    func reset() {
+        stored = Stored()
+    }
+
     private func save() {
         guard let data = try? JSONEncoder().encode(stored) else { return }
         defaults.set(data, forKey: key)

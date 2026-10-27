@@ -23,6 +23,7 @@ final class SettingsViewModel {
         do {
             try await APIClient.shared.sendVoid(path: "/v1/me", method: .delete)
             AuthSession.shared.signOut()
+            await LocalDataEraser.eraseAll()
             return true
         } catch {
             errorMessage = "계정 삭제에 실패했습니다. 다시 시도해주세요."
