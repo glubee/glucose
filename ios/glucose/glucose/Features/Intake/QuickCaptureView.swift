@@ -13,12 +13,11 @@ struct QuickCaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var captured: UIImage?
     @State private var pendingId: UUID?
-    @State private var context: IntakeContext = .meal
+    /// 빠른 촬영은 식사로 저장하고, 상황은 하루 마무리의 음식 확인에서 고친다
+    private let context: IntakeContext = .meal
     @State private var failed = false
-    /// 상황 칩을 만지면 자동으로 닫지 않는다
-    @State private var userInteracted = false
 
-    private static let autoCloseSeconds: Double = 3
+    private static let autoCloseSeconds: Double = 1.8
 
     private var sourceType: UIImagePickerController.SourceType {
         UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
@@ -45,51 +44,33 @@ struct QuickCaptureView: View {
 
     @ViewBuilder
     private func done(_ image: UIImage) -> some View {
-        VStack(spacing: Spacing.l) {
+        // v5 프로토타입: 사진 + 카메라 든 글루비 + 한 줄 + 작은 닫기. 1.8초 뒤 저절로 닫힌다
+        VStack(spacing: Spacing.m) {
             Spacer()
-
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 200, height: 200)
+                .frame(width: 180, height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.sheet))
                 .accessibilityHidden(true)
-
-            if failed {
-                BeeSpeech(pose: .sulky, text: "사진을 저장하지 못했어요. 다시 찍어주세요.")
-            } else {
-                BeeSpeech(pose: .thumbsup, text: "찰칵! 밤에 같이 확인해요.")
-                    .sensoryFeedback(.success, trigger: pendingId)
-
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("어떤 상황이었어요? (선택)")
-                        .font(.caption1)
-                        .foregroundStyle(Color.textSecondary)
-                    ChipPicker(
-                        options: IntakeContext.allCases.map { ($0, $0.displayName) },
-                        selection: Binding(
-                            get: { context },
-                            set: { newValue in
-                                userInteracted = true
-                                context = newValue
-                                if let pendingId { PendingPhotoStore.shared.setContext(newValue, for: pendingId) }
-                            }
-                        )
-                    )
-                }
-            }
-
+            MascotView(pose: failed ? .sulky : .camera, size: 120, motion: .pop)
+            Text(failed ? "사진을 저장하지 못했어요.\n다시 찍어주세요." : "찰칵! 밤에 같이 확인해요")
+                .font(.pretendard(22, relativeTo: .title2, weight: .bold))
+                .foregroundStyle(Color.textPrimary)
+                .multilineTextAlignment(.center)
+            Button("닫기") { dismiss() }
+                .buttonStyle(.glubeeSoft)
+                .frame(width: 120)
             Spacer()
-
-            Button("닫기") { dismiss() }.buttonStyle(.glubeePrimary)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.gutter)
-        .padding(.bottom, Spacing.s)
         .background(Color.canvas)
+        .sensoryFeedback(.success, trigger: pendingId)
         .task {
             guard !failed else { return }
             try? await Task.sleep(for: .seconds(Self.autoCloseSeconds))
-            if !userInteracted { dismiss() }
+            dismiss()
         }
     }
 }

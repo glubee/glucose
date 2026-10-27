@@ -41,12 +41,81 @@ struct InsulinConfirmView: View {
         return selected.name == viewModel.kind && selected.units == viewModel.units && selected.units != nil
     }
 
+    /// 평소 값이 채워져 있으면 v5 프로토타입처럼 작은 확인 카드로 보여주고, 카드를 누르면 고치는 화면
+    @State private var editing = false
+
     var body: some View {
         if saved {
             savedView
+        } else if isPrefilled && !editing {
+            compact
         } else {
             form
         }
+    }
+
+    // MARK: - 확인 카드
+
+    private var compact: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("지금 맞을 인슐린")
+                .font(.pretendard(15, relativeTo: .subheadline, weight: .semibold))
+                .foregroundStyle(Color.textSecondary)
+
+            if usualInsulins.count > 1 {
+                ChipPicker(options: usualInsulins.map { ($0.id, $0.name) },
+                           selection: Binding(get: { selectedInsulinId ?? usualInsulins[0].id }, set: select))
+            }
+
+            Button { withAnimation(.spring(duration: 0.3)) { editing = true } } label: {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(viewModel.kind)
+                        .font(.pretendard(20, relativeTo: .title3, weight: .bold))
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(unitsText)
+                            .font(.pretendard(44, relativeTo: .largeTitle, weight: .heavy))
+                            .monospacedDigit()
+                        Text("단위").font(.pretendard(17, relativeTo: .headline, weight: .bold))
+                    }
+                    Text("지금 · \(viewModel.occurredAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.pretendard(15, relativeTo: .subheadline, weight: .semibold))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .foregroundStyle(Color.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Spacing.l)
+                .background(Color.insulinSoft, in: RoundedRectangle(cornerRadius: 20))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(viewModel.kind) \(unitsText)단위, 지금. 눌러서 고치기")
+
+            Text("내가 입력한 평소 값이에요. 다르면 눌러서 고쳐주세요.")
+                .font(.caption1)
+                .foregroundStyle(Color.textSecondary)
+
+            if let message = viewModel.errorMessage {
+                Text(message).font(.caption1).foregroundStyle(Color.alert)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                Task { await save() }
+            } label: {
+                if viewModel.isSaving { ProgressView().tint(Color.onButton) } else { Text("투여 확인") }
+            }
+            .buttonStyle(.glubeePrimary)
+            .disabled(viewModel.isSaving)
+            Button("닫기") { dismiss() }
+                .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: Metrics.minTapTarget)
+        }
+        .padding(.horizontal, Spacing.l)
+        .padding(.top, Spacing.l)
+        .padding(.bottom, Spacing.xs)
+        .background(Color.canvas)
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - 입력
@@ -160,12 +229,15 @@ struct InsulinConfirmView: View {
     // MARK: - 저장 후
 
     private var savedView: some View {
-        VStack(spacing: Spacing.m) {
+        VStack(spacing: Spacing.s) {
             Spacer()
-            MascotView(pose: .thumbsup, size: 160)
-            Text("기록했어요.")
-                .font(.headline1)
+            MascotView(pose: .thumbsup, size: 160, motion: .jump)
+            Text("기록했어요")
+                .font(.pretendard(24, relativeTo: .title, weight: .bold))
                 .foregroundStyle(Color.textPrimary)
+            Text("잠시 뒤 자동으로 닫혀요")
+                .font(.body2)
+                .foregroundStyle(Color.textSecondary)
             Spacer()
         }
         .frame(maxWidth: .infinity)

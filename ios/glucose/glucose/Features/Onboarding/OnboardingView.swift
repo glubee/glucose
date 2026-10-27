@@ -2,80 +2,132 @@
 //  OnboardingView.swift
 //  glucose
 //
-//  글루비 첫 설정. 왼쪽 위에 글루비가 지금 하는 말 한 문장(한 글자씩), 가운데 큰 글루비(탭하면 꿈틀),
-//  아래는 글루비가 말을 마친 뒤 올라오는 입력칸. 디자이너 시안이 나오면 맞춰 다듬는다.
+//  첫 설정(디자이너 v5 프로토타입): 위 8칸 진행 막대 → 왼쪽 위 큰 문장(한 글자씩, 노란 커서) →
+//  해·풀밭·꽃 장면 위의 큰 글루비 → 말을 마치면 아래에서 둥근 입력칸이 올라온다.
 //
 
+import AuthenticationServices
 import SwiftUI
 
 struct OnboardingView: View {
     @State private var viewModel = OnboardingViewModel()
     @State private var authViewModel = AuthViewModel()
-    @State private var wiggle = 0
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ProgressView(value: viewModel.progress)
-                .tint(Color.brand)
-                .accessibilityLabel("첫 설정 진행")
-                .padding(.top, Spacing.s)
+        VStack(spacing: 0) {
+            progress
+                .padding(.horizontal, Spacing.l)
+                .padding(.top, Spacing.xs)
 
-            line
-                .padding(.top, Spacing.xl)
+            TypingText(text: viewModel.line, showsCaret: true, caretHeight: 26) {
+                viewModel.lineFinished()
+            }
+            .font(.pretendard(30, relativeTo: .largeTitle, weight: .bold))
+            .tracking(-1.1)
+            .lineSpacing(4)
+            .foregroundStyle(Color.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+            .padding(.horizontal, Spacing.l)
+            .padding(.top, Spacing.l)
+            .accessibilityAddTraits(.isHeader)
 
-            Spacer(minLength: Spacing.m)
+            MeadowScene {
+                GeometryReader { geometry in
+                    MascotView(pose: viewModel.pose, size: min(236, geometry.size.height - 8),
+                               motion: viewModel.motion, floats: true)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+            }
+            .frame(maxHeight: .infinity)
 
-            MascotView(pose: viewModel.pose, size: 220)
-                .id(viewModel.pose)
-                .transition(.scale(scale: 0.85).combined(with: .opacity))
-                .rotationEffect(.degrees(wiggle.isMultiple(of: 2) ? 0 : 6))
-                .animation(.spring(duration: 0.25, bounce: 0.6), value: wiggle)
-                .onTapGesture { wiggle += 1 }
-                .sensoryFeedback(.impact(weight: .light), trigger: wiggle)
-                .frame(maxWidth: .infinity)
-
-            Spacer(minLength: Spacing.m)
-
-            if !viewModel.isBeeTalking {
-                OnboardingInputPanel(viewModel: viewModel, authViewModel: authViewModel)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if viewModel.isPanelUp {
+                panel
+                    .transition(.move(edge: .bottom))
             }
         }
-        .padding(.horizontal, Spacing.gutter)
-        .padding(.bottom, Spacing.xs)
         .background(Color.canvas)
-        // 말하는 중에 화면을 탭하면 바로 끝까지 보여준다
-        .contentShape(Rectangle())
-        .onTapGesture { viewModel.skipTyping() }
-        .animation(.spring(duration: 0.35), value: viewModel.pose)
-        .animation(.spring(duration: 0.35), value: viewModel.isBeeTalking)
-        .onAppear {
-            viewModel.reduceMotion = reduceMotion
-            viewModel.start()
-        }
+        .animation(reduceMotion ? nil : .spring(duration: 0.5, bounce: 0.12), value: viewModel.isPanelUp)
         .onChange(of: AuthSession.shared.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated && viewModel.step == .signIn { viewModel.finish() }
         }
     }
 
-    /// 글루비가 지금 하는 말. 다음 문장이 오면 이 자리를 대신한다
-    @ViewBuilder
-    private var line: some View {
-        if let message = viewModel.currentLine {
-            VStack(alignment: .leading, spacing: Spacing.m) {
-                TypewriterText(text: message.text, startedAt: message.startedAt)
-                    .font(.system(.title, design: .rounded, weight: .bold))
-                    .foregroundStyle(Color.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if message.attachment == .howTo {
-                    HowToCard()
+    // MARK: - 진행 막대
+
+    private var progress: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<viewModel.stepCount, id: \.self) { index in
+                Capsule()
+                    .fill(index <= viewModel.progressIndex ? Color.textPrimary : Color.line)
+                    .frame(height: 4)
+            }
+        }
+        .animation(.easeOut(duration: 0.45), value: viewModel.progressIndex)
+        .accessibilityElement()
+        .accessibilityLabel("\(viewModel.stepCount)단계 중 \(viewModel.progressIndex + 1)단계")
+    }
+
+    // MARK: - 아래 입력칸
+
+    private var panel: some View {
+        VStack(spacing: Spacing.s) {
+            OnboardingStepContent(viewModel: viewModel)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 6) {
+                if viewModel.step == .signIn {
+                    signInButton
+                } else {
+                    Button(viewModel.primaryTitle) { Task { await viewModel.primary() } }
+                        .buttonStyle(.glubeePrimary)
+                        .disabled(viewModel.isReacting)
+                }
+                if viewModel.showsLater {
+                    Button("나중에 할게요") { Task { await viewModel.later() } }
+                        .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(minHeight: Metrics.minTapTarget)
+                        .disabled(viewModel.isReacting)
+                } else {
+                    Text("기록은 내 계정에만 보관돼요.")
+                        .font(.caption1)
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(minHeight: Metrics.minTapTarget)
                 }
             }
-            .id(message.id)
-            .transition(.opacity)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("글루비: \(message.text)")
+        }
+        .padding(.horizontal, Spacing.l)
+        .padding(.top, Spacing.gutter)
+        .padding(.bottom, Spacing.xs)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                .fill(Color.canvas)
+                .shadow(color: Color.black.opacity(0.06), radius: 15, y: -12)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    @ViewBuilder
+    private var signInButton: some View {
+        if AuthSession.shared.isAuthenticated {
+            // 이미 로그인한 채로 업데이트한 사용자
+            Button("시작하기") { viewModel.finish() }.buttonStyle(.glubeePrimary)
+        } else {
+            SignInWithAppleButton(.signIn) { request in
+                request.nonce = authViewModel.currentNonce
+            } onCompletion: { result in
+                authViewModel.handle(result)
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: Metrics.buttonHeight)
+            .clipShape(Capsule())
+            .disabled(authViewModel.isLoading)
+            .overlay { if authViewModel.isLoading { ProgressView() } }
+            if let message = authViewModel.errorMessage {
+                Text(message).font(.caption1).foregroundStyle(Color.alert)
+            }
         }
     }
 }
