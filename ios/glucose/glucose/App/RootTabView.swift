@@ -27,7 +27,7 @@ struct RootTabView: View {
             QuickCaptureView()
         }
         .sheet(isPresented: $router.showsInsulinRecord) {
-            InsulinRecordFormView(onSaved: {})
+            InsulinConfirmView()
         }
         .task {
             // 로그인 직후에도 대기 중인 사진을 올린다

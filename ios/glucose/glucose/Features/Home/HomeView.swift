@@ -55,7 +55,7 @@ struct HomeView: View {
                 PhotoCaptureView()
             }
             .sheet(isPresented: $showInsulinForm) {
-                InsulinRecordFormView(onSaved: {})
+                InsulinConfirmView()
             }
             .sheet(isPresented: $showGraphUpload) {
                 GraphUploadView()
