@@ -110,26 +110,6 @@ struct OnboardingInsulinStep: View {
     }
 }
 
-struct OnboardingToneStep: View {
-    @Bindable var viewModel: OnboardingViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            HStack(spacing: Spacing.xs) {
-                ForEach(NagTone.allCases, id: \.self) { tone in
-                    Chip(title: tone.title, isSelected: viewModel.tone == tone) {
-                        viewModel.tone = tone
-                    }
-                }
-            }
-            .sensoryFeedback(.selection, trigger: viewModel.tone)
-            Text("기록을 안 했을 때 글루비가 말하는 방식이에요. 혈당 수치에는 반응하지 않아요.")
-                .font(.caption1)
-                .foregroundStyle(Color.textSecondary)
-        }
-    }
-}
-
 struct OnboardingWidgetStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {

@@ -113,8 +113,6 @@ struct OnboardingView: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
-        case .tone:
-            OnboardingToneStep(viewModel: viewModel)
         case .notifications:
             Text("하루 최대 2번, 밤 11시부터 아침 8시까지는 보내지 않아요. 알림에는 혈당이나 음식 내용을 쓰지 않아요.")
                 .font(.body2)
@@ -153,8 +151,6 @@ struct OnboardingView: View {
                 .disabled(viewModel.insulins.isEmpty)
         case .dayClose:
             Button("이 시간으로") { viewModel.next() }.buttonStyle(.glubeePrimary)
-        case .tone:
-            Button("이 말투로") { viewModel.next() }.buttonStyle(.glubeePrimary)
         case .notifications:
             if viewModel.notificationChoice == .undecided {
                 Button("알림 받기") { Task { await viewModel.requestNotifications() } }

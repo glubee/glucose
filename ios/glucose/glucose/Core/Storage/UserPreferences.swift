@@ -16,19 +16,6 @@ struct UsualInsulin: Codable, Identifiable, Hashable {
     var units: Double?
 }
 
-/// 글루비 말투. 매운 맛만 "화남" 문구를 쓴다
-enum NagTone: String, Codable, CaseIterable {
-    case gentle, normal, spicy
-
-    var title: String {
-        switch self {
-        case .gentle: "순한 맛"
-        case .normal: "보통"
-        case .spicy: "매운 맛"
-        }
-    }
-}
-
 @Observable
 final class UserPreferences {
 
@@ -39,7 +26,6 @@ final class UserPreferences {
         var usualInsulins: [UsualInsulin] = []
         var dayCloseHour = 21
         var dayCloseMinute = 0
-        var nagTone: NagTone = .normal
         var onboardingCompleted = false
     }
 
@@ -75,11 +61,6 @@ final class UserPreferences {
             stored.dayCloseHour = newValue.hour ?? 21
             stored.dayCloseMinute = newValue.minute ?? 0
         }
-    }
-
-    var nagTone: NagTone {
-        get { stored.nagTone }
-        set { stored.nagTone = newValue }
     }
 
     var onboardingCompleted: Bool {
