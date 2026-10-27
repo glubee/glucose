@@ -23,7 +23,7 @@ struct GlucoseApp: App {
                 Task { await PendingPhotoStore.shared.uploadPending() }
                 DayCloseStore.shared.applyHoneypots()
                 WidgetSnapshot.refresh()
-                Task { await DayCloseReminder.refresh() }
+                Task { await NudgeScheduler.refresh() }
             }
         }
     }
@@ -49,6 +49,7 @@ struct GlucoseApp: App {
                         }
                     }
                     if arguments.contains("-homeRest") { store.startRest(.noSensor, days: 3) }
+                    if arguments.contains("-printNudges") { NudgeScheduler.debugPrintPlan() }
                 }
         } else if ProcessInfo.processInfo.arguments.contains("-dayClose") {
             // 로그인 없이 하루 마무리 화면만 보기(확인 대기 사진 1장 예시, 업로드는 로그인 전이라 안 됨)
