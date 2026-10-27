@@ -19,6 +19,33 @@ struct DesignCatalogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.l) {
+                section("버튼") {
+                    Button("기록 저장") {}.buttonStyle(.glubeePrimary)
+                    Button("아니에요") {}.buttonStyle(.glubeeSecondary)
+                    Button("오늘 정리 마치기") {}.buttonStyle(.glubeeMuted)
+                }
+
+                section("칩") {
+                    ChipSamples()
+                }
+
+                section("카드·머리말") {
+                    SheetHeader(title: "음식 기록", subtitle: "지난 식사도 기록할 수 있어요.", onClose: {})
+                    SectionHeader(title: "최근 기록한 음식", subtitle: "음식을 선택해 양을 확인하세요.", trailing: "3개")
+                    Text("식사 전체 · 2가지 음식").card(.brand)
+                    Text("인슐린 투여 · 2U").card(.insulin)
+                }
+
+                section("글루비 말풍선") {
+                    BeeSpeech(pose: .curious, text: "점심엔 뭘 드셨어요?")
+                    BeeSpeech(pose: .think, text: "사과랑 우유로 보이는데, 맞나요?", tone: .brand)
+                }
+
+                section("상태") {
+                    StateView(kind: .empty, title: "음식을 찾지 못했어요.", actionTitle: "음식 직접 등록", action: {})
+                        .card()
+                }
+
                 section("색") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 96))], spacing: Spacing.s) {
                         ForEach(colors, id: \.0) { name, color in
@@ -42,14 +69,6 @@ struct DesignCatalogView: View {
                     Text("범위 70–180 mg/dL").font(.caption1)
                 }
                 .foregroundStyle(Color.textPrimary)
-
-                section("주 버튼") {
-                    Text("기록 저장")
-                        .font(.headline2)
-                        .foregroundStyle(Color.onBrand)
-                        .frame(maxWidth: .infinity, minHeight: Metrics.buttonHeight)
-                        .background(Color.brand, in: Capsule())
-                }
 
                 section("글루비") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: Spacing.s) {
