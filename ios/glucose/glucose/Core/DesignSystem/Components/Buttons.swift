@@ -2,7 +2,8 @@
 //  Buttons.swift
 //  glucose
 //
-//  v4 버튼 3종. 주 버튼은 노랑 배경 + 어두운 글자(흰 글자는 대비 부족).
+//  v5 버튼. 기본 버튼은 라이트에서 어두운 바탕, 다크에서 밝은 바탕으로 뒤집힌다.
+//  노랑(accent)은 화면당 한 곳에만(예: 홈의 "음식 찍기").
 //  사용: Button("기록 저장") { … }.buttonStyle(.glubeePrimary)
 //
 
@@ -10,8 +11,10 @@ import SwiftUI
 
 struct GlubeeButtonStyle: ButtonStyle {
     enum Kind {
-        /// 노랑 캡슐. 화면당 하나
+        /// 어두운 캡슐(다크 모드에선 밝은 캡슐). 기본 동작
         case primary
+        /// 노랑 캡슐. 화면당 한 곳만
+        case accent
         /// 테두리 캡슐. "아니에요", "취소"
         case secondary
         /// 회색 캡슐. 아직 끝낼 수 없는 단계의 마무리 버튼 등
@@ -41,7 +44,8 @@ struct GlubeeButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary: .onBrand
+        case .primary: .onButton
+        case .accent: .onBrand
         case .secondary: .textPrimary
         case .muted: .textSecondary
         }
@@ -49,7 +53,8 @@ struct GlubeeButtonStyle: ButtonStyle {
 
     private var background: Color {
         switch kind {
-        case .primary: .brand
+        case .primary: .buttonFill
+        case .accent: .brand
         case .secondary: .canvas
         case .muted: .surfaceMuted
         }
@@ -58,6 +63,7 @@ struct GlubeeButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == GlubeeButtonStyle {
     static var glubeePrimary: GlubeeButtonStyle { GlubeeButtonStyle(kind: .primary) }
+    static var glubeeAccent: GlubeeButtonStyle { GlubeeButtonStyle(kind: .accent) }
     static var glubeeSecondary: GlubeeButtonStyle { GlubeeButtonStyle(kind: .secondary) }
     static var glubeeMuted: GlubeeButtonStyle { GlubeeButtonStyle(kind: .muted) }
 }
@@ -65,6 +71,7 @@ extension ButtonStyle where Self == GlubeeButtonStyle {
 #Preview {
     VStack(spacing: Spacing.s) {
         Button("기록 저장") {}.buttonStyle(.glubeePrimary)
+        Button("음식 찍기") {}.buttonStyle(.glubeeAccent)
         Button("아니에요") {}.buttonStyle(.glubeeSecondary)
         Button("오늘 정리 마치기") {}.buttonStyle(.glubeeMuted)
         Button("기록 저장") {}.buttonStyle(.glubeePrimary).disabled(true)
