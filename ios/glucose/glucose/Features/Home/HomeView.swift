@@ -8,7 +8,6 @@ import SwiftUI
 struct HomeView: View {
     @State private var showPhotoCapture = false
     @State private var showInsulinForm = false
-    @State private var showGraphUpload = false
 
     var body: some View {
         NavigationStack {
@@ -38,9 +37,10 @@ struct HomeView: View {
                 .padding(.horizontal)
 
                 Button {
-                    showGraphUpload = true
+                    // 리브레 그래프 올리기는 하루 마무리 안에 있다
+                    DeepLinkRouter.shared.handle(URL(string: "glubee://day-close")!)
                 } label: {
-                    Label("혈당 그래프 올리기", systemImage: "chart.xyaxis.line")
+                    Label("하루 마무리", systemImage: "moon.stars")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -56,9 +56,6 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showInsulinForm) {
                 InsulinConfirmView()
-            }
-            .sheet(isPresented: $showGraphUpload) {
-                GraphUploadView()
             }
         }
     }

@@ -10,7 +10,7 @@
 import Foundation
 import UIKit
 
-struct PendingPhoto: Codable, Identifiable, Equatable {
+struct PendingPhoto: Codable, Identifiable, Hashable {
     let id: UUID
     /// 기록 시각은 업로드 시각이 아니라 촬영 시각
     let capturedAt: Date
