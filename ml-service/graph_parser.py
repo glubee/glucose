@@ -1,7 +1,7 @@
 import os
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import date
 
 import cv2
@@ -11,7 +11,7 @@ import pytesseract
 from models import GraphGap, GraphParseMeta, GraphReading
 
 
-PARSER_VERSION = "1.1.3"
+PARSER_VERSION = "1.1.4"
 READING_COUNT = 96
 
 
@@ -71,28 +71,61 @@ class LibreDailyGraphParser:
             ),
         }
 
-    @staticmethod
-    def _read_date_text(image: np.ndarray) -> str:
+    @classmethod
+    def _read_date_text(cls, image: np.ndarray) -> str:
         configured_command = os.getenv("TESSERACT_CMD")
         if configured_command:
             pytesseract.pytesseract.tesseract_cmd = configured_command
 
-        header = image[: max(1, int(image.shape[0] * 0.35)), :]
-        gray = cv2.cvtColor(header, cv2.COLOR_BGR2GRAY)
-        gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-        binary = cv2.threshold(
-            gray,
-            0,
-            255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU,
-        )[1]
         try:
-            return pytesseract.image_to_string(binary, lang="kor+eng", config="--psm 6")
+            for _, candidate, page_mode in cls._date_ocr_candidates(image):
+                text = pytesseract.image_to_string(
+                    candidate, lang="kor+eng", config=f"--psm {page_mode}",
+                )
+                try:
+                    cls._parse_date(text)
+                except GraphParseFailure:
+                    continue
+                return text
         except (pytesseract.TesseractError, pytesseract.TesseractNotFoundError) as error:
             raise GraphParseFailure(
                 "GRAPH_NOT_RECOGNIZED",
                 "그래프 날짜 OCR을 실행하지 못했습니다",
             ) from error
+
+        raise GraphParseFailure(
+            "GRAPH_NOT_RECOGNIZED",
+            "그래프에서 날짜를 찾지 못했습니다",
+        )
+
+    @staticmethod
+    def _date_ocr_candidates(image: np.ndarray) -> Iterator[tuple[str, np.ndarray, int]]:
+        height, width = image.shape[:2]
+        # Libre's centered date line, excluding navigation arrows and calendar
+        # icon. Normalize text size independently of screenshot resolution.
+        left, top = int(width * 0.20), int(height * 0.065)
+        right = max(left + 1, int(width * 0.67))
+        bottom = max(top + 1, int(height * 0.135))
+        line = cv2.cvtColor(image[top:bottom, left:right], cv2.COLOR_BGR2GRAY)
+        if float(np.median(line)) < 128:
+            line = 255 - line
+        scale = min(96 / line.shape[0], 1600 / line.shape[1])
+        line = cv2.resize(
+            line, (max(1, round(line.shape[1] * scale)), max(1, round(line.shape[0] * scale))),
+            interpolation=cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA,
+        )
+        binary = cv2.threshold(line, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        yield "date_line_otsu", cv2.copyMakeBorder(binary, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=255), 7
+        # Antialiased strokes can survive in grayscale when binarization drops
+        # part of a Korean suffix. Retry without changing or guessing the date.
+        yield "date_line_gray", cv2.copyMakeBorder(line, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=255), 7
+
+        # Retain the broader layout as a fallback when the date is elsewhere.
+        header = image[:max(1, int(height * 0.35)), :]
+        gray = cv2.cvtColor(header, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+        binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        yield "header_otsu", binary, 6
 
     @staticmethod
     def _parse_date(text: str) -> date:

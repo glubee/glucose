@@ -65,6 +65,49 @@ def test_missing_tesseract_is_reported_as_graph_error(monkeypatch):
         LibreDailyGraphParser._read_date_text(image)
 
 
+def test_date_ocr_stops_after_first_valid_date(monkeypatch):
+    calls = []
+
+    def recognize(image, *, lang, config):
+        calls.append((image.shape, lang, config))
+        return "2026년 10월 1일"
+
+    monkeypatch.setattr(pytesseract, "image_to_string", recognize)
+    image = np.full((800, 1200, 3), 255, dtype=np.uint8)
+    result = LibreDailyGraphParser._read_date_text(image)
+    assert LibreDailyGraphParser._parse_date(result).isoformat() == "2026-10-01"
+    assert len(calls) == 1
+    assert calls[0][1:] == ("kor+eng", "--psm 7")
+
+
+def test_date_ocr_retries_and_preserves_broad_header_fallback(monkeypatch):
+    texts = iter(["2026년 oF 1일", "2026년 10월 1", "2026년 10월 1일"])
+    calls = []
+
+    def recognize(image, *, lang, config):
+        calls.append(config)
+        return next(texts)
+
+    monkeypatch.setattr(pytesseract, "image_to_string", recognize)
+    result = LibreDailyGraphParser._read_date_text(np.full((800, 1200, 3), 255, dtype=np.uint8))
+    assert LibreDailyGraphParser._parse_date(result).isoformat() == "2026-10-01"
+    assert calls == ["--psm 7", "--psm 7", "--psm 6"]
+
+
+@pytest.mark.parametrize("text", ["일일 그래프", "2026년 oF 1일", "2026년 2월 30일"])
+def test_date_ocr_does_not_guess_missing_or_invalid_dates(monkeypatch, text):
+    calls = []
+
+    def recognize(*args, **kwargs):
+        calls.append(True)
+        return text
+
+    monkeypatch.setattr(pytesseract, "image_to_string", recognize)
+    with pytest.raises(GraphParseFailure, match="날짜"):
+        LibreDailyGraphParser._read_date_text(np.full((800, 1200, 3), 255, dtype=np.uint8))
+    assert len(calls) == 3
+
+
 def test_synthetic_graph_produces_96_readings_and_gap():
     parser = LibreDailyGraphParser(date_reader=lambda _: "2026년 10월 1일")
 
