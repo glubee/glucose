@@ -255,6 +255,7 @@ final class OnboardingViewModel {
     func finish() {
         persist()
         preferences.onboardingCompleted = true
+        Task { await DayCloseReminder.refresh(preferences: preferences) }
     }
 
     func timeText(_ date: Date) -> String {
