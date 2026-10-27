@@ -178,7 +178,7 @@ final class DayCloseViewModel {
         step = .done
         WidgetSnapshot.refresh()
         // 마무리한 날의 알림은 빼고 다시 예약한다
-        await DayCloseReminder.refresh()
+        await NudgeScheduler.refresh()
     }
 
     var streakAfter: Int { dayCloseStore.streak(endingAt: day) }

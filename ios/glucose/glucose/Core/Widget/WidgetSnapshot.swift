@@ -51,6 +51,8 @@ struct WidgetSnapshot: Codable, Equatable {
         snapshot.dayCloseMinute = preferences.dayCloseTime.minute ?? 0
         if noteRecord { snapshot.lastRecordAt = now }
         if snapshot != previous { snapshot.save() }
+        // 기록을 남기면 오늘 보채기 알림을 빼야 하므로 알림을 다시 짠다
+        if noteRecord { Task { await NudgeScheduler.refresh() } }
     }
 
     /// 계정을 지웠을 때
