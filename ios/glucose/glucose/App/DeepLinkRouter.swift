@@ -2,7 +2,7 @@
 //  DeepLinkRouter.swift
 //  glucose
 //
-//  위젯·단축어가 여는 주소: glubee://capture(빠른 촬영), glubee://insulin(인슐린 기록).
+//  위젯·단축어가 여는 주소: glubee://capture(빠른 촬영), glubee://insulin(인슐린 투여 확인).
 //  로그인 전이나 온보딩 중에 열리면 요청을 기억해 두었다가 탭 화면이 뜨면 연다.
 //
 

@@ -73,3 +73,17 @@ final class UserPreferences {
         defaults.set(data, forKey: key)
     }
 }
+
+#if DEBUG
+extension UserPreferences {
+    /// 시뮬레이터 확인용. 실제 저장소를 건드리지 않는다
+    static let debugSample: UserPreferences = {
+        let preferences = UserPreferences(defaults: UserDefaults(suiteName: "debug-sample") ?? .standard)
+        preferences.usualInsulins = [
+            UsualInsulin(name: "초속효성 인슐린", units: 4),
+            UsualInsulin(name: "기저 인슐린", units: nil),
+        ]
+        return preferences
+    }()
+}
+#endif
