@@ -39,6 +39,13 @@ struct GlucoseApp: App {
             RootTabView()
         } else if ProcessInfo.processInfo.arguments.contains("-settings") {
             SettingsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-reports") {
+            // 로그인 없이 리포트 탭 보기. -reportSample: 예시 값, -clinician: 진료용 리포트 시트, -weekly: 주간만
+            if ProcessInfo.processInfo.arguments.contains("-clinician") {
+                ClinicianReportView()
+            } else {
+                ReportsView()
+            }
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
             ReviewView()
         } else if ProcessInfo.processInfo.arguments.contains("-home") {

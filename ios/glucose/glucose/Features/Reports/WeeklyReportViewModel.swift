@@ -43,6 +43,13 @@ final class WeeklyReportViewModel {
         let activeID = UUID()
         loadID = activeID
         let requestedWeek = weekStart
+        #if DEBUG
+        if ReportSamples.isEnabled {
+            state = .loaded(ReportSamples.weekly(requestedWeek))
+            foodAnalysis = .loaded(ReportSamples.food(requestedWeek, weekly: true))
+            return
+        }
+        #endif
         state = .loading
         foodAnalysis = .loading
         async let foodRequest = fetchFoodAnalysis(week: requestedWeek)
