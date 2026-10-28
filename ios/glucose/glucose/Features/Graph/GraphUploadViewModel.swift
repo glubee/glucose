@@ -35,6 +35,12 @@ final class GraphUploadViewModel {
         }
     }
 
+    /// 끝날 때까지 기다린다(여러 장 올리기에서 한 장씩 쓴다)
+    func upload(imageData: Data, contentType: String) async {
+        task?.cancel()
+        await run(imageData: imageData, contentType: contentType)
+    }
+
     func cancel() {
         task?.cancel()
     }
@@ -62,7 +68,7 @@ final class GraphUploadViewModel {
             )
             uploadId = started.uploadId
         } catch {
-            state = .failed("업로드에 실패했습니다. 다시 시도해주세요.")
+            state = .failed("올리지 못했어요. 다시 시도해주세요.")
             return
         }
 
@@ -89,7 +95,7 @@ final class GraphUploadViewModel {
                 state = .failed(Self.failureMessage(forCode: body.code))
                 return
             } catch {
-                state = .failed("분석 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.")
+                state = .failed("분석 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.")
                 return
             }
         }

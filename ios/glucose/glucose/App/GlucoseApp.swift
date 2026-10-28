@@ -71,6 +71,9 @@ struct GlucoseApp: App {
                     PendingPhotoStore.shared.add(imageData: data, context: .meal,
                                                  capturedAt: .now.addingTimeInterval(-3 * 3600))
                 }
+        } else if ProcessInfo.processInfo.arguments.contains("-graphUpload") {
+            // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
+            GraphUploadView()
         } else if ProcessInfo.processInfo.arguments.contains("-insulinConfirm") {
             // 로그인 없이 투여 확인 화면만 보기(평소 인슐린 2개 예시)
             InsulinConfirmView(preferences: .debugSample)
