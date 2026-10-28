@@ -89,6 +89,8 @@ struct DailyReport: Decodable {
     let summary: [String]?
     /// 하루 이야기(시간순 문장). 예전 서버는 보내지 않는다
     var story: [String]? = nil
+    /// 흐름 안내(서버 DailyInsightDetector, 검토 전 문구). 서버 설정이 꺼져 있으면 비어 있다
+    var insights: [Insight]? = nil
     /// 반동 판정 기준(mg/dL, 이 값을 넘으면 반동). 서버 설정값이라 앱에 숫자를 따로 두지 않는다. 옛 서버면 nil
     let reboundGlucoseThreshold: Int?
 
@@ -158,6 +160,23 @@ struct DailyReport: Decodable {
             let url: String?
             let kind: String
             var id: String { name }
+        }
+    }
+}
+
+extension DailyReport {
+    struct Insight: Decodable, Identifiable {
+        let code: String
+        let title: String
+        let body: String
+        let sources: [Source]
+        let reviewStatus: String?
+
+        var id: String { code }
+
+        struct Source: Decodable, Hashable {
+            let name: String
+            let url: String?
         }
     }
 }

@@ -39,6 +39,9 @@ struct DailyReportView: View {
                     }
                     if let story = report.story, !story.isEmpty {
                         DailyStoryCard(story: story, evidence: report.summary ?? [])
+                        if let insights = report.insights, !insights.isEmpty {
+                            DailyInsightsCard(insights: insights)
+                        }
                     } else {
                         ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
                     }

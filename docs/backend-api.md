@@ -357,6 +357,9 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
 - `glucose.sufficient`는 **기록 충분성**이다: `coverage_ratio >= report.sufficient-coverage-ratio`(기본 0.7)이면 `true`.
   우리 앱의 기록 상태 표시일 뿐 혈당이 좋다/나쁘다는 평가가 아니고, 의학적 데이터 충분성 기준(예: 14일·70%)과도 다르다.
   임계값 0.7은 임시 제품 기준이며 운영 coverage 분포를 보고 조정한다(2026-10-10 결정).
+- `insights`: **흐름 안내**(`DailyInsightDetector`). 코드 규칙으로 찾은 흐름(새벽 공복 상승, 인슐린 기록 없는 큰 상승, 기름진 음식 뒤 늦은 상승,
+  술 뒤 늦은 저혈당, 지방 많은 음식으로 한 느린 대응, 대응 뒤 반동)에 미리 쓴 일반 안내 + 출처. 최대 3개, `review_status: "DRAFT"`면 의료인 검토 전.
+  `report.insights-enabled`(환경변수 `REPORT_INSIGHTS_ENABLED`, 기본 false)가 켜졌을 때만 채운다. "가능성"과 "의료진과 확인"까지만 말하고 용량은 말하지 않는다.
 - `story`: **하루 이야기**. 기록과 그래프에서 읽힌 값을 시간순 문장으로(`DailyStoryBuilder`, AI 없음). 앱은 한 문단으로 이어 보여주고 `summary`는 근거로 둔다.
   시간 순서의 변화만 쓰고 원인·조언은 쓰지 않는다(`docs/report-story-and-guidance-plan.md` 결정 1). 빈 구간은 "알 수 없어요"로 쓴다.
 - 에피소드의 `intakes`: 묶음 안 섭취 기록 하나하나(정확한 시각, 입력한 상황, 사진 ID — 사진 없이 남겼으면 `null`, 음식 이름). 앱 그래프에 기록 위치와 사진을 찍는 데 쓴다.
