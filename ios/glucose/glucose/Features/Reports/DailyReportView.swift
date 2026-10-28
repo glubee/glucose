@@ -255,6 +255,14 @@ private struct EpisodeRow: View {
             }
             .foregroundStyle(Color.textPrimary)
 
+            if let foods = episode.foods, !foods.isEmpty {
+                Text(foods.joined(separator: ", "))
+                    .font(.body2)
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(.leading, 32 + Spacing.s)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if episode.autoReclassified == true {
                 note("직전 혈당이 낮아서 저혈당 처치로 분류했어요 (기록할 때: \(episode.originalContext.displayName))",
                      systemImage: "arrow.triangle.2.circlepath")
