@@ -44,6 +44,11 @@ enum ReportSamples {
                     "먹기 전 120이었던 혈당은 1시간 20분 뒤 238로 가장 높았고, 오전 11시쯤 150으로 내려왔어요.",
                     "오후 3시 15분쯤 혈당이 64까지 읽혀 오후 3시 30분에 포도당 캔디 3개를 먹었어요.",
                     "그 뒤 15분 만에 88로 올라왔고, 2시간 동안 180을 넘는 값은 없었어요."],
+            insights: [.init(code: "NIGHT_FASTING_RISE", title: "먹지 않은 새벽에 혈당이 올랐어요",
+                             body: "밤 2시쯤 100이던 혈당이 오전 6시쯤 160까지 올랐고, 그 사이 음식 기록은 없어요. 이런 흐름은 새벽에 나오는 호르몬이 혈당을 올리는 '새벽 현상'일 가능성이 있어요. 며칠 반복되면 기록을 가지고 의료진과 확인해 보세요.",
+                             sources: [.init(name: "미국당뇨병학회(ADA) · 아침 고혈당",
+                                             url: "https://diabetes.org/living-with-diabetes/high-morning-blood-glucose")],
+                             reviewStatus: "DRAFT")],
             reboundGlucoseThreshold: 180)
 
         // 새벽 2:30~4:30, 10:45~11:30은 비운다(끊긴 구간)

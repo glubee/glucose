@@ -147,8 +147,8 @@ struct GlucoseDayChart: View {
 
             if let point = selectedPoint {
                 RuleMark(x: .value("선택", point.time))
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(Color.textSecondary)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .foregroundStyle(Color.brand)
                 PointMark(x: .value("선택", point.time), y: .value("혈당", point.value))
                     .symbolSize(70)
                     .foregroundStyle(Color.textPrimary)
@@ -186,7 +186,7 @@ struct GlucoseDayChart: View {
                 AxisValueLabel()
             }
         }
-        .chartYAxisLabel("mg/dL", position: .top, alignment: .leading, spacing: 6)
+        .chartYAxisLabel("mg/dL", position: .topTrailing)
         .frame(height: height)
 
         Group {

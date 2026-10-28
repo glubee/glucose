@@ -131,6 +131,12 @@ struct SettingsView: View {
     private var demoSection: some View {
         Section {
             Button("시나리오 기록 넣기") { runDemo { await DemoScenarioSeed.run().text } }
+            Button("시나리오 기록 지우고 다시 넣기") {
+                runDemo {
+                    let cleared = await DemoScenarioSeed.clear()
+                    return cleared + "\n" + (await DemoScenarioSeed.run().text)
+                }
+            }
             Button("벌집·연속 서버 기준으로 다시 채우기") {
                 runDemo { "그래프 있는 \(await DemoDayCloseSync.run())일을 채웠어요." }
             }

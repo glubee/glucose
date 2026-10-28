@@ -24,10 +24,19 @@ public record EpisodeSummary(
         List<IntakeMark> intakes) {
 
     /** 섭취 기록 한 건. photoId가 없으면 사진 없이 남긴 기록이다 */
-    public record IntakeMark(Instant occurredAt, PhotoContext context, UUID photoId, List<String> foods) {
+    /** tags: 음식 분류 표시(HIGH_FAT·HIGH_CARB·FAST_SUGAR). 흐름 안내(DailyInsightDetector)가 쓴다 */
+    public record IntakeMark(Instant occurredAt, PhotoContext context, UUID photoId, List<String> foods, List<String> tags) {
         public IntakeMark {
             foods = foods == null ? List.of() : List.copyOf(foods);
+            tags = tags == null ? List.of() : List.copyOf(tags);
         }
+    }
+
+    /** 묶음 안 음식 분류 표시 전체 */
+    public java.util.Set<String> tagSet() {
+        java.util.Set<String> set = new java.util.TreeSet<>();
+        intakes.forEach(mark -> set.addAll(mark.tags()));
+        return set;
     }
 
     public EpisodeSummary {

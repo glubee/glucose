@@ -38,8 +38,21 @@ struct GlucoseDayDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.m) {
-                    ChipPicker(options: [(24, "하루"), (12, "12시간"), (6, "6시간"), (3, "3시간")],
-                               selection: $visibleHours)
+                    zoomControl
+                    if let selection {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "hand.tap.fill").font(.caption)
+                            Text("선택한 시각 \(ReportDay.timeString(from: selection))")
+                                .font(.caption1.weight(.semibold))
+                            Spacer()
+                            Button("선택 해제") { self.selection = nil }
+                                .font(.caption1.weight(.semibold))
+                        }
+                        .foregroundStyle(Color.onBrandSoft)
+                        .padding(.horizontal, Spacing.s)
+                        .padding(.vertical, Spacing.xs)
+                        .background(Color.brandSoft, in: Capsule())
+                    }
 
                     GlucoseDayChart(day: day, points: points, episodes: episodes, insulinEvents: insulinEvents,
                                     height: 360, visibleHours: visibleHours, selection: $selection,
@@ -76,6 +89,35 @@ struct GlucoseDayDetailView: View {
                 move(to: center)
             }
         }
+    }
+
+    // MARK: - 확대 단계(선택된 칸을 진하게)
+
+    private var zoomControl: some View {
+        HStack(spacing: 4) {
+            ForEach([(24, "하루"), (12, "12시간"), (6, "6시간"), (3, "3시간")], id: \.0) { hours, title in
+                let isOn = visibleHours == hours
+                Button {
+                    withAnimation(.snappy) { visibleHours = hours }
+                } label: {
+                    Text(title)
+                        .font(.body2.weight(isOn ? .bold : .medium))
+                        .foregroundStyle(isOn ? Color.onButton : Color.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(isOn ? Color.buttonFill : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color.surfaceMuted, in: Capsule())
+    }
+
+    /// 고른 시각과 가까운(앞뒤 45분) 기록인지
+    private func isNearSelection(_ time: Date) -> Bool {
+        guard let selection else { return false }
+        return abs(time.timeIntervalSince(selection)) <= Self.nearbyWindow
     }
 
     // MARK: - 고른 시각
@@ -129,10 +171,17 @@ struct GlucoseDayDetailView: View {
                     selection = entry.time
                     move(to: entry.time)
                 } label: {
-                    switch entry.kind {
-                    case .intake(let mark): markRow(mark)
-                    case .insulin(let event): insulinRow(event)
+                    Group {
+                        switch entry.kind {
+                        case .intake(let mark): markRow(mark)
+                        case .insulin(let event): insulinRow(event)
+                        }
                     }
+                    .padding(Spacing.xs)
+                    .background(isNearSelection(entry.time) ? Color.brandSoft : Color.clear,
+                                in: RoundedRectangle(cornerRadius: Radius.field))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.field)
+                        .strokeBorder(isNearSelection(entry.time) ? Color.brand : Color.clear, lineWidth: 1.5))
                 }
                 .buttonStyle(.plain)
             }

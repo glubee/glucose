@@ -43,7 +43,11 @@ struct GlucoseApp: App {
             // 로그인 없이 하루 이야기 카드 보기(예시)
             let sample = ReportSamples.daily(.now).0
             ScrollView {
-                DailyStoryCard(story: sample.story ?? [], evidence: sample.summary ?? []).padding(Spacing.gutter)
+                VStack(spacing: Spacing.m) {
+                    DailyStoryCard(story: sample.story ?? [], evidence: sample.summary ?? [])
+                    DailyInsightsCard(insights: sample.insights ?? [])
+                }
+                .padding(Spacing.gutter)
             }
             .background(Color.canvas)
         } else if ProcessInfo.processInfo.arguments.contains("-chartDetail") {
