@@ -91,10 +91,11 @@ public class ReportSummaryBuilder {
         List<String> lines = new ArrayList<>();
         String time = TIME.format(episode.startAt());
         String label = label(episode.effectiveContext());
+        String foods = episode.foods().isEmpty() ? "" : ": " + String.join(", ", episode.foods());
         if (episode.intakeCount() > 1) {
-            lines.add(time + "부터 " + label + " 기록 " + episode.intakeCount() + "건이 있어요.");
+            lines.add(time + "부터 " + label + " 기록 " + episode.intakeCount() + "건이 있어요" + foods + ".");
         } else {
-            lines.add(time + " " + label + " 기록이 있어요.");
+            lines.add(time + " " + label + " 기록이 있어요" + foods + ".");
         }
 
         if (Boolean.TRUE.equals(episode.autoReclassified())) {

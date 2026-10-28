@@ -163,7 +163,7 @@ class ReportFlowTest {
         List<String> summary = (List<String>) body.get("summary");
         assertThat(summary).contains(
                 "이 날 혈당 그래프는 50%만 읽혔어요. 읽힌 구간만 보여드려요.",
-                "18:00 저혈당 처치 기록이 있어요.",
+                "18:00 저혈당 처치 기록이 있어요: 포도당 캔디 1개.",
                 "처치 기록 뒤 2시간 안에 180 mg/dL을 넘는 값이 읽혔어요.");
 
         assertThat(body.get("insulin_events_count")).isEqualTo(1);

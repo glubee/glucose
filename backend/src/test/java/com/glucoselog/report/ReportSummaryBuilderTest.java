@@ -126,4 +126,24 @@ class ReportSummaryBuilderTest {
                 "일반 목표와의 비교는 지금은 제공하지 않아요.");
         assertNoForbidden(lines);
     }
+
+    @Test
+    void 식사_묶음에는_음식_이름을_같이_쓴다() {
+        EpisodeSummary meal = new EpisodeSummary(
+                Instant.parse("2026-10-01T04:20:00Z"), // 13:20 KST
+                PhotoContext.MEAL, PhotoContext.MEAL, false,
+                Instant.parse("2026-10-01T08:20:00Z"), false, 2, List.of("짜장면 1그릇", "콜라 1캔"));
+
+        List<String> lines = builder.daily(glucose("0.94", true), List.of(meal), 1);
+
+        assertThat(lines).contains("13:20부터 식사 기록 2건이 있어요: 짜장면 1그릇, 콜라 1캔.");
+        assertNoForbidden(lines);
+    }
+
+    @Test
+    void 음식_이름이_없으면_예전_문장_그대로다() {
+        List<String> lines = builder.daily(glucose("0.94", true), List.of(hypoEpisode(false, false)), 0);
+
+        assertThat(lines).contains("18:00 저혈당 처치 기록이 있어요.");
+    }
 }
