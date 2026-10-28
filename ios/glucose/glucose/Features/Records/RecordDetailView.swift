@@ -2,7 +2,7 @@
 //  RecordDetailView.swift
 //  glucose
 //
-//  사실만 보여준다: 무엇을 먹었는지, 인슐린을 얼마나 맞았는지. 용량 조언은 하지 않는다.
+//  기록 상세(v5). 사실만 보여준다: 무엇을 먹었는지, 인슐린을 얼마나 맞았는지. 용량 조언은 하지 않는다.
 //
 
 import SwiftUI
@@ -15,40 +15,50 @@ struct RecordDetailView: View {
     @State private var showEditInsulin = false
 
     var body: some View {
-        List {
-            Section("시각") {
-                Text(item.occurredAt.formatted(date: .abbreviated, time: .shortened))
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.m) {
+                header
 
-            switch item {
-            case .intake(let record):
-                Section(record.context.displayName) {
-                    ForEach(record.items) { food in
-                        HStack {
-                            Text(food.name)
-                            Spacer()
-                            if let quantity = food.displayQuantity {
-                                Text(quantity)
-                                    .foregroundStyle(.secondary)
+                switch item {
+                case .intake(let record):
+                    VStack(alignment: .leading, spacing: Spacing.s) {
+                        SectionHeader(title: "먹은 음식", trailing: "\(record.items.count)가지")
+                        ForEach(record.items) { food in
+                            HStack {
+                                Text(food.name)
+                                    .font(.body1)
+                                    .foregroundStyle(Color.textPrimary)
+                                Spacer()
+                                if let quantity = food.displayQuantity {
+                                    Text(quantity)
+                                        .font(.body2.weight(.semibold))
+                                        .foregroundStyle(Color.textSecondary)
+                                }
                             }
+                            if food.id != record.items.last?.id { Divider().overlay(Color.line) }
                         }
                     }
-                }
-            case .insulin(let record):
-                Section("인슐린") {
-                    LabeledContent("단위", value: record.units.formatted())
-                    LabeledContent("종류", value: record.kind)
+                    .card()
+                case .insulin(let record):
+                    VStack(alignment: .leading, spacing: Spacing.s) {
+                        SectionHeader(title: "인슐린 기록")
+                        LabeledContent("단위", value: "\(record.units.formattedUnits)단위")
+                        LabeledContent("종류", value: record.kind)
+                    }
+                    .font(.body1)
+                    .foregroundStyle(Color.textPrimary)
+                    .card(.insulin)
+
+                    Button("기록 고치기") { showEditInsulin = true }
+                        .buttonStyle(.glubeeSecondary)
                 }
             }
+            .padding(.horizontal, Spacing.gutter)
+            .padding(.vertical, Spacing.m)
         }
+        .background(Color.canvas)
         .navigationTitle(navigationTitle)
-        .toolbar {
-            if case .insulin = item {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("수정") { showEditInsulin = true }
-                }
-            }
-        }
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showEditInsulin) {
             if case .insulin(let record) = item {
                 InsulinRecordFormView(
@@ -63,10 +73,51 @@ struct RecordDetailView: View {
         }
     }
 
+    private var header: some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 48, height: 48)
+                .background(fill, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(navigationTitle)
+                    .font(.headline1)
+                    .foregroundStyle(Color.textPrimary)
+                Text("\(ReportDay.displayString(from: item.occurredAt)) \(ReportDay.timeString(from: item.occurredAt))")
+                    .font(.body2)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private var navigationTitle: String {
         switch item {
         case .intake(let record): record.context.displayName
         case .insulin: "인슐린"
+        }
+    }
+
+    private var icon: String {
+        switch item {
+        case .intake(let record): record.context.systemImage
+        case .insulin: "syringe"
+        }
+    }
+
+    private var tint: Color {
+        switch item {
+        case .intake(let record): record.context == .hypoTreatment ? .mintStrong : .onBrandSoft
+        case .insulin: .insulin
+        }
+    }
+
+    private var fill: Color {
+        switch item {
+        case .intake(let record): record.context == .hypoTreatment ? .mintSoft : .brandSoft
+        case .insulin: .insulinSoft
         }
     }
 }

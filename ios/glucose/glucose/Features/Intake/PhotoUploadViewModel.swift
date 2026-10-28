@@ -36,7 +36,7 @@ final class PhotoUploadViewModel {
             photoId = try await uploader.upload(imageData: imageData, context: context)
             state = .done
         } catch {
-            state = .failed("업로드에 실패했습니다. 다시 시도해주세요.")
+            state = .failed("올리지 못했어요. 다시 시도해 주세요.")
         }
     }
 }

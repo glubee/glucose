@@ -28,7 +28,7 @@ final class PhotoCaptureViewModel {
         previewImage = image
 
         guard let data = ImageResizer.prepareForUpload(image) else {
-            errorMessage = "이미지를 처리하지 못했습니다. 다른 사진으로 시도해주세요."
+            errorMessage = "사진을 처리하지 못했어요. 다른 사진을 골라주세요."
             processedData = nil
             processedSizeDescription = nil
             return

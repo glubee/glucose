@@ -136,14 +136,14 @@ final class RecordsViewModel {
     }
 
     private static func errorMessage(for error: Error) -> String {
-        guard let apiError = error as? APIError else { return "기록을 불러오지 못했습니다." }
+        guard let apiError = error as? APIError else { return "기록을 불러오지 못했어요." }
         switch apiError {
         case .network:
             return "네트워크 연결을 확인해주세요."
         case .notAuthenticated:
             return "로그인이 필요합니다."
         default:
-            return "기록을 불러오지 못했습니다."
+            return "기록을 불러오지 못했어요."
         }
     }
 }

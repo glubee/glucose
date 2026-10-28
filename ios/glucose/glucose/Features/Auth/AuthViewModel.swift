@@ -22,7 +22,7 @@ final class AuthViewModel {
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let tokenData = credential.identityToken,
                   let identityToken = String(data: tokenData, encoding: .utf8) else {
-                errorMessage = "Apple 로그인 정보를 읽을 수 없습니다"
+                errorMessage = "Apple 로그인 정보를 읽지 못했어요."
                 return
             }
             let nonce = currentNonce
@@ -31,7 +31,7 @@ final class AuthViewModel {
             if let authError = error as? ASAuthorizationError, authError.code == .canceled {
                 return
             }
-            errorMessage = "Apple 로그인에 실패했습니다"
+            errorMessage = "Apple 로그인을 마치지 못했어요. 다시 시도해 주세요."
         }
     }
 
@@ -50,7 +50,7 @@ final class AuthViewModel {
             AuthSession.shared.signIn(with: tokens)
             currentNonce = AuthViewModel.randomNonceString()
         } catch {
-            errorMessage = "서버 로그인에 실패했습니다. 다시 시도해주세요."
+            errorMessage = "로그인하지 못했어요. 잠시 후 다시 시도해 주세요."
         }
     }
 
