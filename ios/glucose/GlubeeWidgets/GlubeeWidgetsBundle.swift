@@ -14,5 +14,6 @@ struct GlubeeWidgetsBundle: WidgetBundle {
         QuickActionsWidget()
         CaptureWidget()
         InsulinWidget()
+        StreakLockWidget()
     }
 }
