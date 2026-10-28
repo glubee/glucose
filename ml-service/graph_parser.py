@@ -11,7 +11,7 @@ import pytesseract
 from models import GraphGap, GraphParseMeta, GraphReading
 
 
-PARSER_VERSION = "1.1.4"
+PARSER_VERSION = "1.1.5"
 READING_COUNT = 96
 
 
@@ -89,12 +89,12 @@ class LibreDailyGraphParser:
                 return text
         except (pytesseract.TesseractError, pytesseract.TesseractNotFoundError) as error:
             raise GraphParseFailure(
-                "GRAPH_NOT_RECOGNIZED",
+                "GRAPH_OCR_UNAVAILABLE",
                 "그래프 날짜 OCR을 실행하지 못했습니다",
             ) from error
 
         raise GraphParseFailure(
-            "GRAPH_NOT_RECOGNIZED",
+            "GRAPH_DATE_NOT_RECOGNIZED",
             "그래프에서 날짜를 찾지 못했습니다",
         )
 
@@ -142,7 +142,7 @@ class LibreDailyGraphParser:
             except ValueError:
                 break
         raise GraphParseFailure(
-            "GRAPH_NOT_RECOGNIZED",
+            "GRAPH_DATE_NOT_RECOGNIZED",
             "그래프에서 날짜를 찾지 못했습니다",
         )
 
@@ -204,7 +204,7 @@ class LibreDailyGraphParser:
                 if right - left >= width * 0.35:
                     return left, top, right, bottom
         raise GraphParseFailure(
-            "GRAPH_NOT_RECOGNIZED",
+            "GRAPH_AXES_NOT_RECOGNIZED",
             "50~350 mg/dL 그래프의 7개 격자선을 확인하지 못했습니다",
         )
 

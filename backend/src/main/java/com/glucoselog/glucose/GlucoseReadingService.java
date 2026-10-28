@@ -25,12 +25,16 @@ public class GlucoseReadingService {
         GlucoseGraphUpload upload = uploadRepository.findByUserIdAndResultDate(userId, date)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "GLUCOSE_DAY_NOT_FOUND", "해당 날짜의 혈당 데이터가 없습니다"));
 
+        if (!GraphParserVersion.isSupported(upload.getParserVersion())) {
+            throw new ApiException(HttpStatus.CONFLICT, "GRAPH_REPROCESS_REQUIRED", "그래프를 다시 분석해야 합니다");
+        }
+
         List<GlucoseReadingsResponse.ReadingResponse> readings = readingRepository.findByUploadIdOrderByTimeSlot(upload.getId())
                 .stream()
                 .map(r -> new GlucoseReadingsResponse.ReadingResponse(toTimeString(r.getTimeSlot()), r.getValue(), r.getFlag()))
                 .toList();
 
-        return new GlucoseReadingsResponse(date, upload.getCoverageRatio(), readings);
+        return new GlucoseReadingsResponse(date, upload.getCoverageRatio(), readings, upload.getId(), upload.getParserVersion());
     }
 
     private static String toTimeString(int timeSlot) {

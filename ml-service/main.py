@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
 from food_recognizer import FoodRecognizer, FoodRecognizerFailure, OpenAIFoodRecognizer
-from graph_parser import GraphParseFailure, LibreDailyGraphParser
+from graph_parser import GraphParseFailure, LibreDailyGraphParser, PARSER_VERSION
 from models import ErrorResponse, FoodRecognitionResponse, GraphParseResponse
 from report_narrator import (OpenAIReportNarrator, ReportNarrationFailure,
                              ReportNarrationRequest, ReportNarrationResponse)
@@ -210,7 +210,7 @@ async def validate_and_prepare_image(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.0", "graph_parser_version": PARSER_VERSION}
 
 
 @app.post("/v1/report/narrate", response_model=ReportNarrationResponse,
@@ -289,7 +289,8 @@ async def parse_graph(
         async with PROCESSING_LIMIT:
             result = await asyncio.to_thread(parser.parse, image_bytes)
     except GraphParseFailure as error:
-        status_code = 400 if error.code == "INVALID_IMAGE" else 422
+        status_code = (400 if error.code == "INVALID_IMAGE" else
+                       503 if error.code == "GRAPH_OCR_UNAVAILABLE" else 422)
         raise ServiceError(status_code, error.code, error.message, request_id) from error
 
     return GraphParseResponse(request_id=request_id, **result)
