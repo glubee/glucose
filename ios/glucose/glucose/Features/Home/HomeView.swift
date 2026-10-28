@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var showFoodSheet = false
     @State private var photoCapture: PhotoCaptureRequest?
     @State private var showInsulin = false
+    @State private var showPendingPhotos = false
     @State private var shownStreak = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -37,6 +38,7 @@ struct HomeView: View {
             PhotoCaptureView(context: request.context, opensCamera: request.opensCamera)
         }
         .sheet(isPresented: $showInsulin, onDismiss: refresh) { InsulinConfirmView() }
+        .sheet(isPresented: $showPendingPhotos, onDismiss: refresh) { PendingPhotosView() }
     }
 
     private func refresh() { Task { await viewModel.refresh() } }
@@ -99,6 +101,11 @@ struct HomeView: View {
                         .accessibilityElement(children: .combine)
                     }
 
+                    if viewModel.pendingPhotoCount > 0 {
+                        pendingPhotosBanner
+                            .padding(.top, 14)
+                    }
+
                     todayFlowCard
                         .padding(.top, 14)
                 }
@@ -120,6 +127,34 @@ struct HomeView: View {
             .padding(.horizontal, Spacing.l)
             .padding(.vertical, Spacing.s)
         }
+    }
+
+    /// 위젯으로 찍은 사진을 하루 마무리 전에도 바로 확인할 수 있게 한다
+    private var pendingPhotosBanner: some View {
+        Button { showPendingPhotos = true } label: {
+            HStack(spacing: Spacing.s) {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.onBrandSoft)
+                    .frame(width: 36, height: 36)
+                    .background(Color.brandSoft, in: RoundedRectangle(cornerRadius: Radius.field))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("확인 안 한 사진 \(viewModel.pendingPhotoCount)장")
+                        .font(.headline2)
+                        .foregroundStyle(Color.textPrimary)
+                    Text("마무리 전에 바로 확인할 수 있어요")
+                        .font(.caption1)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .card(padding: Spacing.s)
+        }
+        .buttonStyle(.plain)
     }
 
     /// 오늘의 흐름: 그래프가 있으면 곡선, 없으면 목표 범위 띠 + 오늘 기록 점.

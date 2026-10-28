@@ -38,6 +38,9 @@ final class HomeViewModel {
     var rest: RestPeriod? { store.isResting() ? store.rest : nil }
     var isTodayClosed: Bool { store.isClosed(today) }
 
+    /// 위젯으로 찍고 아직 확인하지 않은 사진 수(날짜 상관없이)
+    var pendingPhotoCount: Int { photos.photos.count }
+
     /// 오늘 남긴 기록 수(저장된 식사 묶음 + 인슐린 + 확인 대기 사진)
     var todayRecordCount: Int {
         let pending = photos.photos.filter { ReportDay.calendar.isDate($0.capturedAt, inSameDayAs: today) }.count

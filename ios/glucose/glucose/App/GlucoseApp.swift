@@ -78,6 +78,12 @@ struct GlucoseApp: App {
                     PendingPhotoStore.shared.add(imageData: data, context: .meal,
                                                  capturedAt: .now.addingTimeInterval(-3 * 3600))
                 }
+        } else if ProcessInfo.processInfo.arguments.contains("-capture") {
+            // 로그인 없이 음식 사진 기록 화면 보기
+            PhotoCaptureView()
+        } else if ProcessInfo.processInfo.arguments.contains("-recognition") {
+            // 로그인 없이 음식 확인 화면 보기(예시 음식 2개)
+            NavigationStack { RecognitionResultView(photoId: UUID(), context: .meal) {} }
         } else if ProcessInfo.processInfo.arguments.contains("-insulinConfirm") {
             // 로그인 없이 투여 확인 화면만 보기(평소 인슐린 2개 예시)
             InsulinConfirmView(preferences: .debugSample)
