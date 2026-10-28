@@ -20,6 +20,10 @@ struct SettingsView: View {
     @State private var showHelp = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @Environment(\.openURL) private var openURL
+    #if DEBUG
+    @State private var demoStatus: String?
+    @State private var demoRunning = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -85,6 +89,10 @@ struct SettingsView: View {
                         .tint(Color.textPrimary)
                 }
 
+                #if DEBUG
+                demoSection
+                #endif
+
                 Section {
                     Button("로그아웃", role: .destructive) { showSignOutConfirm = true }
                     Button("계정 삭제", role: .destructive) { showDeleteConfirm = true }
@@ -117,6 +125,36 @@ struct SettingsView: View {
             }
         }
     }
+
+    #if DEBUG
+    /// 개발 빌드에만 보이는 데모 데이터 버튼(데모 계정 전용, docs: CLAUDE.md "데모")
+    private var demoSection: some View {
+        Section {
+            Button("시나리오 기록 넣기") { runDemo { await DemoScenarioSeed.run().text } }
+            Button("벌집·연속 서버 기준으로 다시 채우기") {
+                runDemo { "그래프 있는 \(await DemoDayCloseSync.run())일을 채웠어요." }
+            }
+            if demoRunning { ProgressView() }
+            if let demoStatus {
+                Text(demoStatus).font(.caption1).foregroundStyle(Color.textSecondary).textSelection(.enabled)
+            }
+        } header: {
+            Text("데모 데이터 (개발용)")
+        } footer: {
+            Text("데모 계정에서만 쓰세요. 시나리오는 그래프 곡선에 맞춘 식사·처치·인슐린 기록이고, 이미 기록이 있는 날은 건너뛰어요.")
+        }
+        .disabled(demoRunning)
+    }
+
+    private func runDemo(_ work: @escaping @MainActor () async -> String) {
+        demoRunning = true
+        demoStatus = nil
+        Task {
+            demoStatus = await work()
+            demoRunning = false
+        }
+    }
+    #endif
 
     private func row(_ title: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {

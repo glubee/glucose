@@ -12,10 +12,12 @@ import Foundation
 
 @MainActor
 enum DemoDayCloseSync {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("-demoSync") }
+    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains { $0.lowercased() == "-demosync" } }
 
     /// 최근 `days`일(오늘 제외)을 서버 그래프 기준으로 다시 채운다
-    static func run(days: Int = 42) async {
+    /// 채운 날 수를 돌려준다
+    @discardableResult
+    static func run(days: Int = 42) async -> Int {
         let calendar = ReportDay.calendar
         let today = calendar.startOfDay(for: .now)
         var found: [(day: Date, coverage: Double)] = []
@@ -32,6 +34,7 @@ enum DemoDayCloseSync {
             store.markClosed(entry.day, recordOnly: entry.coverage < 0.5)
         }
         WidgetSnapshot.refresh()
+        return found.count
     }
 }
 #endif

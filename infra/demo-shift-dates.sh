@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 데모 계정의 기록 날짜를 통째로 옮긴다(데모용, 실제 사용자에게 쓰지 않는다).
 # 그래프 날짜는 이미지 위 날짜를 읽어 정해지므로, 지난 그래프를 올리면 "이번 주"가 비어 보인다.
-# 한 계정의 그래프(result_date)·음식(intake.occurred_at)·인슐린(insulin_event.occurred_at)을 같은 일수만큼 옮긴다.
+# 한 계정의 그래프(result_date)와, 마지막 그래프 날까지의 음식·인슐린 기록을 같은 일수만큼 옮긴다.
+# 마지막 그래프 날보다 늦게 남긴 기록(실제 최근 기록)은 옮기지 않는다.
 # 혈당값(glucose_reading)은 그래프 날짜 기준 시간칸이라 따로 옮기지 않아도 같이 따라간다. 리포트는 요청 때 계산한다.
 #
 # 사용 (서버에서, cd /opt/glucose):
@@ -46,6 +47,12 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$TO" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "--to는 YYYY-MM-DD" >&2; exit 1; }
 
+LAST=$(psql_run -tA -v uid="$USER_ID" <<'SQL'
+SELECT COALESCE(max(result_date)::text, '') FROM glucose_graph_upload WHERE user_id = :'uid' AND result_date IS NOT NULL;
+SQL
+)
+LAST=$(echo "$LAST" | tr -d '[:space:]')
+
 DAYS=$(psql_run -tA -v uid="$USER_ID" -v to="$TO" <<'SQL'
 SELECT COALESCE(:'to'::date - max(result_date), 0) FROM glucose_graph_upload WHERE user_id = :'uid' AND result_date IS NOT NULL;
 SQL
@@ -64,26 +71,26 @@ SQL
 
 if [[ "$DAYS" == "0" ]]; then echo "옮길 것이 없어요."; exit 0; fi
 
-# 옮긴 뒤 오늘 이후가 되는 기록(최근에 남긴 실제 기록 등)이 있으면 알려준다
-FUTURE=$(psql_run -tA -v uid="$USER_ID" -v days="$DAYS" <<'SQL'
-SELECT (SELECT count(*) FROM intake WHERE user_id = :'uid'
-          AND (occurred_at + make_interval(days => :'days'::int)) AT TIME ZONE 'Asia/Seoul' >= (now() AT TIME ZONE 'Asia/Seoul')::date + 1)
-     + (SELECT count(*) FROM insulin_event WHERE user_id = :'uid'
-          AND (occurred_at + make_interval(days => :'days'::int)) AT TIME ZONE 'Asia/Seoul' >= (now() AT TIME ZONE 'Asia/Seoul')::date + 1);
+# 그래프 마지막 날보다 늦게 남긴 기록(실제 최근 기록)은 옮기지 않는다
+KEPT=$(psql_run -tA -v uid="$USER_ID" -v last="$LAST" <<'SQL'
+SELECT (SELECT count(*) FROM intake WHERE user_id = :'uid' AND (occurred_at AT TIME ZONE 'Asia/Seoul')::date > :'last'::date)
+     + (SELECT count(*) FROM insulin_event WHERE user_id = :'uid' AND (occurred_at AT TIME ZONE 'Asia/Seoul')::date > :'last'::date);
 SQL
 )
-FUTURE=$(echo "$FUTURE" | tr -d '[:space:]')
-if [[ "$FUTURE" != "0" ]]; then
-  echo "주의: 옮기면 음식·인슐린 기록 ${FUTURE}건이 내일 이후 날짜가 돼요(그래프 마지막 날보다 늦게 남긴 기록)."
+KEPT=$(echo "$KEPT" | tr -d '[:space:]')
+if [[ "$KEPT" != "0" ]]; then
+  echo "그래프 마지막 날($LAST) 뒤에 남긴 음식·인슐린 기록 ${KEPT}건은 그대로 둬요."
 fi
 if ! $APPLY; then echo "확인만 했어요. 실제로 옮기려면 --apply 를 붙이세요."; exit 0; fi
 
-psql_run -v uid="$USER_ID" -v days="$DAYS" <<'SQL'
+psql_run -v uid="$USER_ID" -v days="$DAYS" -v last="$LAST" <<'SQL'
 BEGIN;
 UPDATE glucose_graph_upload SET result_date = result_date + :'days'::int
   WHERE user_id = :'uid' AND result_date IS NOT NULL;
-UPDATE intake SET occurred_at = occurred_at + make_interval(days => :'days'::int) WHERE user_id = :'uid';
-UPDATE insulin_event SET occurred_at = occurred_at + make_interval(days => :'days'::int) WHERE user_id = :'uid';
+UPDATE intake SET occurred_at = occurred_at + make_interval(days => :'days'::int)
+  WHERE user_id = :'uid' AND (occurred_at AT TIME ZONE 'Asia/Seoul')::date <= :'last'::date;
+UPDATE insulin_event SET occurred_at = occurred_at + make_interval(days => :'days'::int)
+  WHERE user_id = :'uid' AND (occurred_at AT TIME ZONE 'Asia/Seoul')::date <= :'last'::date;
 COMMIT;
 SQL
 echo "옮겼어요. 앱에서 리포트를 새로 열면 바뀐 날짜로 보여요."

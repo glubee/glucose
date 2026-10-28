@@ -14,7 +14,23 @@ import Foundation
 
 @MainActor
 enum DemoScenarioSeed {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("-demoSeed") }
+    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains { $0.lowercased() == "-demoseed" } }
+
+    /// 화면에 보여줄 결과(혈당값·토큰은 담지 않는다)
+    struct Report {
+        var anchor: String?
+        var created = 0
+        var skippedDays: [String] = []
+        var failures: [String] = []
+
+        var text: String {
+            guard let anchor else { return "최근 60일 안에서 그래프를 찾지 못했어요. 로그인 계정과 그래프 업로드를 확인해 주세요." }
+            var lines = ["기준(가장 최근 그래프): \(anchor)", "새로 넣은 기록: \(created)건"]
+            if !skippedDays.isEmpty { lines.append("이미 기록이 있어 건너뛴 날: \(skippedDays.joined(separator: ", "))") }
+            if !failures.isEmpty { lines.append("실패 \(failures.count)건: \(failures.prefix(3).joined(separator: " / "))") }
+            return lines.joined(separator: "\n")
+        }
+    }
 
     private struct Food {
         let name: String
@@ -79,45 +95,64 @@ enum DemoScenarioSeed {
 
     private static let originalLastDay = "2026-10-10"
 
-    /// 넣은 기록 수(이미 기록이 있어 건너뛴 날은 빼고)
     @discardableResult
-    static func run() async -> Int {
+    static func run() async -> Report {
+        var report = Report()
         let calendar = ReportDay.calendar
         guard let anchor = await latestGraphDay(),
               let originalLast = ReportDay.date(fromAPIString: originalLastDay),
-              let shift = calendar.dateComponents([.day], from: originalLast, to: anchor).day else { return 0 }
+              let shift = calendar.dateComponents([.day], from: originalLast, to: anchor).day else {
+            print("[demoSeed] 그래프 없음")
+            return report
+        }
+        report.anchor = ReportDay.apiString(from: anchor)
 
-        var created = 0
         for (originalDay, records) in scenarios.sorted(by: { $0.key < $1.key }) {
             guard let original = ReportDay.date(fromAPIString: originalDay),
                   let day = calendar.date(byAdding: .day, value: shift, to: original) else { continue }
             let dayString = ReportDay.apiString(from: day)
-            if let report: DailyReport = try? await APIClient.shared.send(path: "/v1/reports/daily/\(dayString)"),
-               !report.episodes.isEmpty || report.insulinEventsCount > 0 {
+            if let daily: DailyReport = try? await APIClient.shared.send(path: "/v1/reports/daily/\(dayString)"),
+               !daily.episodes.isEmpty || daily.insulinEventsCount > 0 {
+                report.skippedDays.append(dayString)
                 continue
             }
             for record in records {
-                if await post(record, on: day) { created += 1 }
+                do {
+                    try await post(record, on: day)
+                    report.created += 1
+                } catch {
+                    report.failures.append("\(dayString) \(describe(error))")
+                }
             }
         }
+        print("[demoSeed] \(report.text)")
         WidgetSnapshot.refresh(noteRecord: true)
-        return created
+        return report
     }
 
-    private static func post(_ record: Record, on day: Date) async -> Bool {
+    private static func post(_ record: Record, on day: Date) async throws {
         switch record {
         case .intake(let time, let context, let foods):
-            guard let at = date(day, time) else { return false }
+            guard let at = date(day, time) else { return }
             let request = CreateIntakeRequest(
                 context: context.rawValue, occurredAt: at, photoId: nil,
                 items: foods.map { IntakeItemRequest(name: $0.name, count: $0.count, unit: $0.unit, categoryHint: nil, tags: []) })
-            let response: IntakeResponse? = try? await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
-            return response != nil
+            let _: IntakeResponse = try await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
         case .insulin(let time, let units, let kind):
-            guard let at = date(day, time) else { return false }
-            let response: InsulinEventResponse? = try? await APIClient.shared.send(
+            guard let at = date(day, time) else { return }
+            let _: InsulinEventResponse = try await APIClient.shared.send(
                 path: "/v1/insulin-events", method: .post, body: InsulinEventRequest(occurredAt: at, units: units, kind: kind))
-            return response != nil
+        }
+    }
+
+    /// 오류 종류와 서버 오류 코드만(응답 원문은 남기지 않는다)
+    private static func describe(_ error: Error) -> String {
+        switch error {
+        case APIError.server(let status, let body): "서버 \(status) \(body.code)"
+        case APIError.notAuthenticated: "로그인 필요"
+        case APIError.decoding: "응답 해석 실패(기록은 들어갔을 수 있음)"
+        case APIError.network: "네트워크"
+        default: "알 수 없음"
         }
     }
 
