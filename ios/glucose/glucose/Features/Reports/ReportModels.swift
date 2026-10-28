@@ -109,6 +109,8 @@ struct DailyReport: Decodable {
         /// nil = 분석 구간 안에 혈당 데이터가 없어 판단 불가
         let reboundDetected: Bool?
         let intakeCount: Int
+        /// 묶음 안 음식 이름(+개수·단위). 예전 서버는 보내지 않는다
+        var foods: [String]? = nil
 
         var id: Date { startAt }
     }

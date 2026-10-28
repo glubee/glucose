@@ -15,7 +15,36 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// 입력칸 높이만큼 장면을 비워 둔다. 자판이 올라와도 이 값은 그대로라 장면이 눌리지 않는다
+    @State private var panelHeight: CGFloat = 0
+
     var body: some View {
+        ZStack(alignment: .bottom) {
+            scene
+                .padding(.bottom, viewModel.isPanelUp ? panelHeight : 0)
+                .ignoresSafeArea(.keyboard)
+                .contentShape(Rectangle())
+                .onTapGesture { hideKeyboard() }
+
+            if viewModel.isPanelUp {
+                panel
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
+                    .transition(.move(edge: .bottom))
+            }
+        }
+        .background(Color.canvas)
+        .animation(reduceMotion ? nil : .spring(duration: 0.5, bounce: 0.12), value: viewModel.isPanelUp)
+        .onChange(of: AuthSession.shared.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated && viewModel.step == .signIn { viewModel.finish() }
+        }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    /// 진행 막대 + 큰 문장 + 풀밭 위 글루비
+    private var scene: some View {
         VStack(spacing: 0) {
             progress
                 .padding(.horizontal, Spacing.l)
@@ -41,16 +70,6 @@ struct OnboardingView: View {
                 }
             }
             .frame(maxHeight: .infinity)
-
-            if viewModel.isPanelUp {
-                panel
-                    .transition(.move(edge: .bottom))
-            }
-        }
-        .background(Color.canvas)
-        .animation(reduceMotion ? nil : .spring(duration: 0.5, bounce: 0.12), value: viewModel.isPanelUp)
-        .onChange(of: AuthSession.shared.isAuthenticated) { _, isAuthenticated in
-            if isAuthenticated && viewModel.step == .signIn { viewModel.finish() }
         }
     }
 

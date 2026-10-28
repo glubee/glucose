@@ -6,8 +6,8 @@ struct GuidanceCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(card.title).font(.headline2)
-            Text(card.body).font(.body2)
+            Text(card.title).font(.headline2).foregroundStyle(Color.textPrimary)
+            Text(card.body).font(.body2).foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             ForEach(card.sources ?? []) { source in
@@ -25,7 +25,8 @@ struct GuidanceCardContent: View {
                     }
                 }
             }
-            if let reviewer = card.reviewedBy, let date = card.reviewedAt {
+            // 요청자 문구 확인(REQUESTER)은 의료인 검토가 아니라 사용자에게 검토자로 보여주지 않는다
+            if card.reviewType != "REQUESTER", let reviewer = card.reviewedBy, let date = card.reviewedAt {
                 Text("문구 검토: \(reviewer) · \(date)")
                     .font(.sectionLabel)
                     .foregroundStyle(Color.textSecondary)

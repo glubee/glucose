@@ -95,7 +95,7 @@ FROM (VALUES
 ('REVIEW_10', NULL, 'REVIEW', 100,
  '응급 상황에는 바로 119로 연락해요',
  '의식이 없거나 경련이 있거나 숨쉬기 어려우면 즉시 119에 연락해요. 의식이 없거나 안전하게 삼키기 어려운 사람에게는 음식이나 음료를 먹이지 않아요. 앱 확인이나 담당 의료진의 답변을 기다리며 신고를 미루지 않아요.',
- '[{"name":"연수구 재난안전대책본부 · 응급처치","url":"https://www.yeonsu.go.kr/safety/cyber/act/emergency.asp","kind":"EXTERNAL"},{"name":"영국 NHS · 저혈당 응급 안내","url":"https://www.nhs.uk/conditions/low-blood-sugar-hypoglycaemia/","kind":"EXTERNAL"}]')
+ '[{"name":"질병관리청 국가건강정보포털 · 당뇨병 급성 합병증(저혈당)","url":"https://health.kdca.go.kr/healthinfo/biz/health/gnrlzHealthInfo/gnrlzHealthInfo/gnrlzHealthInfoView.do?cntnts_sn=2350","kind":"EXTERNAL"},{"name":"중앙응급의료센터 E-GEN · 응급상황 시 행동원칙","url":"https://www.e-gen.or.kr/egen/first_aid.do","kind":"EXTERNAL"},{"name":"영국 NHS · 저혈당 응급 안내","url":"https://www.nhs.uk/conditions/low-blood-sugar-hypoglycaemia/","kind":"EXTERNAL"}]')
 ) AS v(code, trigger, placement, sort_order, title, body, sources)
 ON CONFLICT (code) DO UPDATE SET
     title = EXCLUDED.title, body = EXCLUDED.body, sources = EXCLUDED.sources,

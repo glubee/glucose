@@ -48,6 +48,14 @@ final class DailyReportViewModel {
         loadID = activeID
         let requestedDay = day
         let dayString = ReportDay.apiString(from: requestedDay)
+        #if DEBUG
+        if ReportSamples.isEnabled {
+            let (report, points) = ReportSamples.daily(requestedDay)
+            state = .loaded(report, points)
+            foodAnalysis = .loaded(ReportSamples.food(requestedDay, weekly: false))
+            return
+        }
+        #endif
         state = .loading
         foodAnalysis = .loading
         async let foodRequest = fetchFoodAnalysis(dayString: dayString)

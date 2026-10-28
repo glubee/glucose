@@ -77,52 +77,51 @@ struct GlucoseDayChart: View {
                     series: .value("구간", point.segment)
                 )
                 .interpolationMethod(.linear)
-                .foregroundStyle(Color.accentColor)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .foregroundStyle(Color.textPrimary)
             }
 
             // 앞뒤가 다 끊긴 단독 값은 선이 안 그려지므로 점으로 표시한다.
             ForEach(isolatedPoints) { point in
                 PointMark(x: .value("시각", point.time), y: .value("혈당", point.value))
                     .symbolSize(16)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.textPrimary)
             }
 
             ForEach(episodes) { episode in
                 RuleMark(x: .value("기록", episode.startAt))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.brand)
                     .annotation(position: .top, spacing: 2) {
                         Image(systemName: episode.effectiveContext.systemImage)
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.onBrandSoft)
                     }
             }
 
             ForEach(Array(insulinEvents.enumerated()), id: \.offset) { _, event in
                 RuleMark(x: .value("인슐린", event.occurredAt))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [1, 2]))
-                    .foregroundStyle(.purple)
-                    .annotation(position: .bottom, spacing: 2) {
-                        Image(systemName: "syringe")
-                            .font(.caption2)
-                            .foregroundStyle(.purple)
-                    }
+                    .foregroundStyle(Color.insulin)
             }
         }
         .chartXScale(domain: dayRange)
         // 리브레 일일 그래프의 세로축이 50~350 mg/dL라서(ml-service 계약) 날마다 같은 축으로 고정해 비교하기 쉽게 한다.
         .chartYScale(domain: 50...350)
-        .chartYAxis {
-            AxisMarks(position: .leading, values: Array(stride(from: 50, through: 350, by: 50)))
-        }
         .chartXAxis {
             AxisMarks(values: .stride(by: .hour, count: 3)) { value in
-                AxisGridLine()
+                AxisGridLine().foregroundStyle(Color.line)
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text("\(ReportDay.calendar.component(.hour, from: date))시")
                     }
                 }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: Array(stride(from: 50, through: 350, by: 50))) {
+                AxisGridLine().foregroundStyle(Color.line)
+                AxisValueLabel()
             }
         }
         .chartYAxisLabel("mg/dL")

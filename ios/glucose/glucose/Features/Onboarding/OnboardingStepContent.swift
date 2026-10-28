@@ -39,7 +39,7 @@ struct OnboardingStepContent: View {
     }
 }
 
-/// "부를 이름" — 크게, 노란 테두리
+/// "부를 이름" — 크게, 노란 테두리. 자판은 칸을 눌렀을 때만 올라오고, 완료 키는 다음으로 넘어간다
 private struct NameField: View {
     @Bindable var viewModel: OnboardingViewModel
     @FocusState private var focused: Bool
@@ -53,8 +53,9 @@ private struct NameField: View {
                 .font(.pretendard(20, relativeTo: .title3, weight: .bold))
                 .foregroundStyle(Color.textPrimary)
                 .textContentType(.nickname)
-                .submitLabel(.done)
+                .submitLabel(.next)
                 .focused($focused)
+                .onSubmit { Task { await viewModel.primary() } }
                 .padding(.horizontal, Spacing.m)
                 .padding(.vertical, 14)
                 .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.card))
@@ -68,7 +69,6 @@ private struct NameField: View {
                 .font(.caption1)
                 .foregroundStyle(Color.textSecondary)
         }
-        .onAppear { focused = true }
     }
 }
 
