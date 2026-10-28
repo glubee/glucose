@@ -64,12 +64,22 @@ public class EpisodeReportService {
             List<EpisodeSummary.IntakeMark> marks = group.stream()
                     .map(occurrence -> byId.get(occurrence.intakeId()))
                     .map(intake -> new EpisodeSummary.IntakeMark(intake.getOccurredAt(), intake.getContext(),
-                            intake.getPhotoId(), labels(intake)))
+                            intake.getPhotoId(), labels(intake), tags(intake)))
                     .toList();
             List<String> foods = marks.stream().flatMap(mark -> mark.foods().stream()).toList();
             summaries.add(summarize(group, timeline, foods, marks));
         }
         return summaries;
+    }
+
+    /** 항목의 태그 + 빠른 당(FAST_SUGAR 분류)을 한 목록으로 */
+    private static List<String> tags(Intake intake) {
+        java.util.Set<String> set = new java.util.TreeSet<>();
+        for (IntakeItem item : intake.getItems()) {
+            if (item.getTags() != null) item.getTags().forEach(tag -> set.add(tag.name()));
+            if (item.getCategoryHint() == com.glucoselog.intake.FoodCategoryHint.FAST_SUGAR) set.add("FAST_SUGAR");
+        }
+        return List.copyOf(set);
     }
 
     private static List<String> labels(Intake intake) {

@@ -31,6 +31,7 @@ public class DailyReportService {
     private final ReportProperties properties;
     private final ReportSummaryBuilder summaryBuilder;
     private final DailyStoryBuilder storyBuilder;
+    private final DailyInsightDetector insightDetector;
     private final EpisodeProperties episodeProperties;
 
     public DailyReportService(
@@ -41,6 +42,7 @@ public class DailyReportService {
             ReportProperties properties,
             ReportSummaryBuilder summaryBuilder,
             DailyStoryBuilder storyBuilder,
+            DailyInsightDetector insightDetector,
             EpisodeProperties episodeProperties) {
         this.timelineService = timelineService;
         this.episodeReportService = episodeReportService;
@@ -49,6 +51,7 @@ public class DailyReportService {
         this.properties = properties;
         this.summaryBuilder = summaryBuilder;
         this.storyBuilder = storyBuilder;
+        this.insightDetector = insightDetector;
         this.episodeProperties = episodeProperties;
     }
 
@@ -75,9 +78,14 @@ public class DailyReportService {
         List<String> story = storyBuilder.build(
                 daySummary.map(GlucoseTimelineService.DaySummary::samples).orElse(List.of()), episodes, insulinEvents);
 
+        List<ReportInsight> insights = insightDetector.isEnabled()
+                ? insightDetector.detect(date, daySummary.map(GlucoseTimelineService.DaySummary::samples).orElse(null),
+                        episodes, episodeReportService.buildEpisodes(userId, date.minusDays(1)), insulinEvents)
+                : List.of();
+
         return new DailyReportResponse(
                 date, glucoseSummary, episodes, insulinEvents.size(), insulinEvents, educationCards, summary,
-                episodeProperties.reboundGlucoseThreshold(), story);
+                episodeProperties.reboundGlucoseThreshold(), story, insights);
     }
 
     private static DailyReportResponse.GlucoseSummary summarize(

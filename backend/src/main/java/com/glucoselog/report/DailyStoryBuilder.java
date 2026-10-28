@@ -317,7 +317,7 @@ public class DailyStoryBuilder {
         return null;
     }
 
-    private static String object(String word) {
+    static String object(String word) {
         return lastSound(word) == null ? "를" : "을";
     }
 

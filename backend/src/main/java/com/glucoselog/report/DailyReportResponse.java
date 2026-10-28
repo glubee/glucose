@@ -18,16 +18,24 @@ public record DailyReportResponse(
         List<EducationCardResponse> educationCards,
         List<String> summary,
         int reboundGlucoseThreshold,
-        List<String> story) {
+        List<String> story,
+        List<ReportInsight> insights) {
 
     public DailyReportResponse {
         story = story == null ? List.of() : List.copyOf(story);
+        insights = insights == null ? List.of() : List.copyOf(insights);
+    }
+
+    public DailyReportResponse(LocalDate date, GlucoseSummary glucose, List<EpisodeSummary> episodes, int insulinEventsCount,
+            List<InsulinEventMarker> insulinEvents, List<EducationCardResponse> educationCards, List<String> summary,
+            int reboundGlucoseThreshold, List<String> story) {
+        this(date, glucose, episodes, insulinEventsCount, insulinEvents, educationCards, summary, reboundGlucoseThreshold, story, List.of());
     }
 
     public DailyReportResponse(LocalDate date, GlucoseSummary glucose, List<EpisodeSummary> episodes, int insulinEventsCount,
             List<InsulinEventMarker> insulinEvents, List<EducationCardResponse> educationCards, List<String> summary,
             int reboundGlucoseThreshold) {
-        this(date, glucose, episodes, insulinEventsCount, insulinEvents, educationCards, summary, reboundGlucoseThreshold, List.of());
+        this(date, glucose, episodes, insulinEventsCount, insulinEvents, educationCards, summary, reboundGlucoseThreshold, List.of(), List.of());
     }
 
     /** sufficient는 coverage_ratio가 설정 기준 이상인지의 기록 상태일 뿐, 혈당 평가가 아니다. */
