@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 기본 리포트는 먼저 표시하고, 사용자가 요청할 때만 요약을 정리한다.
+/// 기본 리포트는 먼저 표시하고, 사용자가 요청할 때만 요약을 정리한다. v5: 연노랑 카드
 struct ReportNarrativeSection: View {
     let kind: String
     let date: String
@@ -11,41 +11,56 @@ struct ReportNarrativeSection: View {
     @State private var requestID = UUID()
 
     var body: some View {
-        Section("기록 요약") {
-            if let narrative {
-                ForEach(narrative.paragraphs.indices, id: \.self) { index in
-                    Text(narrative.paragraphs[index].text)
-                }
-                DisclosureGroup("요약 근거") {
-                    ForEach(narrative.facts) { fact in
-                        LabeledContent(fact.label, value: fact.displayValue)
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            SectionHeader(title: "기록 요약", trailing: narrative == nil ? nil : "근거 기반 정리")
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                ForEach(lines.indices, id: \.self) { index in
+                    HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                        Circle().fill(Color.brand).frame(width: 6, height: 6)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                        Text(lines[index])
+                            .font(.body1)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                ForEach(narrative.limitations.indices, id: \.self) { index in
-                    Text(narrative.limitations[index])
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            }
+            if let narrative {
+                DisclosureGroup("요약 근거") {
+                    VStack(spacing: Spacing.xxs) {
+                        ForEach(narrative.facts) { fact in
+                            LabeledContent(fact.label, value: fact.displayValue)
+                                .monospacedDigit()
+                        }
+                    }
+                    .padding(.top, Spacing.xs)
                 }
-            } else {
-                ForEach(summary.indices, id: \.self) { index in
-                    Text(summary[index])
-                }
+                .font(.caption1)
+                .foregroundStyle(Color.textSecondary)
+                .tint(Color.textPrimary)
+                ReportNotes(lines: narrative.limitations)
             }
             if let errorMessage {
-                Text(errorMessage).font(.caption).foregroundStyle(.secondary)
+                ReportNotes(lines: [errorMessage])
             }
             Button {
                 Task { await generate() }
             } label: {
-                HStack {
+                HStack(spacing: Spacing.xs) {
+                    if isLoading { ProgressView().tint(Color.textPrimary) } else { Image(systemName: "sparkles") }
                     Text(narrative == nil ? "요약 정리하기" : "요약 다시 정리하기")
-                    if isLoading { ProgressView() }
                 }
             }
+            .buttonStyle(.glubeeSecondary)
             .disabled(isLoading)
         }
+        .card(.brand)
         .onChange(of: date) { reset() }
         .onChange(of: summary) { reset() }
+    }
+
+    private var lines: [String] {
+        narrative.map { $0.paragraphs.map(\.text) } ?? summary
     }
 
     private func reset() {
