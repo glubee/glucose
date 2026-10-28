@@ -4,6 +4,7 @@
 //
 //  빠른 기록 위젯(v5). 누르면 앱이 카메라(glubee://capture) 또는 인슐린 투여 확인(glubee://insulin)으로
 //  바로 열린다. 위젯에는 연속일과 글루비 얼굴만 있고 혈당·음식·인슐린 내용은 없다.
+//  잠금 화면에는 연속일 위젯(직사각형·원형·한 줄)과 사진/인슐린 원형 버튼을 둘 수 있다.
 //  틴트(단색) 모드에서는 색이 빠지므로 버튼을 색이 아닌 아이콘과 글자로 구분한다.
 //
 
@@ -199,6 +200,85 @@ struct SingleActionView: View {
     }
 }
 
+// MARK: - 잠금 화면: 글루비 얼굴 + 연속일
+
+struct StreakLockWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "StreakLockWidget", provider: GlubeeProvider()) { entry in
+            StreakLockView(entry: entry)
+                .widgetURL(entry.face == "anxious" ? URL(string: "glubee://day-close") : nil)
+                .containerBackground(.clear, for: .widget)
+        }
+        .configurationDisplayName("연속 완성일")
+        .description("잠금 화면에서 글루비와 연속일을 봐요.")
+        .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
+    }
+}
+
+struct StreakLockView: View {
+    let entry: GlubeeEntry
+    @Environment(\.widgetFamily) private var family
+
+    private var face: Image { Image("face_\(entry.face)_mono") }
+
+    /// 기록 여부와 시각에만 반응한다(혈당·음식·용량 내용 없음)
+    private var status: String {
+        switch entry.face {
+        case "sleep": "쉬어가는 중이에요"
+        case "celebrate": "오늘 완성했어요"
+        case "anxious": "마무리할 시간이에요"
+        case "nag": "오늘 기록이 아직 없어요"
+        default:
+            if let last = entry.snapshot.lastRecordAt, WidgetMood.calendar.isDate(last, inSameDayAs: entry.date) {
+                "오늘도 기록 중이에요"
+            } else {
+                "오늘도 같이 해요"
+            }
+        }
+    }
+
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Text("글루비 연속 \(entry.snapshot.streak)일")
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 0) {
+                    face.resizable().scaledToFit().frame(width: 26, height: 26)
+                        .widgetAccentable()
+                    Text("\(entry.snapshot.streak)")
+                        .font(.system(size: 15, weight: .black))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("연속 \(entry.snapshot.streak)일")
+        default:
+            HStack(spacing: 8) {
+                face.resizable().scaledToFit().frame(width: 40, height: 40)
+                    .widgetAccentable()
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text("연속").font(.caption.weight(.semibold))
+                        Text("\(entry.snapshot.streak)").font(.title2.weight(.black)).monospacedDigit()
+                        Text("일").font(.caption.weight(.bold))
+                    }
+                    .widgetAccentable()
+                    Text(status)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+}
+
 #Preview(as: .systemMedium) {
     QuickActionsWidget()
 } timeline: {
@@ -209,4 +289,10 @@ struct SingleActionView: View {
     CaptureWidget()
 } timeline: {
     GlubeeEntry(date: .now, snapshot: WidgetSnapshot())
+}
+
+#Preview(as: .accessoryRectangular) {
+    StreakLockWidget()
+} timeline: {
+    GlubeeEntry(date: .now, snapshot: WidgetSnapshot(streak: 12))
 }

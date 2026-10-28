@@ -39,6 +39,16 @@ struct GlucoseApp: App {
             RootTabView()
         } else if ProcessInfo.processInfo.arguments.contains("-settings") {
             SettingsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-reports") {
+            // 로그인 없이 리포트 탭 보기. -reportSample: 예시 값, -clinician: 진료용 리포트 시트, -weekly: 주간만
+            if ProcessInfo.processInfo.arguments.contains("-clinician") {
+                ClinicianReportView()
+            } else {
+                ReportsView()
+            }
+        } else if ProcessInfo.processInfo.arguments.contains("-graphUpload") {
+            // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
+            GraphUploadView()
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
             ReviewView()
         } else if ProcessInfo.processInfo.arguments.contains("-home") {
@@ -71,9 +81,6 @@ struct GlucoseApp: App {
                     PendingPhotoStore.shared.add(imageData: data, context: .meal,
                                                  capturedAt: .now.addingTimeInterval(-3 * 3600))
                 }
-        } else if ProcessInfo.processInfo.arguments.contains("-graphUpload") {
-            // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
-            GraphUploadView()
         } else if ProcessInfo.processInfo.arguments.contains("-insulinConfirm") {
             // 로그인 없이 투여 확인 화면만 보기(평소 인슐린 2개 예시)
             InsulinConfirmView(preferences: .debugSample)
