@@ -192,11 +192,7 @@ struct DailyReportView: View {
         if !cards.isEmpty {
             Section("알아두면 좋아요") {
                 ForEach(cards) { card in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(card.title).font(.subheadline.bold())
-                        Text(card.body).font(.footnote).foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 2)
+                    GuidanceCardContent(card: card)
                 }
             }
         }

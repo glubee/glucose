@@ -325,7 +325,11 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
   ],
   "insulin_events_count": 1,
   "insulin_events": [ { "occurred_at": "2026-10-01T09:05:00Z", "units": 3, "kind": "처치" } ],
-  "education_cards": [ { "trigger": "REBOUND", "title": "...", "body": "..." } ],
+  "education_cards": [ {
+    "code": "REBOUND", "trigger": "REBOUND", "title": "...", "body": "...",
+    "sources": [{ "name": "미국당뇨병학회(ADA) · 반등 용어", "url": "https://diabetes.org/about-diabetes/common-terms", "kind": "EXTERNAL" }],
+    "reviewed_by": "요청자", "reviewed_at": "2026-10-28", "review_type": "REQUESTER"
+  } ],
   "rebound_glucose_threshold": 180,
   "summary": [
     "이 날 혈당 그래프의 94%를 읽었어요.",
@@ -343,6 +347,15 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
 - `rebound_detected`: 저혈당 처치 에피소드의 분석 창 안에서 `rebound_glucose_threshold`(기본 180 mg/dL)를
   **넘는** 값이 하나라도 읽혔는지(2026-10-12 Dave 결정). 정확히 180은 해당하지 않는다. 처치가 아닌 에피소드는 항상 `false`.
   앱은 문구에 이 기준값을 그대로 쓴다(숫자를 앱에 따로 두지 않는다).
+
+### 안내 카드와 상시 정보
+
+`GET /v1/education-cards/review`는 JWT 인증 후 승인된 상시 안내 10장을 배열로 반환한다.
+일일 `education_cards`와 동일한 모델이며, 상시 안내의 `trigger`는 null이다.
+카드의 `code`, `sources`, `reviewed_by`, `reviewed_at`, `review_type`은 추가 필드다.
+`review_type=REQUESTER`는 요청자가 문구를 검토했다는 이력이다.
+외부 출처는 HTTPS 링크로, `APP_GUIDE` 출처는 앱 내 분석 안내로 표시한다.
+일일 조건 7종·노출 순서·그래프 미등록 처리·문구 검토 이력은 [안내 카드 명세](guidance-cards.md)를 따른다.
 
 ### `GET /v1/reports/weekly/{date}` — 주간 리포트
 `date`는 그 주(월~일, ISO 기준) 안의 임의의 날. 응답 200:
@@ -452,5 +465,5 @@ AI가 새로운 수치·원인·평가·치료 조언을 생성하는 자유 문
 
 ## 17. 앞으로 추가될 것 (문서 자리만 미리 잡아둠)
 
-- 검토·출처 관리가 완료된 일반 정보 자료의 연동(현재 문장화는 개인 기록 사실만 정리)
+- 안내 카드와 별도로 문장화는 계속 개인 기록 사실만 정리한다.
 - B8(레이트 리밋, OpenAPI, 로그 점검, 백업 복구 테스트)

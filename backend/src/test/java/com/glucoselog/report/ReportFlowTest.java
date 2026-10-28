@@ -173,11 +173,17 @@ class ReportFlowTest {
         assertThat(insulinEvents.get(0).get("kind")).isEqualTo("처치");
 
         List<Map<String, Object>> cards = (List<Map<String, Object>>) body.get("education_cards");
-        assertThat(cards).extracting(c -> c.get("trigger")).containsExactly("REBOUND");
+        assertThat(cards).extracting(c -> c.get("trigger"))
+                .containsExactly("LOW_READING", "REBOUND", "LOW_COVERAGE", "GRAPH_EDGE");
+        assertThat(cards).allSatisfy(card -> {
+            assertThat(card.get("reviewed_by")).isEqualTo("요청자");
+            assertThat(card.get("reviewed_at")).isEqualTo("2026-10-28");
+            assertThat((List<?>) card.get("sources")).isNotEmpty();
+        });
     }
 
     @Test
-    void 그래프가_없는_날은_glucose가_null이고_LOW_COVERAGE_카드가_붙는다() {
+    void 그래프가_없는_날은_glucose가_null이고_일부만_읽혔다고_안내하지_않는다() {
         String token = login();
 
         createIntake(token, "MEAL", "2026-10-02T03:00:00Z", "현미밥");
@@ -194,7 +200,7 @@ class ReportFlowTest {
         assertThat(episodes.get(0).get("rebound_detected")).isEqualTo(false); // MEAL은 처치가 아니므로 확정 false
 
         List<Map<String, Object>> cards = (List<Map<String, Object>>) body.get("education_cards");
-        assertThat(cards).extracting(c -> c.get("trigger")).containsExactly("LOW_COVERAGE");
+        assertThat(cards).isEmpty();
     }
 
     @Test

@@ -29,6 +29,13 @@ struct ReportsView: View {
             }
             .navigationTitle("리포트")
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        EducationCardsView()
+                    } label: {
+                        Label("알아두면 좋은 정보", systemImage: "info.circle")
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Picker("보기", selection: $mode) {
                         ForEach(Mode.allCases, id: \.self) { mode in
