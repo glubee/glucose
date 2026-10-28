@@ -14,6 +14,7 @@ import com.glucoselog.episode.GlucoseSample;
 import com.glucoselog.glucose.GlucoseGraphUpload;
 import com.glucoselog.glucose.GlucoseGraphUploadRepository;
 import com.glucoselog.glucose.GlucoseReadingRepository;
+import com.glucoselog.glucose.GraphParserVersion;
 
 /** glucose_graph_upload/glucose_reading을 리포트·에피소드 분석이 쓰기 좋은 절대시각 샘플로 바꾼다.
  * ml-service가 읽은 readings[].time은 한국 시간 기준이다(docs/ml-service-contract.md). */
@@ -33,6 +34,7 @@ public class GlucoseTimelineService {
     /** 해당 날짜에 분석 완료된 그래프가 있으면 coverage_ratio와 샘플을, 없으면 empty를 돌려준다. */
     public Optional<DaySummary> findDaySummary(UUID userId, LocalDate date) {
         return uploadRepository.findByUserIdAndResultDate(userId, date)
+                .filter(upload -> GraphParserVersion.isSupported(upload.getParserVersion()))
                 .map(upload -> new DaySummary(upload.getCoverageRatio(), toSamples(upload)));
     }
 
@@ -41,6 +43,7 @@ public class GlucoseTimelineService {
         List<GlucoseSample> samples = new ArrayList<>();
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
             uploadRepository.findByUserIdAndResultDate(userId, date)
+                    .filter(upload -> GraphParserVersion.isSupported(upload.getParserVersion()))
                     .ifPresent(upload -> samples.addAll(toSamples(upload)));
         }
         samples.sort(Comparator.comparing(GlucoseSample::time));

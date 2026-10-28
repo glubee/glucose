@@ -81,7 +81,25 @@ struct DailyReportView: View {
     @ViewBuilder
     private func glucoseSection(report: DailyReport, points: [GlucosePoint]) -> some View {
         Section("혈당") {
-            if let glucose = report.glucose {
+            if viewModel.requiresGraphReprocessing {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("그래프를 다시 읽어야 해요").font(.headline)
+                    Text("이전에 읽은 수치를 확인해야 해서 잠시 숨겼어요. 저장된 원본으로 다시 분석할 수 있어요.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    if viewModel.isReprocessing {
+                        ProgressView("그래프를 다시 읽고 있어요")
+                    } else {
+                        Button("저장된 그래프 다시 읽기") { Task { await viewModel.reprocessGraph() } }
+                            .buttonStyle(.borderless)
+                    }
+                    if let error = viewModel.reprocessError {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Button("다른 원본 이미지 올리기") { showGraphUpload = true }
+                        .buttonStyle(.borderless)
+                        .disabled(viewModel.isReprocessing)
+                }
+            } else if let glucose = report.glucose {
                 if points.isEmpty {
                     Text("곡선을 불러오지 못했어요. 아래로 당겨 새로고침해주세요.")
                         .font(.footnote)

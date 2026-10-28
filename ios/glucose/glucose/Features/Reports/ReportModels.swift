@@ -186,6 +186,8 @@ struct GlucoseReadings: Decodable {
     let date: String
     let coverageRatio: Double?
     let readings: [Reading]
+    let uploadId: UUID?
+    let parserVersion: String?
 
     struct Reading: Decodable {
         /// "HH:mm", 한국 시간 기준

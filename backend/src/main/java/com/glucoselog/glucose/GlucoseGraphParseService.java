@@ -34,6 +34,11 @@ public class GlucoseGraphParseService {
     @Transactional
     public String apply(UUID uploadId, String rawJson) throws Exception {
         GraphParseResult result = objectMapper.readValue(rawJson, GraphParseResult.class);
+        String parserVersion = result.meta() != null ? result.meta().parserVersion() : null;
+        // 오래된 실행 이미지가 성공 응답을 내더라도 잘못된 수치를 저장하거나 기존 결과를 지우지 않는다.
+        if (!GraphParserVersion.isSupported(parserVersion)) {
+            throw new GraphParserVersion.UnsupportedVersionException();
+        }
         GlucoseGraphUpload upload = uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new IllegalStateException("그래프 업로드를 찾을 수 없습니다: " + uploadId));
 
@@ -45,16 +50,19 @@ public class GlucoseGraphParseService {
 
         // 재시도로 다시 들어온 경우를 대비해 이 업로드 자신의 기존 readings는 먼저 비운다.
         readingRepository.deleteByUploadId(uploadId);
+        // Hibernate는 INSERT를 DELETE보다 먼저 보낼 수 있다. 같은 원본 재분석 시 시간 슬롯 충돌을 막는다.
+        // 동일 트랜잭션이므로 새 결과 저장에 실패하면 기존 값도 함께 복원된다.
+        readingRepository.flush();
 
         List<GlucoseReading> readings = result.readings().stream()
                 .map(r -> new GlucoseReading(uploadId, toTimeSlot(r.time()), r.value(), ReadingFlag.valueOf(r.flag())))
                 .toList();
         readingRepository.saveAll(readings);
 
-        upload.applyParseResult(date, result.coverageRatio(), result.meta() != null ? result.meta().parserVersion() : null);
+        upload.applyParseResult(date, result.coverageRatio(), parserVersion);
         uploadRepository.save(upload);
 
-        return objectMapper.writeValueAsString(new GlucoseGraphStatusResponse(date, result.coverageRatio()));
+        return objectMapper.writeValueAsString(new GlucoseGraphStatusResponse(date, result.coverageRatio(), parserVersion));
     }
 
     private static int toTimeSlot(String time) {

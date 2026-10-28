@@ -38,13 +38,28 @@ public class GlucoseGraphStatusService {
             case PENDING, PROCESSING ->
                 throw new ApiException(HttpStatus.CONFLICT, "GRAPH_NOT_READY", "아직 분석 중입니다");
             case FAILED -> throw failureFor(job.getLastError());
-            case DONE -> parse(job.getResult());
+            case DONE -> {
+                if (!GraphParserVersion.isSupported(upload.getParserVersion())) {
+                    throw new ApiException(HttpStatus.CONFLICT, "GRAPH_REPROCESS_REQUIRED", "그래프를 다시 분석해야 합니다");
+                }
+                yield parse(job.getResult());
+            }
         };
     }
 
     // MlServiceClient가 4xx 응답 본문({code, message, request_id})을 lastError에 그대로 남기므로,
     // 계약서의 두 코드만 찾아서 앱이 원인별로 다른 안내를 보여줄 수 있게 한다.
     private static ApiException failureFor(String lastError) {
+        if (lastError != null && (lastError.contains("GRAPH_PARSER_OUTDATED") || lastError.contains("GRAPH_OCR_UNAVAILABLE"))) {
+            String code = lastError.contains("GRAPH_PARSER_OUTDATED") ? "GRAPH_PARSER_OUTDATED" : "GRAPH_OCR_UNAVAILABLE";
+            return new ApiException(HttpStatus.SERVICE_UNAVAILABLE, code, "그래프 분석 서비스를 확인하고 있습니다");
+        }
+        if (lastError != null && lastError.contains("GRAPH_DATE_NOT_RECOGNIZED")) {
+            return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "GRAPH_DATE_NOT_RECOGNIZED", "이미지의 날짜를 읽지 못했습니다");
+        }
+        if (lastError != null && lastError.contains("GRAPH_AXES_NOT_RECOGNIZED")) {
+            return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "GRAPH_AXES_NOT_RECOGNIZED", "이미지의 혈당 눈금을 읽지 못했습니다");
+        }
         if (lastError != null && lastError.contains("GRAPH_NOT_RECOGNIZED")) {
             return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "GRAPH_NOT_RECOGNIZED",
                     "리브레 일일 그래프로 인식하지 못했습니다");

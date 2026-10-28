@@ -21,4 +21,9 @@ struct GraphUploadStartResponse: Decodable {
 struct GraphStatusResponse: Decodable {
     let date: String
     let coverageRatio: Double
+    let parserVersion: String?
+}
+
+struct GraphReprocessResponse: Decodable {
+    let uploadId: UUID
 }

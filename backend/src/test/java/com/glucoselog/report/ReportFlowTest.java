@@ -66,7 +66,7 @@ class ReportFlowTest {
               ],
               "gaps": [],
               "coverage_ratio": 0.5,
-              "meta": {"parser_version": "1.0.0"}
+              "meta": {"parser_version": "1.1.5"}
             }
             """;
 
