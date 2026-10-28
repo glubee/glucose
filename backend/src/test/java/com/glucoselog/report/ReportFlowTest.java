@@ -154,6 +154,11 @@ class ReportFlowTest {
         List<Map<String, Object>> episodes = (List<Map<String, Object>>) body.get("episodes");
         assertThat(episodes).hasSize(1);
         Map<String, Object> episode = episodes.get(0);
+        List<Map<String, Object>> intakes = (List<Map<String, Object>>) episode.get("intakes");
+        assertThat(intakes).hasSize(1);
+        assertThat(intakes.get(0).get("occurred_at")).isNotNull();
+        assertThat(intakes.get(0).get("context")).isEqualTo("SNACK");
+        assertThat((List<String>) intakes.get(0).get("foods")).containsExactly("포도당 캔디 1개");
         assertThat(episode.get("original_context")).isEqualTo("SNACK");
         assertThat(episode.get("effective_context")).isEqualTo("HYPO_TREATMENT");
         assertThat(episode.get("auto_reclassified")).isEqualTo(true);

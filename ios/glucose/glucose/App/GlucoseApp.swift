@@ -39,6 +39,11 @@ struct GlucoseApp: App {
             RootTabView()
         } else if ProcessInfo.processInfo.arguments.contains("-settings") {
             SettingsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-chartDetail") {
+            // 로그인 없이 그래프 크게 보기(예시 데이터)
+            let sample = ReportSamples.daily(.now)
+            GlucoseDayDetailView(day: .now, points: sample.1, episodes: sample.0.episodes,
+                                 insulinEvents: sample.0.insulinEvents ?? [])
         } else if ProcessInfo.processInfo.arguments.contains("-reports") {
             // 로그인 없이 리포트 탭 보기. -reportSample: 예시 값, -clinician: 진료용 리포트 시트, -weekly: 주간만
             if ProcessInfo.processInfo.arguments.contains("-clinician") {
