@@ -61,14 +61,22 @@ public class EpisodeReportService {
 
         List<EpisodeSummary> summaries = new ArrayList<>();
         for (List<IntakeOccurrence> group : groups) {
-            List<String> foods = group.stream()
-                    .flatMap(occurrence -> byId.get(occurrence.intakeId()).getItems().stream())
-                    .map(EpisodeReportService::foodLabel)
-                    .filter(label -> !label.isBlank())
+            List<EpisodeSummary.IntakeMark> marks = group.stream()
+                    .map(occurrence -> byId.get(occurrence.intakeId()))
+                    .map(intake -> new EpisodeSummary.IntakeMark(intake.getOccurredAt(), intake.getContext(),
+                            intake.getPhotoId(), labels(intake)))
                     .toList();
-            summaries.add(summarize(group, timeline, foods));
+            List<String> foods = marks.stream().flatMap(mark -> mark.foods().stream()).toList();
+            summaries.add(summarize(group, timeline, foods, marks));
         }
         return summaries;
+    }
+
+    private static List<String> labels(Intake intake) {
+        return intake.getItems().stream()
+                .map(EpisodeReportService::foodLabel)
+                .filter(label -> !label.isBlank())
+                .toList();
     }
 
     /** "짜장면 1그릇", 개수가 없으면 이름만 */
@@ -80,7 +88,8 @@ public class EpisodeReportService {
         return name + " " + item.getCount() + (item.getUnit() == null ? "" : item.getUnit().trim());
     }
 
-    private EpisodeSummary summarize(List<IntakeOccurrence> group, List<GlucoseSample> timeline, List<String> foods) {
+    private EpisodeSummary summarize(List<IntakeOccurrence> group, List<GlucoseSample> timeline, List<String> foods,
+            List<EpisodeSummary.IntakeMark> marks) {
         IntakeOccurrence first = group.get(0);
         Instant startAt = first.occurredAt();
         PhotoContext originalContext = first.context();
@@ -113,7 +122,8 @@ public class EpisodeReportService {
                 windowEndAt,
                 reboundDetected,
                 group.size(),
-                foods);
+                foods,
+                marks);
     }
 
     private static Integer precedingValue(List<GlucoseSample> timeline, Instant startAt) {

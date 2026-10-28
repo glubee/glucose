@@ -12,6 +12,7 @@ import SwiftUI
 struct DailyReportView: View {
     let viewModel: DailyReportViewModel
     @State private var showGraphUpload = false
+    @State private var showChartDetail = false
     private let store = DayCloseStore.shared
 
     var body: some View {
@@ -145,10 +146,22 @@ struct DailyReportView: View {
                 } else {
                     GlucoseDayChart(day: viewModel.day, points: points,
                                     episodes: report.episodes, insulinEvents: report.insulinEvents ?? [])
+                        .contentShape(Rectangle())
+                        .onTapGesture { showChartDetail = true }
                     ChartLegend()
+                    Button {
+                        showChartDetail = true
+                    } label: {
+                        Label("크게 보고 시각별로 확인하기", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .buttonStyle(.glubeeSecondary)
                 }
             }
             .card()
+            .fullScreenCover(isPresented: $showChartDetail) {
+                GlucoseDayDetailView(day: viewModel.day, points: points, episodes: report.episodes,
+                                     insulinEvents: report.insulinEvents ?? [])
+            }
         }
     }
 

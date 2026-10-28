@@ -48,6 +48,15 @@ public class PhotoUploadService {
         return new PhotoUploadResponse(photo.getId(), uploadUrl.toString(), objectKey, properties.presignTtlSeconds());
     }
 
+    /** 본인 사진만, 업로드가 끝난 사진만 보기 주소를 준다 */
+    @Transactional(readOnly = true)
+    public PhotoViewResponse viewUrl(UUID userId, UUID photoId) {
+        IntakePhoto photo = repository.findByIdAndUserId(photoId, userId)
+                .filter(p -> p.getStatus() == PhotoStatus.UPLOADED)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PHOTO_NOT_FOUND", "사진을 찾을 수 없습니다"));
+        return new PhotoViewResponse(storageService.presignGet(photo.getObjectKey()).toString(), properties.presignTtlSeconds());
+    }
+
     @Transactional
     public void completeUpload(UUID userId, UUID photoId) {
         IntakePhoto photo = repository.findByIdAndUserId(photoId, userId)

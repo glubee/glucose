@@ -143,6 +143,12 @@ R2(S3 호환) presigned PUT URL을 발급한다. **앱이 이 URL로 R2에 직�
 | 404 | `PHOTO_NOT_FOUND` | 본인 소유가 아니거나 없는 사진 (존재 여부를 구분해 알려주지 않음) |
 | 409 | `PHOTO_NOT_UPLOADED` | R2에 실제 업로드가 안 된 상태에서 완료만 호출함 |
 
+## 9-1. `GET /v1/photos/{photoId}/view` — 기록한 음식 사진 보기 주소
+
+본인 사진이고 업로드가 끝난(`UPLOADED`) 사진만. 아니면 404 `PHOTO_NOT_FOUND`(다른 사람 사진인지 알 수 없게 같은 응답).
+응답 200: `{ "url": "<presigned GET URL>", "expires_in": 600 }`. 앱은 만료 전까지만 메모리에 두고 기기에 저장하지 않는다.
+주소는 로그에 남기지 않는다.
+
 ## 10. `GET /v1/photos/{photoId}/recognition` — 음식 인식 결과 조회 (B4)
 
 업로드 완료 후 큐에 들어간 음식 인식 job의 결과를 조회한다. ml-service 응답(`docs/ml-service-contract.md`)에서 백엔드가 쓰는 필드만 추린 모양이다.
@@ -321,7 +327,10 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
       "window_end_at": "2026-10-01T11:00:00Z",
       "rebound_detected": true,
       "intake_count": 1,
-      "foods": ["포도당 캔디 3개"]
+      "foods": ["포도당 캔디 3개"],
+      "intakes": [
+        { "occurred_at": "2026-10-01T09:00:00Z", "context": "SNACK", "photo_id": "…", "foods": ["포도당 캔디 3개"] }
+      ]
     }
   ],
   "insulin_events_count": 1,
@@ -343,6 +352,7 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
 - `glucose.sufficient`는 **기록 충분성**이다: `coverage_ratio >= report.sufficient-coverage-ratio`(기본 0.7)이면 `true`.
   우리 앱의 기록 상태 표시일 뿐 혈당이 좋다/나쁘다는 평가가 아니고, 의학적 데이터 충분성 기준(예: 14일·70%)과도 다르다.
   임계값 0.7은 임시 제품 기준이며 운영 coverage 분포를 보고 조정한다(2026-10-10 결정).
+- 에피소드의 `intakes`: 묶음 안 섭취 기록 하나하나(정확한 시각, 입력한 상황, 사진 ID — 사진 없이 남겼으면 `null`, 음식 이름). 앱 그래프에 기록 위치와 사진을 찍는 데 쓴다.
 - 에피소드의 `foods`: 묶음 안 섭취 기록의 음식 이름(+개수·단위)을 기록 순서대로. 개수가 없으면 이름만. 요약 문장에도 같은 이름을 붙인다.
 - 에피소드의 `auto_reclassified`/`rebound_detected`가 `null`이면 "확인해봤더니 아니다"가 아니라
   **그 시점에 쓸 글루코스 데이터가 없어서 판단 자체를 못 했다**는 뜻이다(`false`와 다르다).

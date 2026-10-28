@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +31,12 @@ public class PhotoController {
             @Valid @RequestBody StartPhotoUploadRequest request, Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return photoUploadService.startUpload(userId, request.contentType(), request.context());
+    }
+
+    @GetMapping("/{photoId}/view")
+    public PhotoViewResponse view(@PathVariable UUID photoId, Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return photoUploadService.viewUrl(userId, photoId);
     }
 
     @PostMapping("/{photoId}/complete")
