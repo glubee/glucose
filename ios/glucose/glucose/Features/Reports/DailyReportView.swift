@@ -36,7 +36,11 @@ struct DailyReportView: View {
                         glucoseHero(report: report)
                         chartCard(report: report, points: points)
                     }
-                    ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
+                    if let story = report.story, !story.isEmpty {
+                        DailyStoryCard(story: story, evidence: report.summary ?? [])
+                    } else {
+                        ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
+                    }
                     FoodObservationSection(state: viewModel.foodAnalysis)
                     episodesCard(report.episodes, reboundThreshold: report.reboundGlucoseThreshold)
                     insulinCard(report: report)

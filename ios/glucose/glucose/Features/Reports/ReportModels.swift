@@ -87,6 +87,8 @@ struct DailyReport: Decodable {
     let insulinEvents: [InsulinMarker]?
     let educationCards: [EducationCard]
     let summary: [String]?
+    /// 하루 이야기(시간순 문장). 예전 서버는 보내지 않는다
+    var story: [String]? = nil
     /// 반동 판정 기준(mg/dL, 이 값을 넘으면 반동). 서버 설정값이라 앱에 숫자를 따로 두지 않는다. 옛 서버면 nil
     let reboundGlucoseThreshold: Int?
 
