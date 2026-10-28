@@ -83,12 +83,47 @@ enum ReportSamples {
             limitations: ["이미지에서 읽은 추정값이라 실제 측정값과 다를 수 있어요."])
     }
 
+    /// 주간 겹쳐 보기 예시: 하루 예시 곡선을 요일마다 조금씩 다르게(금·토·일은 비움)
+    static func weekOverlay(_ weekStart: Date) -> [(date: Date, points: [GlucosePoint])] {
+        (0..<7).compactMap { offset -> (date: Date, points: [GlucosePoint])? in
+            guard let date = ReportDay.calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
+            guard offset < 4 else { return (date, []) }
+            let base = daily(date).1
+            let shifted = base.map { GlucosePoint(time: $0.time.addingTimeInterval(Double(offset) * 1800),
+                                                  value: max(50, $0.value + (offset - 1) * 12), segment: $0.segment) }
+                .filter { ReportDay.calendar.isDate($0.time, inSameDayAs: date) }
+            return (date, shifted)
+        }
+    }
+
     static func weekly(_ weekStart: Date) -> WeeklyReport {
         WeeklyReport(weekStart: ReportDay.apiString(from: weekStart),
                      weekEnd: ReportDay.apiString(from: ReportDay.calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart),
                      daysWithData: 5, daysInsufficient: 1, averageGlucose: 146, episodesCount: 14, reboundCount: 1,
                      insulinEventsCount: 11, sufficientDays: 4, lowCoverageDays: 1, pendingDays: 1,
-                     summary: ["그래프가 있는 날은 5일이에요.", "섭취 기록 묶음 14건, 인슐린 기록 11건이 있어요."])
+                     summary: ["그래프가 있는 날은 5일이에요.", "섭취 기록 묶음 14건, 인슐린 기록 11건이 있어요."],
+                     story: ["이번 주는 4일 그래프가 있었고, 읽힌 값 평균은 146이었어요.",
+                             "가장 높았던 값은 수요일 오전 9시 30분의 262, 가장 낮았던 값은 월요일 오후 3시 15분의 52였어요.",
+                             "시간대별로 보면 오전이 평균 168로 가장 높고, 새벽이 112로 가장 낮았어요.",
+                             "가장 자주 남긴 음식은 현미밥(4번)이에요.",
+                             "앞뒤 1시간 안에 인슐린 기록이 없는 식사·간식은 2번이었어요.",
+                             "'먹지 않은 새벽에 혈당이 올랐어요' 흐름이 2일 보였어요(화요일·수요일)."],
+                     days: (0..<7).map { offset in
+                         let date = ReportDay.apiString(from: ReportDay.calendar.date(byAdding: .day, value: offset, to: weekStart) ?? weekStart)
+                         return offset < 4
+                             ? .init(date: date, average: Double(132 + offset * 12), min: 52 + offset * 10, max: 226 + offset * 12,
+                                     coverageRatio: 0.92, intakeCount: 3, insulinCount: 2, lowCount: offset == 0 ? 1 : 0,
+                                     insightCodes: offset == 1 || offset == 2 ? ["NIGHT_FASTING_RISE"] : [])
+                             : .init(date: date, average: nil, min: nil, max: nil, coverageRatio: nil, intakeCount: 0,
+                                     insulinCount: 0, lowCount: 0, insightCodes: [])
+                     },
+                     timeBands: [.init(label: "새벽 0~6시", startHour: 0, endHour: 6, average: 112, min: 88, max: 150, readingsCount: 90),
+                                 .init(label: "오전 6~12시", startHour: 6, endHour: 12, average: 168, min: 96, max: 262, readingsCount: 92),
+                                 .init(label: "오후 12~18시", startHour: 12, endHour: 18, average: 141, min: 52, max: 210, readingsCount: 88),
+                                 .init(label: "저녁 18~24시", startHour: 18, endHour: 24, average: 150, min: 100, max: 238, readingsCount: 80)],
+                     insights: [.init(code: "NIGHT_FASTING_RISE", title: "먹지 않은 새벽에 혈당이 올랐어요", days: 2,
+                                      dates: [ReportDay.apiString(from: weekStart.addingTimeInterval(86400)),
+                                              ReportDay.apiString(from: weekStart.addingTimeInterval(2 * 86400))])])
     }
 
     static func clinician(days: Int) -> ClinicianReport {
