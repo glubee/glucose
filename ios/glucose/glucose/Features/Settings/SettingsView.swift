@@ -98,7 +98,7 @@ struct SettingsView: View {
                     Button("계정 삭제", role: .destructive) { showDeleteConfirm = true }
                         .disabled(viewModel.isDeleting)
                 } footer: {
-                    Text("계정을 삭제하면 모든 기록이 함께 삭제되고 되돌릴 수 없습니다.")
+                    Text("계정을 지우면 모든 기록이 함께 지워지고 되돌릴 수 없어요.")
                 }
 
                 if let errorMessage = viewModel.errorMessage {
@@ -121,7 +121,7 @@ struct SettingsView: View {
             .confirmationDialog("계정을 삭제하시겠어요?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("삭제", role: .destructive) { Task { await viewModel.deleteAccount() } }
             } message: {
-                Text("이 작업은 되돌릴 수 없습니다.")
+                Text("지우면 되돌릴 수 없어요.")
             }
         }
     }

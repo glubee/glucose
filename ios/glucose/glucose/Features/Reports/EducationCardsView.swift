@@ -3,10 +3,13 @@ import SwiftUI
 /// 일일 카드와 상시 안내가 동일한 원문·출처·검토 정보를 보여준다.
 struct GuidanceCardContent: View {
     let card: DailyReport.EducationCard
+    var showsTitle = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(card.title).font(.headline2).foregroundStyle(Color.textPrimary)
+            if showsTitle {
+                Text(card.title).font(.headline2).foregroundStyle(Color.textPrimary)
+            }
             Text(card.body).font(.body2).foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -46,43 +49,65 @@ struct EducationCardsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        List {
-            if isLoading {
-                ProgressView("안내를 불러오고 있어요")
-            } else if let errorMessage {
-                Text(errorMessage).foregroundStyle(.secondary)
-                Button("다시 시도") { Task { await load() } }
-            } else if cards.isEmpty {
-                Text("등록된 안내가 아직 없어요.").foregroundStyle(.secondary)
-            } else {
-                Section("이번에 읽어볼 안내") {
-                    GuidanceCardContent(card: cards[selectedIndex])
-                    if cards.count > 1 {
-                        HStack {
-                            Text("\(selectedIndex + 1) / \(cards.count)")
-                                .font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Button("다음 안내", systemImage: "arrow.right") {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.m) {
+                if isLoading {
+                    StateView(kind: .loading, title: "안내를 불러오고 있어요")
+                } else if let errorMessage {
+                    StateView(kind: .error, title: "안내를 불러오지 못했어요", message: errorMessage,
+                              actionTitle: "다시 시도") { Task { await load() } }
+                } else if cards.isEmpty {
+                    StateView(kind: .empty, title: "등록된 안내가 아직 없어요")
+                } else {
+                    VStack(alignment: .leading, spacing: Spacing.s) {
+                        SectionHeader(label: "이번에 읽어볼 안내", title: cards[selectedIndex].title,
+                                      trailing: cards.count > 1 ? "\(selectedIndex + 1) / \(cards.count)" : nil)
+                        GuidanceCardContent(card: cards[selectedIndex], showsTitle: false)
+                        if cards.count > 1 {
+                            Button {
                                 selectedIndex = (selectedIndex + 1) % cards.count
                                 nextCardIndex = (selectedIndex + 1) % cards.count
+                            } label: {
+                                Label("다음 안내", systemImage: "arrow.right")
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.glubeeSecondary)
                         }
                     }
-                }
-                Section("모든 안내") {
+                    .card(.brand)
+
+                    SectionHeader(title: "모든 안내", trailing: "\(cards.count)개")
+                        .padding(.top, Spacing.xs)
                     ForEach(cards) { card in
                         NavigationLink {
-                            List { GuidanceCardContent(card: card) }
-                                .navigationTitle("안내")
-                                .navigationBarTitleDisplayMode(.inline)
+                            ScrollView {
+                                GuidanceCardContent(card: card)
+                                    .card()
+                                    .padding(Spacing.gutter)
+                            }
+                            .background(Color.canvas)
+                            .navigationTitle("안내")
+                            .navigationBarTitleDisplayMode(.inline)
                         } label: {
-                            Text(card.title)
+                            HStack {
+                                Text(card.title)
+                                    .font(.body1)
+                                    .foregroundStyle(Color.textPrimary)
+                                    .multilineTextAlignment(.leading)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.textSecondary)
+                            }
+                            .card(padding: Spacing.s)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
+            .padding(.horizontal, Spacing.gutter)
+            .padding(.vertical, Spacing.m)
         }
+        .background(Color.canvas)
         .navigationTitle("알아두면 좋은 정보")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

@@ -56,7 +56,7 @@ final class InsulinRecordFormViewModel {
             }
             return true
         } catch {
-            errorMessage = "저장에 실패했습니다. 다시 시도해주세요."
+            errorMessage = "저장하지 못했어요. 다시 시도해 주세요."
             return false
         }
     }
@@ -71,7 +71,7 @@ final class InsulinRecordFormViewModel {
             try await APIClient.shared.sendVoid(path: "/v1/insulin-events/\(id.uuidString)", method: .delete)
             return true
         } catch {
-            errorMessage = "삭제에 실패했습니다. 다시 시도해주세요."
+            errorMessage = "지우지 못했어요. 다시 시도해 주세요."
             return false
         }
     }

@@ -49,6 +49,13 @@ struct GlucoseApp: App {
         } else if ProcessInfo.processInfo.arguments.contains("-graphUpload") {
             // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
             GraphUploadView()
+        } else if ProcessInfo.processInfo.arguments.contains("-login") {
+            LoginView()
+        } else if ProcessInfo.processInfo.arguments.contains("-records") {
+            // 로그인 없이 전체 기록 화면 보기(로그인 전이라 오류 상태로 보인다)
+            RecordsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-insulinForm") {
+            InsulinRecordFormView(mode: .edit(id: UUID()), units: 6, kind: "식사", onSaved: {})
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
             ReviewView()
         } else if ProcessInfo.processInfo.arguments.contains("-home") {

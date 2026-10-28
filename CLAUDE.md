@@ -41,7 +41,7 @@ AI_use_organize/               경진대회 제출용 AI 활용 기록 (건드�
 ## 인프라 (AWS Lightsail, 서울)
 - 서버 1대(Ubuntu 24.04, x86 → 이미지는 **amd64만**). Docker Compose: caddy, app, ml-service, postgres. 외부 포트는 22/80/443만. DB 포트는 열지 않는다.
 - 서버 경로 `/opt/glucose` (`docker-compose.yml`, `Caddyfile`, `.env`, `backup.sh`). 서버 주소와 SSH 키는 GitHub Secrets(`LIGHTSAIL_HOST`, `LIGHTSAIL_SSH_KEY`)에 있고 **이 저장소에 쓰지 않는다**.
-- 이미지는 `ghcr.io/khu-glucose/glucose-app`, `glucose-ml` (조직 이름이 대문자라 소문자로 변환해서 사용).
+- 이미지는 `ghcr.io/glubee/glucose-app`, `glucose-ml`. 서버는 `/opt/glucose/.env`의 `APP_IMAGE`/`ML_IMAGE`로 받는다. 조직 이름을 옮긴 뒤 `.env`가 예전 `khu-glucose`를 가리켜 2주간 배포가 반영되지 않았다(2026-10-28 발견·수정). 배포 뒤 `docker compose images`로 이미지 이름과 생성 시각을 확인한다.
 - 사진·백업은 Cloudflare R2(`glucose-photos`, `glucose-backups`, 비공개). 매일 새벽 4시 DB 백업(cron → R2, 30일 보관).
 - 재시작 정책 `unless-stopped`. 서버 재부팅 후 자동 복구된다.
 - 백업 복구 테스트·장애 시 복구 절차: `infra/README.md`, `infra/restore-test.sh` (임시 컨테이너에만 복구, 운영 DB는 안 건드림).
@@ -55,7 +55,7 @@ AI_use_organize/               경진대회 제출용 AI 활용 기록 (건드�
 - 백엔드 완료(머지): A1, B0(`docs/backend-api.md`), B1(Sign in with Apple + JWT), B2(사진 업로드 R2 presigned URL), B3(job 워커 + ml-service 연동), B4(intake/insulin_event CRUD, `food_catalog` 시드, 음식 인식 결과 조회), B5(혈당 그래프 업로드·분석), B6(에피소드/반동 판정 `EpisodeAnalyzer`), B7(일일·주간 리포트). ml-service 실제 음식 인식 + 그래프 파서, 모델명 버그 수정(#20)도 머지됨.
 - iOS 완료(머지): I0(뼈대), I1(기록 화면), I2(Sign in with Apple), I3(사진 촬영), I4(R2 업로드), I5(인식 결과 확인·수정), I6(인슐린 기록), I7(기록 목록 Live 전환), I8(그래프 업로드), I9(일일 리포트), I10(주간 리포트).
 - iOS v5(2026-10-27~): 계획·결정은 **`docs/ios-design-v4.md`**(핵심 흐름 = 위젯 원탭 기록 + 하루 끝 완성 + 연속 완성일). 머지: D0 디자인 기본값, D1 공통 컴포넌트, O1 글루비 온보딩(해요체, 한 문장씩 타이핑), W1 빠른 촬영 + 확인 대기 사진, W2 인슐린 투여 확인, W3 위젯(+Siri·단축어), v5 마스코트·앱 아이콘, v5 색·버튼·Pretendard, 계정 삭제 시 기기 데이터 지우기(#57), 하루 마무리 v5(#54), 홈·연속 완성일·꿀단지·쉬어가기(#58). 올라간 PR(머지 순서): #59 위젯 v5 + App Group → #60 알림(NudgeScheduler) → #61 v5 탭·음식 기록 시트·설정.
-- iOS 확인 팁: 화면마다 DEBUG 실행 인자가 있다(`-designCatalog`, `-onboardingStep N`, `-insulinConfirm`, `-capture`, `-recognition`, `-dayClose -dayCloseStep N`, `-home [-homeSeed|-homeRest]`, `-reports [-reportSample] [-weekly|-clinician]`, `-tabs`, `-settings`, `-review`, `-printNudges`). 로그인 없이 시뮬레이터에서 볼 수 있다.
+- iOS 확인 팁: 화면마다 DEBUG 실행 인자가 있다(`-designCatalog`, `-onboardingStep N`, `-insulinConfirm`, `-insulinForm`, `-login`, `-records`, `-capture`, `-recognition`, `-dayClose -dayCloseStep N`, `-home [-homeSeed|-homeRest]`, `-reports [-reportSample] [-weekly|-clinician]`, `-tabs`, `-settings`, `-review`, `-printNudges`). 로그인 없이 시뮬레이터에서 볼 수 있다.
 - iOS 작업 주의: Xcode가 새 파일을 자동으로 스테이징하므로 `git commit -a`를 쓰지 않고 경로를 지정해 커밋한다(위젯 타깃이 문서 커밋에 섞인 일이 있음). App Group `group.com.glubee.glubee`(앱·위젯)는 Apple Developer 계정에 등록돼야 실기기에 설치된다.
 - 혈당 가져오기(여러 장 올리기) 화면만 보기: DEBUG 실행 인자 `-graphUpload [-graphUploadSample]`.
 - 진행: **상세 작업 순서는 `docs/backend-plan.md`**(백엔드), `ios-plan.md`(iOS, Downloads에 있던 원본). 운영에서 음식 사진 인식(잡채)·그래프 업로드(96칸)까지 실제로 동작 확인(2026-10-08).
