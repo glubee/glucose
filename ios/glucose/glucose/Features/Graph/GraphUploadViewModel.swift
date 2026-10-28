@@ -20,6 +20,8 @@ enum GraphUploadState: Equatable {
 final class GraphUploadViewModel {
 
     private(set) var state: GraphUploadState = .idle
+    /// 분석 실패 시 서버 오류 코드(GRAPH_NOT_RECOGNIZED / GRAPH_TOO_LITTLE_DATA 등). 하루 마무리가 화면을 고르는 데 쓴다
+    private(set) var failureCode: String?
     private var task: Task<Void, Never>?
     private var uploadedId: UUID?
 
@@ -42,9 +44,12 @@ final class GraphUploadViewModel {
         task?.cancel()
         uploadedId = nil
         state = .idle
+        failureCode = nil
     }
 
     private func run(imageData: Data, contentType: String) async {
+        guard !Task.isCancelled else { return }
+        failureCode = nil
         if let uploadedId {
             state = .analyzing
             do {
@@ -54,6 +59,7 @@ final class GraphUploadViewModel {
                 await poll(uploadId: uploadedId)
             } catch APIError.server(_, let body) {
                 guard !Task.isCancelled else { return }
+                failureCode = body.code
                 if body.code == "GRAPH_SOURCE_NOT_FOUND" { self.uploadedId = nil }
                 state = .failed(Self.failureMessage(forCode: body.code))
             } catch {
@@ -104,10 +110,11 @@ final class GraphUploadViewModel {
                 guard !Task.isCancelled else { return }
                 state = .done(date: result.date, coverageRatio: result.coverageRatio)
                 return
-            } catch APIError.server(409, _) {
+            } catch APIError.server(409, let body) where body.code == "GRAPH_NOT_READY" {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
                 delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
             } catch APIError.server(_, let body) {
+                failureCode = body.code
                 state = .failed(Self.failureMessage(forCode: body.code))
                 return
             } catch {

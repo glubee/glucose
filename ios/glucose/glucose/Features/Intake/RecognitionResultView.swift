@@ -12,8 +12,8 @@ struct RecognitionResultView: View {
     @Environment(\.dismiss) private var dismiss
     let onSaved: () -> Void
 
-    init(photoId: UUID, context: IntakeContext, onSaved: @escaping () -> Void) {
-        _viewModel = State(initialValue: RecognitionResultViewModel(photoId: photoId, context: context))
+    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now, onSaved: @escaping () -> Void) {
+        _viewModel = State(initialValue: RecognitionResultViewModel(photoId: photoId, context: context, occurredAt: occurredAt))
         self.onSaved = onSaved
     }
 
@@ -40,6 +40,11 @@ struct RecognitionResultView: View {
                 itemsSection
             case .ready, .saving, .saved:
                 itemsSection
+            }
+
+            Section("먹은 시각") {
+                DatePicker("먹은 시각", selection: $viewModel.occurredAt, in: ...Date.now)
+                    .labelsHidden()
             }
 
             if let saveErrorMessage = viewModel.saveErrorMessage {

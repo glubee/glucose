@@ -22,6 +22,8 @@ final class RecognitionResultViewModel {
 
     let photoId: UUID
     let context: IntakeContext
+    /// 먹은 시각. 빠른 촬영 사진은 촬영 시각으로 시작하고, 사용자가 고칠 수 있다
+    var occurredAt: Date
 
     private(set) var state: RecognitionResultState = .polling
     private(set) var items: [EditableFoodItem] = []
@@ -29,9 +31,10 @@ final class RecognitionResultViewModel {
 
     private var pollTask: Task<Void, Never>?
 
-    init(photoId: UUID, context: IntakeContext) {
+    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now) {
         self.photoId = photoId
         self.context = context
+        self.occurredAt = occurredAt
     }
 
     var isSaveEnabled: Bool {
@@ -97,12 +100,13 @@ final class RecognitionResultViewModel {
         do {
             let request = CreateIntakeRequest(
                 context: context.rawValue,
-                occurredAt: Date(),
+                occurredAt: occurredAt,
                 photoId: photoId,
                 items: items.map { $0.toRequest() }
             )
             let _: IntakeResponse = try await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
             state = .saved
+            await MainActor.run { WidgetSnapshot.refresh(noteRecord: true) }
             return true
         } catch {
             saveErrorMessage = "저장에 실패했습니다. 다시 시도해주세요."

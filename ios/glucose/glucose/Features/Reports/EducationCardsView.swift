@@ -6,29 +6,29 @@ struct GuidanceCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(card.title).font(.headline)
-            Text(card.body).font(.subheadline)
+            Text(card.title).font(.headline2)
+            Text(card.body).font(.body2)
                 .fixedSize(horizontal: false, vertical: true)
 
             ForEach(card.sources ?? []) { source in
                 if source.kind == "APP_GUIDE" {
                     DisclosureGroup(source.name) {
                         Text("글루비는 업로드한 그래프 이미지에서 읽힌 구간으로 리포트를 만들어요. 끊긴 구간은 비워 두고, 그래프 위·아래 끝에 닿은 수치는 정확한 값을 알기 어려운 구간으로 표시해요. 리포트 카드가 나타나는 숫자 조건은 앱의 표시 규칙이며, 개인의 치료 목표를 뜻하지 않아요.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption1)
+                            .foregroundStyle(Color.textSecondary)
                     }
-                    .font(.caption)
+                    .font(.caption1)
                 } else if let value = source.url, let url = URL(string: value), url.scheme == "https" {
                     Link(destination: url) {
                         Label(source.name, systemImage: "arrow.up.right.square")
-                            .font(.caption)
+                            .font(.caption1)
                     }
                 }
             }
             if let reviewer = card.reviewedBy, let date = card.reviewedAt {
                 Text("문구 검토: \(reviewer) · \(date)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.sectionLabel)
+                    .foregroundStyle(Color.textSecondary)
             }
         }
         .padding(.vertical, 6)
