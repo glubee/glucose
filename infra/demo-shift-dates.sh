@@ -63,6 +63,19 @@ SELECT 'insulin', count(*), min(occurred_at)::date::text, max(occurred_at)::date
 SQL
 
 if [[ "$DAYS" == "0" ]]; then echo "옮길 것이 없어요."; exit 0; fi
+
+# 옮긴 뒤 오늘 이후가 되는 기록(최근에 남긴 실제 기록 등)이 있으면 알려준다
+FUTURE=$(psql_run -tA -v uid="$USER_ID" -v days="$DAYS" <<'SQL'
+SELECT (SELECT count(*) FROM intake WHERE user_id = :'uid'
+          AND (occurred_at + make_interval(days => :'days'::int)) AT TIME ZONE 'Asia/Seoul' >= (now() AT TIME ZONE 'Asia/Seoul')::date + 1)
+     + (SELECT count(*) FROM insulin_event WHERE user_id = :'uid'
+          AND (occurred_at + make_interval(days => :'days'::int)) AT TIME ZONE 'Asia/Seoul' >= (now() AT TIME ZONE 'Asia/Seoul')::date + 1);
+SQL
+)
+FUTURE=$(echo "$FUTURE" | tr -d '[:space:]')
+if [[ "$FUTURE" != "0" ]]; then
+  echo "주의: 옮기면 음식·인슐린 기록 ${FUTURE}건이 내일 이후 날짜가 돼요(그래프 마지막 날보다 늦게 남긴 기록)."
+fi
 if ! $APPLY; then echo "확인만 했어요. 실제로 옮기려면 --apply 를 붙이세요."; exit 0; fi
 
 psql_run -v uid="$USER_ID" -v days="$DAYS" <<'SQL'
