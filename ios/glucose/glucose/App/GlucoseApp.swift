@@ -46,6 +46,9 @@ struct GlucoseApp: App {
             } else {
                 ReportsView()
             }
+        } else if ProcessInfo.processInfo.arguments.contains("-graphUpload") {
+            // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
+            GraphUploadView()
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
             ReviewView()
         } else if ProcessInfo.processInfo.arguments.contains("-home") {
