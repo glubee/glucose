@@ -36,6 +36,9 @@ struct RootTabView: View {
         .task {
             // 로그인 직후에도 대기 중인 사진을 올린다
             await PendingPhotoStore.shared.uploadPending()
+            #if DEBUG
+            if DemoDayCloseSync.isEnabled { await DemoDayCloseSync.run() }
+            #endif
         }
     }
 }
