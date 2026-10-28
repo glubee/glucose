@@ -39,6 +39,13 @@ struct GlucoseApp: App {
             RootTabView()
         } else if ProcessInfo.processInfo.arguments.contains("-settings") {
             SettingsView()
+        } else if ProcessInfo.processInfo.arguments.contains("-story") {
+            // 로그인 없이 하루 이야기 카드 보기(예시)
+            let sample = ReportSamples.daily(.now).0
+            ScrollView {
+                DailyStoryCard(story: sample.story ?? [], evidence: sample.summary ?? []).padding(Spacing.gutter)
+            }
+            .background(Color.canvas)
         } else if ProcessInfo.processInfo.arguments.contains("-chartDetail") {
             // 로그인 없이 그래프 크게 보기(예시 데이터)
             let sample = ReportSamples.daily(.now)
