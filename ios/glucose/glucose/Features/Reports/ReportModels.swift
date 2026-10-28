@@ -122,11 +122,24 @@ struct DailyReport: Decodable {
     }
 
     struct EducationCard: Decodable, Identifiable {
-        let trigger: String
+        let code: String?
+        let trigger: String?
         let title: String
         let body: String
+        let sources: [Source]?
+        let reviewedBy: String?
+        /// yyyy-MM-dd. 작성일이 아니라 실제 문구 검토일이다.
+        let reviewedAt: String?
+        let reviewType: String?
 
-        var id: String { trigger }
+        var id: String { code ?? trigger ?? title }
+
+        struct Source: Decodable, Identifiable {
+            let name: String
+            let url: String?
+            let kind: String
+            var id: String { name }
+        }
     }
 }
 
@@ -175,6 +188,8 @@ struct GlucoseReadings: Decodable {
     let date: String
     let coverageRatio: Double?
     let readings: [Reading]
+    let uploadId: UUID?
+    let parserVersion: String?
 
     struct Reading: Decodable {
         /// "HH:mm", 한국 시간 기준

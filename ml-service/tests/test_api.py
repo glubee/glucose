@@ -95,7 +95,8 @@ def test_health_and_food_endpoint(monkeypatch):
     finally:
         app.dependency_overrides.clear()
 
-    assert health.json() == {"status": "ok", "version": "1.0.0"}
+    from graph_parser import PARSER_VERSION
+    assert health.json() == {"status": "ok", "version": "1.0.0", "graph_parser_version": PARSER_VERSION}
     assert response.status_code == 200
     assert response.headers["X-Request-Id"] == "request-123"
     assert response.json()["items"][0]["name"] == "김밥"

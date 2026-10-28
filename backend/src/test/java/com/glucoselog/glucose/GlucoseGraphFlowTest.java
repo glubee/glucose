@@ -3,6 +3,12 @@ package com.glucoselog.glucose;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,6 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -68,7 +75,7 @@ class GlucoseGraphFlowTest {
               ],
               "gaps": [{"from": "00:30", "to": "00:45"}],
               "coverage_ratio": 0.94,
-              "meta": {"parser_version": "1.0.0", "image_width": 1179, "image_height": 2029, "latency_ms": 320}
+              "meta": {"parser_version": "1.1.5", "image_width": 1179, "image_height": 2029, "latency_ms": 320}
             }
             """;
 
@@ -83,6 +90,7 @@ class GlucoseGraphFlowTest {
     private static HttpServer mlServiceStub;
     private static volatile int mlServiceStatus = 200;
     private static volatile String mlServiceBody = SUCCESS_BODY;
+    private static volatile boolean forwardToNativeMl;
 
     private static String s3Endpoint() {
         return "http://%s:%d".formatted(s3mock.getHost(), s3mock.getMappedPort(9090));
@@ -97,7 +105,22 @@ class GlucoseGraphFlowTest {
 
         mlServiceStub = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         mlServiceStub.createContext("/v1/graph/parse", exchange -> {
-            exchange.getRequestBody().readAllBytes();
+            byte[] requestBytes = exchange.getRequestBody().readAllBytes();
+            if (forwardToNativeMl) {
+                try {
+                    var forwarded = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build().send(HttpRequest.newBuilder(
+                                    URI.create(System.getenv("GRAPH_PIPELINE_SMOKE_URL") + "/v1/graph/parse"))
+                            .header("Content-Type", exchange.getRequestHeaders().getFirst("Content-Type"))
+                            .header("X-Internal-Token", "test-token")
+                            .POST(HttpRequest.BodyPublishers.ofByteArray(requestBytes)).build(),
+                            HttpResponse.BodyHandlers.ofString());
+                    mlServiceStatus = forwarded.statusCode();
+                    mlServiceBody = forwarded.body();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+            }
             byte[] bytes = mlServiceBody.getBytes();
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(mlServiceStatus, bytes.length);
@@ -127,6 +150,7 @@ class GlucoseGraphFlowTest {
     void resetStub() {
         mlServiceStatus = 200;
         mlServiceBody = SUCCESS_BODY;
+        forwardToNativeMl = false;
     }
 
     @Autowired
@@ -267,6 +291,147 @@ class GlucoseGraphFlowTest {
         assertThat(response.getBody().get("code")).isEqualTo("GLUCOSE_DAY_NOT_FOUND");
     }
 
+    @Test
+    void 오래된_분석기가_성공을_반환해도_수치를_저장하지_않는다() throws Exception {
+        mlServiceBody = SUCCESS_BODY.replace("1.1.5", "1.0.0");
+        String token = login();
+        UUID uploadId = uploadAndComplete(token);
+        runWorkerOnce();
+        assertThat(findJobForUpload(uploadId).getStatus()).isEqualTo(JobStatus.FAILED);
+        assertThat(readingRepository.findByUploadIdOrderByTimeSlot(uploadId)).isEmpty();
+        var response = getStatus(token, uploadId);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody().get("code")).isEqualTo("GRAPH_PARSER_OUTDATED");
+    }
+
+    @Test
+    void 과거_잘못된_결과를_숨기고_저장된_원본으로_한번만_재분석해_복구한다() throws Exception {
+        String token = login();
+        mlServiceBody = SUCCESS_BODY.replace("\"value\": 120", "\"value\": 240");
+        UUID uploadId = uploadAndComplete(token);
+        runWorkerOnce();
+        var upload = uploadRepository.findById(uploadId).orElseThrow();
+        upload.applyParseResult(upload.getResultDate(), upload.getCoverageRatio(), "1.0.0");
+        uploadRepository.save(upload);
+        UUID previousJob = upload.getParseJobId();
+
+        var stale = rest.exchange("/v1/glucose-readings/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(stale.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(stale.getBody().get("code")).isEqualTo("GRAPH_REPROCESS_REQUIRED");
+        var daily = rest.exchange("/v1/reports/daily/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(daily.getBody().get("glucose")).isNull();
+        var weekly = rest.exchange("/v1/reports/weekly/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(weekly.getBody().get("days_with_data")).isEqualTo(0);
+
+        String path = "/v1/glucose-graphs/by-date/2026-10-01/reprocess";
+        var queued = rest.exchange(path, HttpMethod.POST, new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(queued.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(queued.getBody().get("upload_id")).isEqualTo(uploadId.toString());
+        UUID reprocessJob = uploadRepository.findById(uploadId).orElseThrow().getParseJobId();
+        assertThat(reprocessJob).isNotEqualTo(previousJob);
+        rest.exchange(path, HttpMethod.POST, new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(uploadRepository.findById(uploadId).orElseThrow().getParseJobId()).isEqualTo(reprocessJob);
+
+        mlServiceBody = SUCCESS_BODY;
+        runWorkerOnce();
+        assertThat(uploadRepository.findById(uploadId).orElseThrow().getParserVersion()).isEqualTo("1.1.5");
+        assertThat(readingRepository.findByUploadIdOrderByTimeSlot(uploadId).getFirst().getValue()).isEqualTo(120);
+        var fresh = rest.exchange("/v1/glucose-readings/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(fresh.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(fresh.getBody().get("parser_version")).isEqualTo("1.1.5");
+        assertThat(fresh.getBody().get("upload_id")).isEqualTo(uploadId.toString());
+        assertThat(getStatus(token, uploadId).getBody().get("parser_version")).isEqualTo("1.1.5");
+    }
+
+    @Test
+    void 재분석_실패시_원본과_기존_행을_보존하고_실패_이유를_구분한다() throws Exception {
+        String token = login();
+        UUID uploadId = uploadAndComplete(token);
+        runWorkerOnce();
+        mlServiceStatus = 422;
+        mlServiceBody = "{\"code\":\"GRAPH_DATE_NOT_RECOGNIZED\",\"message\":\"날짜 인식 실패\"}";
+        var queued = rest.exchange("/v1/glucose-graphs/" + uploadId + "/reprocess", HttpMethod.POST,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(queued.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        runWorkerOnce();
+        assertThat(readingRepository.findByUploadIdOrderByTimeSlot(uploadId)).hasSize(3);
+        assertThat(uploadRepository.findById(uploadId)).isPresent();
+        var response = getStatus(token, uploadId);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody().get("code")).isEqualTo("GRAPH_DATE_NOT_RECOGNIZED");
+    }
+
+    @Test
+    void 다른_사용자는_원본을_재분석할_수_없다() throws Exception {
+        String owner = login();
+        UUID uploadId = uploadAndComplete(owner);
+        String other = login();
+        var response = rest.exchange("/v1/glucose-graphs/" + uploadId + "/reprocess", HttpMethod.POST,
+                new HttpEntity<>(authHeaders(other)), Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(findJobForUpload(uploadId).getStatus()).isEqualTo(JobStatus.PENDING);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "GRAPH_PIPELINE_SMOKE_URL", matches = "http://127\\.0\\.0\\.1:[0-9]+")
+    void 실제_OCR에서_추출한_96칸이_업로드_DB_시계열_리포트까지_변형없이_이어진다() throws Exception {
+        var image = new BufferedImage(1200, 800, BufferedImage.TYPE_INT_RGB);
+        var graphics = image.createGraphics();
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, 1200, 800);
+        graphics.setColor(new Color(185, 185, 185));
+        for (int y = 220; y <= 700; y += 80) graphics.drawLine(120, y, 1080, y);
+        graphics.drawLine(120, 760, 1080, 760);
+        graphics.setColor(new Color(20, 20, 20));
+        graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 36));
+        graphics.drawString("2026-10-01", 350, 86);
+        graphics.setStroke(new BasicStroke(4));
+        for (int i = 1; i < 96; i++) {
+            if (i >= 40 && i <= 48) continue;
+            int previousY = (int) Math.round(220 + (350 - (150 + 45 * Math.sin((i-1)/10.0))) / 300 * 480);
+            int y = (int) Math.round(220 + (350 - (150 + 45 * Math.sin(i/10.0))) / 300 * 480);
+            graphics.drawLine(120 + (i-1)*10, previousY, 120 + i*10, y);
+        }
+        graphics.dispose();
+        var encoded = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", encoded);
+        forwardToNativeMl = true;
+        String token = login();
+        UUID uploadId = uploadAndComplete(token, encoded.toByteArray(), "image/png");
+        runWorkerOnce();
+        assertThat(findJobForUpload(uploadId).getStatus()).isEqualTo(JobStatus.DONE);
+        var readings = readingRepository.findByUploadIdOrderByTimeSlot(uploadId);
+        assertThat(readings).hasSize(96);
+        int count = 0;
+        for (int i = 0; i < readings.size(); i++) {
+            var reading = readings.get(i);
+            assertThat(reading.getTimeSlot()).isEqualTo(i*15);
+            if (i >= 40 && i <= 47) {
+                assertThat(reading.getValue()).isNull();
+                assertThat(reading.getFlag()).isEqualTo(ReadingFlag.MISSING);
+            } else {
+                count++;
+                assertThat(reading.getValue().doubleValue()).isCloseTo(150 + 45*Math.sin(i/10.0),
+                        org.assertj.core.data.Offset.offset(2.0));
+            }
+        }
+        var queried = rest.exchange("/v1/glucose-readings/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(queried.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<Map<String, Object>> points = (List<Map<String, Object>>) queried.getBody().get("readings");
+        for (int i = 0; i < 96; i++) {
+            assertThat(points.get(i).get("value")).isEqualTo(readings.get(i).getValue());
+            assertThat(points.get(i).get("flag")).isEqualTo(readings.get(i).getFlag().name());
+        }
+        var daily = rest.exchange("/v1/reports/daily/2026-10-01", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)), Map.class);
+        assertThat(((Map<?, ?>) daily.getBody().get("glucose")).get("readings_count")).isEqualTo(count);
+    }
+
     private void runWorkerOnce() {
         for (Job job : jobService.claimDueJobs()) {
             jobService.process(job, jobTypeToHandler(job.getType()));
@@ -299,20 +464,24 @@ class GlucoseGraphFlowTest {
     }
 
     private UUID uploadAndComplete(String accessToken) throws Exception {
+        return uploadAndComplete(accessToken, new byte[]{1, 2, 3}, "image/jpeg");
+    }
+
+    private UUID uploadAndComplete(String accessToken, byte[] image, String contentType) throws Exception {
         HttpHeaders headers = authHeaders(accessToken);
 
         ResponseEntity<Map> started = rest.exchange(
                 "/v1/glucose-graphs",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of("content_type", "image/jpeg"), headers),
+                new HttpEntity<>(Map.of("content_type", contentType), headers),
                 Map.class);
         String uploadUrl = (String) started.getBody().get("upload_url");
         String uploadId = (String) started.getBody().get("upload_id");
 
         httpClient.send(
                 HttpRequest.newBuilder(URI.create(uploadUrl))
-                        .PUT(HttpRequest.BodyPublishers.ofByteArray(new byte[]{1, 2, 3}))
-                        .header("Content-Type", "image/jpeg")
+                        .PUT(HttpRequest.BodyPublishers.ofByteArray(image))
+                        .header("Content-Type", contentType)
                         .build(),
                 HttpResponse.BodyHandlers.discarding());
 

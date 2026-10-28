@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -28,7 +27,7 @@ public class DailyReportService {
     private final GlucoseTimelineService timelineService;
     private final EpisodeReportService episodeReportService;
     private final InsulinEventRepository insulinEventRepository;
-    private final EducationCardRepository educationCardRepository;
+    private final EducationCardService educationCardService;
     private final ReportProperties properties;
     private final ReportSummaryBuilder summaryBuilder;
     private final EpisodeProperties episodeProperties;
@@ -37,14 +36,14 @@ public class DailyReportService {
             GlucoseTimelineService timelineService,
             EpisodeReportService episodeReportService,
             InsulinEventRepository insulinEventRepository,
-            EducationCardRepository educationCardRepository,
+            EducationCardService educationCardService,
             ReportProperties properties,
             ReportSummaryBuilder summaryBuilder,
             EpisodeProperties episodeProperties) {
         this.timelineService = timelineService;
         this.episodeReportService = episodeReportService;
         this.insulinEventRepository = insulinEventRepository;
-        this.educationCardRepository = educationCardRepository;
+        this.educationCardService = educationCardService;
         this.properties = properties;
         this.summaryBuilder = summaryBuilder;
         this.episodeProperties = episodeProperties;
@@ -67,23 +66,13 @@ public class DailyReportService {
                         event.getOccurredAt(), event.getUnits(), event.getKind()))
                 .toList();
 
-        List<EducationCardResponse> educationCards = new ArrayList<>();
-        if (daySummary.isEmpty()) {
-            educationCards.addAll(cardsFor(EducationCardTrigger.LOW_COVERAGE));
-        }
-        if (episodes.stream().anyMatch(episode -> Boolean.TRUE.equals(episode.reboundDetected()))) {
-            educationCards.addAll(cardsFor(EducationCardTrigger.REBOUND));
-        }
+        List<EducationCardResponse> educationCards = educationCardService.dailyCards(userId, date, daySummary, episodes);
 
         List<String> summary = summaryBuilder.daily(glucoseSummary, episodes, insulinEvents.size());
 
         return new DailyReportResponse(
                 date, glucoseSummary, episodes, insulinEvents.size(), insulinEvents, educationCards, summary,
                 episodeProperties.reboundGlucoseThreshold());
-    }
-
-    private List<EducationCardResponse> cardsFor(EducationCardTrigger trigger) {
-        return educationCardRepository.findByTrigger(trigger).stream().map(EducationCardResponse::from).toList();
     }
 
     private static DailyReportResponse.GlucoseSummary summarize(

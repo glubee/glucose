@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EducationCardRepository extends JpaRepository<EducationCard, UUID> {
 
-    List<EducationCard> findByTrigger(EducationCardTrigger trigger);
+    List<EducationCard> findByPlacementAndApprovedTrueOrderBySortOrderAscCodeAsc(EducationCardPlacement placement);
 }

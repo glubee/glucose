@@ -28,7 +28,7 @@ class DailyReportSufficiencyTest {
     private final GlucoseTimelineService timeline = mock(GlucoseTimelineService.class);
     private final EpisodeReportService episodes = mock(EpisodeReportService.class);
     private final InsulinEventRepository insulin = mock(InsulinEventRepository.class);
-    private final EducationCardRepository cards = mock(EducationCardRepository.class);
+    private final EducationCardService cards = mock(EducationCardService.class);
     private final DailyReportService service = new DailyReportService(
             timeline,
             episodes,

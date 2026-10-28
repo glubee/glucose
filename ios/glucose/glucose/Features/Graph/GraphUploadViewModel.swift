@@ -23,6 +23,7 @@ final class GraphUploadViewModel {
     /// 분석 실패 시 서버 오류 코드(GRAPH_NOT_RECOGNIZED / GRAPH_TOO_LITTLE_DATA 등). 하루 마무리가 화면을 고르는 데 쓴다
     private(set) var failureCode: String?
     private var task: Task<Void, Never>?
+    private var uploadedId: UUID?
 
     var isBusy: Bool {
         state == .uploading || state == .analyzing
@@ -47,12 +48,32 @@ final class GraphUploadViewModel {
 
     func reset() {
         task?.cancel()
+        uploadedId = nil
         state = .idle
         failureCode = nil
     }
 
     private func run(imageData: Data, contentType: String) async {
+        guard !Task.isCancelled else { return }
         failureCode = nil
+        if let uploadedId {
+            state = .analyzing
+            do {
+                let _: GraphReprocessResponse = try await APIClient.shared.send(
+                    path: "/v1/glucose-graphs/\(uploadedId.uuidString)/reprocess", method: .post)
+                guard !Task.isCancelled else { return }
+                await poll(uploadId: uploadedId)
+            } catch APIError.server(_, let body) {
+                guard !Task.isCancelled else { return }
+                failureCode = body.code
+                if body.code == "GRAPH_SOURCE_NOT_FOUND" { self.uploadedId = nil }
+                state = .failed(Self.failureMessage(forCode: body.code))
+            } catch {
+                guard !Task.isCancelled else { return }
+                state = .failed("다시 분석하지 못했어요. 잠시 후 다시 시도해 주세요.")
+            }
+            return
+        }
         state = .uploading
         let uploadId: UUID
         do {
@@ -61,13 +82,20 @@ final class GraphUploadViewModel {
                 method: .post,
                 body: StartGraphUploadRequest(contentType: contentType)
             )
+            try Task.checkCancellation()
             try await putToR2(data: imageData, url: started.uploadUrl, contentType: contentType)
+            try Task.checkCancellation()
             try await APIClient.shared.sendVoid(
                 path: "/v1/glucose-graphs/\(started.uploadId.uuidString)/complete",
                 method: .post
             )
+            try Task.checkCancellation()
             uploadId = started.uploadId
+            uploadedId = uploadId
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled else { return }
             state = .failed("올리지 못했어요. 다시 시도해주세요.")
             return
         }
@@ -85,9 +113,10 @@ final class GraphUploadViewModel {
                 let result: GraphStatusResponse = try await APIClient.shared.send(
                     path: "/v1/glucose-graphs/\(uploadId.uuidString)"
                 )
+                guard !Task.isCancelled else { return }
                 state = .done(date: result.date, coverageRatio: result.coverageRatio)
                 return
-            } catch APIError.server(409, _) {
+            } catch APIError.server(409, let body) where body.code == "GRAPH_NOT_READY" {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
                 delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
             } catch APIError.server(_, let body) {
@@ -115,7 +144,17 @@ final class GraphUploadViewModel {
     static func failureMessage(forCode code: String) -> String {
         switch code {
         case "GRAPH_NOT_RECOGNIZED":
-            "리브레 일일 그래프로 인식하지 못했어요. 리브레 앱에서 일일 그래프를 공유해 저장한 원본 이미지를 선택해주세요. (화면을 다시 찍은 사진이나 잘린 이미지는 지원하지 않아요)"
+            "이미지에서 날짜나 혈당 눈금을 읽지 못했어요. 날짜와 그래프 전체가 보이는 이미지를 선택해 주세요."
+        case "GRAPH_DATE_NOT_RECOGNIZED":
+            "이미지의 날짜를 읽지 못했어요. 상단 날짜가 선명하게 보이는지 확인해 주세요."
+        case "GRAPH_AXES_NOT_RECOGNIZED":
+            "혈당 눈금을 읽지 못했어요. 그래프의 위·아래 눈금이 모두 보이는지 확인해 주세요."
+        case "GRAPH_PARSER_OUTDATED", "GRAPH_OCR_UNAVAILABLE":
+            "그래프 분석을 지금 사용할 수 없어요. 잠시 후 다시 시도해 주세요."
+        case "GRAPH_REPROCESS_REQUIRED":
+            "그래프를 새로 읽어야 해요. 다시 시도를 누르면 저장된 원본으로 분석해요."
+        case "GRAPH_SOURCE_NOT_FOUND":
+            "저장된 원본을 찾지 못했어요. 이미지를 다시 올려 주세요."
         case "GRAPH_TOO_LITTLE_DATA":
             "그래프에 혈당 기록이 너무 적어요(하루의 10% 미만). 센서 기록이 더 쌓인 날의 그래프를 올려주세요."
         default:

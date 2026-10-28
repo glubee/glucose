@@ -169,7 +169,7 @@ ml-service (ml-service:8000, FastAPI)
   ],
   "gaps": [{"from": "14:30", "to": "16:00"}],
   "coverage_ratio": 0.94,
-  "meta": {"parser_version": "1.0.0", "image_width": 1179, "image_height": 2029, "latency_ms": 320}
+  "meta": {"parser_version": "1.1.5", "image_width": 1179, "image_height": 2029, "latency_ms": 320}
 }
 ```
 
@@ -193,6 +193,17 @@ ml-service (ml-service:8000, FastAPI)
 4. 목표 범위 배경(연두색)과 격자선은 곡선으로 인식하지 않음
 5. 격자·눈금·날짜 중 하나라도 못 찾으면 422 `GRAPH_NOT_RECOGNIZED`
 6. 이미지 해상도가 달라도 동작해야 함 (절대 좌표 금지, 격자 기준 상대 좌표)
+
+### 오류 단계와 실행 버전 (2026-10-28)
+
+- 날짜를 못 읽음: 422 `GRAPH_DATE_NOT_RECOGNIZED`. 날짜를 추정하거나 다른 날짜로 저장하지 않는다.
+- 50~350 축의 7개 격자선을 확인하지 못함: 422 `GRAPH_AXES_NOT_RECOGNIZED`.
+- Tesseract 실행 실패: 503 `GRAPH_OCR_UNAVAILABLE`. 사용자 이미지 형식 오류로 안내하지 않는다.
+- 기존 `GRAPH_NOT_RECOGNIZED` 코드는 구버전 호환을 위해 백엔드에서 계속 처리한다.
+- `GET /health`는 기존 status/version에 `graph_parser_version`을 추가해 실제 실행 코드를 확인할 수 있게 한다.
+- `meta.parser_version`은 필수다. 백엔드는 1.1.4 미만 또는 미확인 버전의 성공 응답을 저장하지 않는다.
+  구버전으로 저장한 값도 차트·평균·리포트 근거에서 제외하고, 저장된 원본의 재분석을 요청할 수 있게 한다.
+- 1.1.5는 기존 곡선 추출 수학을 유지하고 단계별 오류·실행 버전 확인을 추가한다.
 
 참고: 10월 1일 이미지 1장으로 프로토타입을 돌려 CSV 대비 평균 오차 1.4 mg/dL를 확인했습니다.
 

@@ -107,9 +107,9 @@ struct GlucoseDayChart: View {
         }
         .chartXScale(domain: dayRange)
         // 리브레 일일 그래프의 세로축이 50~350 mg/dL라서(ml-service 계약) 날마다 같은 축으로 고정해 비교하기 쉽게 한다.
-        .chartYScale(domain: 40...360)
+        .chartYScale(domain: 50...350)
         .chartXAxis {
-            AxisMarks(values: .stride(by: .hour, count: 6)) { value in
+            AxisMarks(values: .stride(by: .hour, count: 3)) { value in
                 AxisGridLine().foregroundStyle(Color.line)
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
@@ -119,7 +119,7 @@ struct GlucoseDayChart: View {
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: [70, 180, 250, 350]) {
+            AxisMarks(position: .leading, values: Array(stride(from: 50, through: 350, by: 50))) {
                 AxisGridLine().foregroundStyle(Color.line)
                 AxisValueLabel()
             }

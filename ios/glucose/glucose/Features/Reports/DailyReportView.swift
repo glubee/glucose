@@ -30,8 +30,12 @@ struct DailyReportView: View {
                 case .failed(let message):
                     ReportLoadState(message: message) { Task { await viewModel.load() } }
                 case .loaded(let report, let points):
-                    glucoseHero(report: report)
-                    chartCard(report: report, points: points)
+                    if viewModel.requiresGraphReprocessing {
+                        reprocessCard
+                    } else {
+                        glucoseHero(report: report)
+                        chartCard(report: report, points: points)
+                    }
                     ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
                     FoodObservationSection(state: viewModel.foodAnalysis)
                     episodesCard(report.episodes, reboundThreshold: report.reboundGlucoseThreshold)
@@ -58,6 +62,35 @@ struct DailyReportView: View {
     }
 
     // MARK: - 평균 + 데이터 칩
+
+    /// 예전 분석기 버전으로 읽은 그래프는 숨기고 다시 분석하게 한다(서버 GRAPH_REPROCESS_REQUIRED)
+    private var reprocessCard: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            SectionHeader(title: "그래프를 다시 읽어야 해요")
+            Text("이전에 읽은 수치를 확인해야 해서 잠시 숨겼어요. 저장된 원본으로 다시 분석할 수 있어요.")
+                .font(.body2)
+                .foregroundStyle(Color.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let error = viewModel.reprocessError {
+                ReportNotes(lines: [error])
+            }
+            Button {
+                Task { await viewModel.reprocessGraph() }
+            } label: {
+                if viewModel.isReprocessing {
+                    HStack(spacing: Spacing.xs) { ProgressView().tint(Color.onButton); Text("다시 읽는 중") }
+                } else {
+                    Text("저장된 그래프 다시 읽기")
+                }
+            }
+            .buttonStyle(.glubeePrimary)
+            .disabled(viewModel.isReprocessing)
+            Button("다른 원본 이미지 올리기") { showGraphUpload = true }
+                .buttonStyle(.glubeeSecondary)
+                .disabled(viewModel.isReprocessing)
+        }
+        .card(.brand)
+    }
 
     @ViewBuilder
     private func glucoseHero(report: DailyReport) -> some View {
@@ -180,14 +213,7 @@ struct DailyReportView: View {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 SectionHeader(title: "알아두면 좋아요", trailing: "고정 안내문")
                 ForEach(cards) { card in
-                    VStack(alignment: .leading, spacing: Spacing.xxs) {
-                        Text(card.title)
-                            .font(.pretendard(15, relativeTo: .subheadline, weight: .bold))
-                            .foregroundStyle(Color.textPrimary)
-                        Text(card.body)
-                            .font(.body2)
-                            .foregroundStyle(Color.textSecondary)
-                    }
+                    GuidanceCardContent(card: card)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(Spacing.s)
                     .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
