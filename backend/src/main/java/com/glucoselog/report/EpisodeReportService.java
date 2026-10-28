@@ -7,14 +7,19 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.glucoselog.episode.EpisodeAnalyzer;
 import com.glucoselog.episode.GlucoseSample;
 import com.glucoselog.episode.IntakeOccurrence;
 import com.glucoselog.intake.Intake;
+import com.glucoselog.intake.IntakeItem;
 import com.glucoselog.intake.IntakeRepository;
 import com.glucoselog.photo.PhotoContext;
 
@@ -35,6 +40,7 @@ public class EpisodeReportService {
         this.analyzer = analyzer;
     }
 
+    @Transactional(readOnly = true)
     public List<EpisodeSummary> buildEpisodes(UUID userId, LocalDate date) {
         Instant from = date.atStartOfDay(KST).toInstant();
         Instant to = date.plusDays(1).atStartOfDay(KST).toInstant();
@@ -51,15 +57,30 @@ public class EpisodeReportService {
 
         // 가장 긴 분석 창(술 12h)까지 커버하도록 전날~다다음날 범위로 글루코스를 미리 불러온다.
         List<GlucoseSample> timeline = timelineService.loadRange(userId, date.minusDays(1), date.plusDays(2));
+        Map<UUID, Intake> byId = intakes.stream().collect(Collectors.toMap(Intake::getId, Function.identity()));
 
         List<EpisodeSummary> summaries = new ArrayList<>();
         for (List<IntakeOccurrence> group : groups) {
-            summaries.add(summarize(group, timeline));
+            List<String> foods = group.stream()
+                    .flatMap(occurrence -> byId.get(occurrence.intakeId()).getItems().stream())
+                    .map(EpisodeReportService::foodLabel)
+                    .filter(label -> !label.isBlank())
+                    .toList();
+            summaries.add(summarize(group, timeline, foods));
         }
         return summaries;
     }
 
-    private EpisodeSummary summarize(List<IntakeOccurrence> group, List<GlucoseSample> timeline) {
+    /** "짜장면 1그릇", 개수가 없으면 이름만 */
+    static String foodLabel(IntakeItem item) {
+        String name = item.getName() == null ? "" : item.getName().trim();
+        if (name.isEmpty() || item.getCount() == null) {
+            return name;
+        }
+        return name + " " + item.getCount() + (item.getUnit() == null ? "" : item.getUnit().trim());
+    }
+
+    private EpisodeSummary summarize(List<IntakeOccurrence> group, List<GlucoseSample> timeline, List<String> foods) {
         IntakeOccurrence first = group.get(0);
         Instant startAt = first.occurredAt();
         PhotoContext originalContext = first.context();
@@ -91,7 +112,8 @@ public class EpisodeReportService {
                 autoReclassified,
                 windowEndAt,
                 reboundDetected,
-                group.size());
+                group.size(),
+                foods);
     }
 
     private static Integer precedingValue(List<GlucoseSample> timeline, Instant startAt) {

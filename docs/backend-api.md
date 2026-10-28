@@ -320,7 +320,8 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
       "auto_reclassified": true,
       "window_end_at": "2026-10-01T11:00:00Z",
       "rebound_detected": true,
-      "intake_count": 1
+      "intake_count": 1,
+      "foods": ["포도당 캔디 3개"]
     }
   ],
   "insulin_events_count": 1,
@@ -330,7 +331,7 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
   "summary": [
     "이 날 혈당 그래프의 94%를 읽었어요.",
     "읽힌 값 90개 기준, 평균 142.3, 최저 68, 최고 210 mg/dL예요.",
-    "18:00 저혈당 처치 기록이 있어요."
+    "18:00 저혈당 처치 기록이 있어요: 포도당 캔디 3개."
   ]
 }
 ```
@@ -338,6 +339,7 @@ API는 없다. `EpisodeAnalyzer`(순수 함수)만 있고, 리포트(B7)가 실�
 - `glucose.sufficient`는 **기록 충분성**이다: `coverage_ratio >= report.sufficient-coverage-ratio`(기본 0.7)이면 `true`.
   우리 앱의 기록 상태 표시일 뿐 혈당이 좋다/나쁘다는 평가가 아니고, 의학적 데이터 충분성 기준(예: 14일·70%)과도 다르다.
   임계값 0.7은 임시 제품 기준이며 운영 coverage 분포를 보고 조정한다(2026-10-10 결정).
+- 에피소드의 `foods`: 묶음 안 섭취 기록의 음식 이름(+개수·단위)을 기록 순서대로. 개수가 없으면 이름만. 요약 문장에도 같은 이름을 붙인다.
 - 에피소드의 `auto_reclassified`/`rebound_detected`가 `null`이면 "확인해봤더니 아니다"가 아니라
   **그 시점에 쓸 글루코스 데이터가 없어서 판단 자체를 못 했다**는 뜻이다(`false`와 다르다).
 - `rebound_detected`: 저혈당 처치 에피소드의 분석 창 안에서 `rebound_glucose_threshold`(기본 180 mg/dL)를
