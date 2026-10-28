@@ -165,8 +165,7 @@ struct HomeView: View {
             switch viewModel.report.state {
             case .loaded(let report, let points) where !points.isEmpty:
                 GlucoseDayChart(day: viewModel.today, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [])
-                    .frame(height: 150)
+                                insulinEvents: report.insulinEvents ?? [], height: 170)
             default:
                 GeometryReader { geometry in
                     ZStack(alignment: .topLeading) {

@@ -23,7 +23,9 @@ enum ReportSamples {
             episodes: [
                 .init(startAt: at(day, 8, 10), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
                       windowEndAt: at(day, 12, 10), reboundDetected: nil, intakeCount: 2,
-                      foods: ["현미밥 1공기", "계란말이 1접시"]),
+                      foods: ["현미밥 1공기", "계란말이 1접시"],
+                      intakes: [.init(occurredAt: at(day, 8, 10), context: .meal, photoId: nil, foods: ["현미밥 1공기"]),
+                                .init(occurredAt: at(day, 8, 40), context: .meal, photoId: nil, foods: ["계란말이 1접시"])]),
                 .init(startAt: at(day, 15, 30), originalContext: .snack, effectiveContext: .hypoTreatment, autoReclassified: true,
                       windowEndAt: at(day, 17, 30), reboundDetected: false, intakeCount: 1,
                       foods: ["포도당 캔디 3개"]),

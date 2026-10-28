@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -44,6 +45,19 @@ public class PhotoStorageService {
                 .build();
         PresignedPutObjectRequest presigned = s3Presigner.presignPutObject(presignRequest);
         return presigned.url();
+    }
+
+    /** 앱이 사진을 잠깐 볼 수 있는 GET 주소. 소유 확인은 호출하는 쪽에서 한다 */
+    public URL presignGet(String objectKey) {
+        GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(properties.photoBucket())
+                .key(objectKey)
+                .build();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofSeconds(properties.presignTtlSeconds()))
+                .getObjectRequest(getRequest)
+                .build();
+        return s3Presigner.presignGetObject(presignRequest).url();
     }
 
     public boolean exists(String objectKey) {

@@ -117,6 +117,44 @@ class PhotoFlowTest {
     }
 
     @Test
+    void 올린_사진은_본인만_보기_주소를_받고_실제로_내려받을_수_있다() throws Exception {
+        String owner = login("apple-sub-" + UUID.randomUUID());
+        ResponseEntity<Map> started = startUpload(owner, "image/jpeg", "MEAL");
+        String uploadUrl = (String) started.getBody().get("upload_url");
+        String photoId = (String) started.getBody().get("photo_id");
+        httpClient.send(HttpRequest.newBuilder(URI.create(uploadUrl))
+                        .PUT(HttpRequest.BodyPublishers.ofByteArray(new byte[]{7, 8, 9}))
+                        .header("Content-Type", "image/jpeg").build(),
+                HttpResponse.BodyHandlers.discarding());
+        complete(owner, photoId);
+
+        ResponseEntity<Map> view = rest.exchange("/v1/photos/" + photoId + "/view", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(owner)), Map.class);
+        assertThat(view.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Number) view.getBody().get("expires_in")).longValue()).isPositive();
+        HttpResponse<byte[]> downloaded = httpClient.send(
+                HttpRequest.newBuilder(URI.create((String) view.getBody().get("url"))).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(downloaded.statusCode()).isEqualTo(200);
+        assertThat(downloaded.body()).containsExactly(7, 8, 9);
+
+        String other = login("apple-sub-" + UUID.randomUUID());
+        ResponseEntity<Map> otherView = rest.exchange("/v1/photos/" + photoId + "/view", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(other)), Map.class);
+        assertThat(otherView.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void 아직_올리지_않은_사진은_보기_주소를_주지_않는다() {
+        String owner = login("apple-sub-" + UUID.randomUUID());
+        String photoId = (String) startUpload(owner, "image/jpeg", "MEAL").getBody().get("photo_id");
+
+        ResponseEntity<Map> view = rest.exchange("/v1/photos/" + photoId + "/view", HttpMethod.GET,
+                new HttpEntity<>(authHeaders(owner)), Map.class);
+        assertThat(view.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void 실제로_올리지_않고_완료처리하면_409() {
         String accessToken = login("apple-sub-" + UUID.randomUUID());
         ResponseEntity<Map> started = startUpload(accessToken, "image/jpeg", null);

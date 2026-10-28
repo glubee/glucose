@@ -113,6 +113,23 @@ struct DailyReport: Decodable {
         let intakeCount: Int
         /// 묶음 안 음식 이름(+개수·단위). 예전 서버는 보내지 않는다
         var foods: [String]? = nil
+        /// 묶음 안 섭취 기록 하나하나(정확한 시각·사진). 예전 서버는 보내지 않는다
+        var intakes: [IntakeMark]? = nil
+
+        struct IntakeMark: Decodable, Identifiable, Hashable {
+            let occurredAt: Date
+            let context: IntakeContext
+            let photoId: UUID?
+            var foods: [String]? = nil
+
+            var id: Date { occurredAt }
+        }
+
+        /// 그래프에 찍을 기록들(예전 서버면 묶음 시작 시각 하나)
+        var marks: [IntakeMark] {
+            if let intakes, !intakes.isEmpty { return intakes }
+            return [IntakeMark(occurredAt: startAt, context: effectiveContext, photoId: nil, foods: foods)]
+        }
 
         var id: Date { startAt }
     }

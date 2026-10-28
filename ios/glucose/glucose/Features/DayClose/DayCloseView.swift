@@ -201,8 +201,7 @@ struct DayCloseView: View {
 
             if case .loaded(let report, let points) = viewModel.report.state, !points.isEmpty {
                 GlucoseDayChart(day: viewModel.day, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [])
-                    .frame(height: 150)
+                                insulinEvents: report.insulinEvents ?? [], height: 170)
             }
 
             VStack(spacing: 0) {
