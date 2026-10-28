@@ -54,6 +54,17 @@ final class RecognitionResultViewModel {
     }
 
     private func poll() async {
+        #if DEBUG
+        // 실행 인자 -recognition: 로그인 없이 인식 결과 화면 보기(예시 음식 2개)
+        if ProcessInfo.processInfo.arguments.contains("-recognition") {
+            items = [
+                EditableFoodItem(name: "김밥", count: 1, unit: "줄", categoryHint: nil, tags: []),
+                EditableFoodItem(name: "오렌지 주스", count: 1, unit: "잔", categoryHint: nil, tags: []),
+            ]
+            state = .ready
+            return
+        }
+        #endif
         var delayNanoseconds: UInt64 = 1_000_000_000
         let maxDelayNanoseconds: UInt64 = 5_000_000_000
 
@@ -70,10 +81,10 @@ final class RecognitionResultViewModel {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
                 delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
             } catch APIError.server(422, _) {
-                state = .failed("음식 인식에 실패했습니다. 직접 입력해 주세요.")
+                state = .failed("음식을 알아보지 못했어요.\n먹은 음식을 직접 적어주세요.")
                 return
             } catch {
-                state = .failed("결과를 불러오지 못했습니다. 직접 입력해 주세요.")
+                state = .failed("결과를 불러오지 못했어요.\n먹은 음식을 직접 적어주세요.")
                 return
             }
         }
@@ -109,7 +120,7 @@ final class RecognitionResultViewModel {
             await MainActor.run { WidgetSnapshot.refresh(noteRecord: true) }
             return true
         } catch {
-            saveErrorMessage = "저장에 실패했습니다. 다시 시도해주세요."
+            saveErrorMessage = "저장하지 못했어요. 다시 눌러주세요."
             state = .ready
             return false
         }
