@@ -41,7 +41,7 @@ AI_use_organize/               경진대회 제출용 AI 활용 기록 (건드�
 ## 인프라 (AWS Lightsail, 서울)
 - 서버 1대(Ubuntu 24.04, x86 → 이미지는 **amd64만**). Docker Compose: caddy, app, ml-service, postgres. 외부 포트는 22/80/443만. DB 포트는 열지 않는다.
 - 서버 경로 `/opt/glucose` (`docker-compose.yml`, `Caddyfile`, `.env`, `backup.sh`). 서버 주소와 SSH 키는 GitHub Secrets(`LIGHTSAIL_HOST`, `LIGHTSAIL_SSH_KEY`)에 있고 **이 저장소에 쓰지 않는다**.
-- 이미지는 `ghcr.io/khu-glucose/glucose-app`, `glucose-ml` (조직 이름이 대문자라 소문자로 변환해서 사용).
+- 이미지는 `ghcr.io/glubee/glucose-app`, `glucose-ml`. 서버는 `/opt/glucose/.env`의 `APP_IMAGE`/`ML_IMAGE`로 받는다. 조직 이름을 옮긴 뒤 `.env`가 예전 `khu-glucose`를 가리켜 2주간 배포가 반영되지 않았다(2026-10-28 발견·수정). 배포 뒤 `docker compose images`로 이미지 이름과 생성 시각을 확인한다.
 - 사진·백업은 Cloudflare R2(`glucose-photos`, `glucose-backups`, 비공개). 매일 새벽 4시 DB 백업(cron → R2, 30일 보관).
 - 재시작 정책 `unless-stopped`. 서버 재부팅 후 자동 복구된다.
 - 백업 복구 테스트·장애 시 복구 절차: `infra/README.md`, `infra/restore-test.sh` (임시 컨테이너에만 복구, 운영 DB는 안 건드림).

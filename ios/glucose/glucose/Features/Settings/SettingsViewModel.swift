@@ -26,7 +26,7 @@ final class SettingsViewModel {
             await LocalDataEraser.eraseAll()
             return true
         } catch {
-            errorMessage = "계정 삭제에 실패했습니다. 다시 시도해주세요."
+            errorMessage = "계정을 지우지 못했어요. 다시 시도해 주세요."
             return false
         }
     }
