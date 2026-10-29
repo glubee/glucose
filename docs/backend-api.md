@@ -517,3 +517,15 @@ JWT 사용자 소유 원본만 재분석할 수 있다. 응답은 202 `{"upload_
 - `insights[]`: 그 주에 나온 흐름 안내 `code, title, days, dates`(서버 설정이 켜졌을 때만).
 앱의 "한 주 겹쳐 보기"는 요일별 `GET /v1/glucose-readings/{date}`를 불러 0~24시 한 축에 겹쳐 그린다.
 
+## 18. 하루 마무리·진행 상태 백업
+
+JWT 계정별로 저장한다. 기존 리포트/인슐린/섭취 API는 유지한다.
+
+- `GET /v1/progress`: `{revision, state, acknowledged_operations: []}`.
+- `POST /v1/progress/sync`: `{legacy_state?: state, operations: [...]}` → 같은 형태 응답. 이번 요청에서 처리/이미 확인된 명령 UUID를 `acknowledged_operations`로 돌려준다.
+- state: `closed_days, record_only_days, honeypot_saved_days`(날짜 문자열 목록), `honeypots`(0~2), `rest`(null 또는 `{reason, start, end}`), `last_honeypot_use`(선택).
+- 모든 날짜는 한국 시간 `yyyy-MM-dd`. 완료 날짜는 1900-01-01~오늘, 쉬어가기 종료는 시작 후 365일 이내다. reason은 기존 앱 값 `resting/unwell/noSensor`.
+- 명령은 최대 100개이며 각각 `id(UUID), kind`가 필요하다. `close_day`는 `day, record_only?`, `start_rest`는 `day, end, reason`, `end_rest`는 `day`, `apply_honeypots`는 추가 필드가 없다.
+- 같은 명령/내용은 멱등, 같은 ID의 다른 내용은 409 `OPERATION_ID_REUSED`. 같은 날짜의 중복 완료도 보상을 늘리지 않는다. 기록만 저장 이후 완성은 업그레이드되며 역방향으로 낮아지지 않는다.
+- 최초 legacy_state는 기존 상태/잔여 꿀단지를 보존한다. 기존 서버 상태가 있으면 완료/보호 날짜만 합치며 잔액·현재 쉬어가기는 서버 기준이다. 배치 전체를 한 트랜잭션과 사용자 잠금으로 처리하고 계정 삭제 시 함께 삭제한다.
+
