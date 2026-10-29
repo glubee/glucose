@@ -508,3 +508,12 @@ JWT 사용자 소유 원본만 재분석할 수 있다. 응답은 202 `{"upload_
 
 - 안내 카드와 별도로 문장화는 계속 개인 기록 사실만 정리한다.
 - B8(레이트 리밋, OpenAPI, 로그 점검, 백업 복구 테스트)
+
+### 주간 리포트 상세 필드 (2026-10-28 추가)
+`GET /v1/reports/weekly/{date}` 응답에 아래가 더해진다(필드 추가만).
+- `story`: 주간 이야기(`WeeklyStoryBuilder`, AI 없음). 그래프 있는 날·평균, 가장 높았던/낮았던 값과 요일·시각, 시간대별 차이, 70 미만 날, 자주 남긴 음식, 인슐린 기록 없는 식사 수, 술 기록 수, 2일 이상 보인 흐름 안내.
+- `days[]`: 요일별 `date, average, min, max, coverage_ratio, intake_count, insulin_count, low_count(70 미만 구간 수), insight_codes`.
+- `time_bands[]`: 새벽 0~6, 오전 6~12, 오후 12~18, 저녁 18~24시별 `average, min, max, readings_count`.
+- `insights[]`: 그 주에 나온 흐름 안내 `code, title, days, dates`(서버 설정이 켜졌을 때만).
+앱의 "한 주 겹쳐 보기"는 요일별 `GET /v1/glucose-readings/{date}`를 불러 0~24시 한 축에 겹쳐 그린다.
+

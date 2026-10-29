@@ -195,6 +195,46 @@ struct WeeklyReport: Decodable {
     let lowCoverageDays: Int?
     let pendingDays: Int?
     let summary: [String]?
+    /// 주간 이야기·요일별·시간대별·흐름 안내 모음. 예전 서버는 보내지 않는다
+    var story: [String]? = nil
+    var days: [Day]? = nil
+    var timeBands: [TimeBand]? = nil
+    var insights: [InsightCount]? = nil
+
+    struct Day: Decodable, Identifiable {
+        let date: String
+        let average: Double?
+        let min: Int?
+        let max: Int?
+        let coverageRatio: Double?
+        let intakeCount: Int
+        let insulinCount: Int
+        let lowCount: Int
+        let insightCodes: [String]?
+
+        var id: String { date }
+    }
+
+    struct TimeBand: Decodable, Identifiable {
+        let label: String
+        let startHour: Int
+        let endHour: Int
+        let average: Double?
+        let min: Int?
+        let max: Int?
+        let readingsCount: Int
+
+        var id: Int { startHour }
+    }
+
+    struct InsightCount: Decodable, Identifiable {
+        let code: String
+        let title: String
+        let days: Int
+        let dates: [String]
+
+        var id: String { code }
+    }
 }
 
 struct ReportNarrative: Decodable {

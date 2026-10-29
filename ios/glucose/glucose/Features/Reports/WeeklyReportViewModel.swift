@@ -19,6 +19,8 @@ final class WeeklyReportViewModel {
     private(set) var weekStart: Date
     private(set) var state: State = .loading
     private(set) var foodAnalysis: FoodAnalysisState = .loading
+    /// 한 주 겹쳐 보기용 요일별 곡선(월~일, 그래프가 없거나 아직 오지 않은 날은 빈 배열)
+    private(set) var overlay: [(date: Date, points: [GlucosePoint])] = []
     private var loadID = UUID()
 
     init(containing day: Date = ReportDay.today()) {
@@ -47,12 +49,14 @@ final class WeeklyReportViewModel {
         if ReportSamples.isEnabled {
             state = .loaded(ReportSamples.weekly(requestedWeek))
             foodAnalysis = .loaded(ReportSamples.food(requestedWeek, weekly: true))
+            overlay = ReportSamples.weekOverlay(requestedWeek)
             return
         }
         #endif
         state = .loading
         foodAnalysis = .loading
         async let foodRequest = fetchFoodAnalysis(week: requestedWeek)
+        async let overlayRequest = fetchOverlay(week: requestedWeek)
         do {
             let report: WeeklyReport = try await APIClient.shared.send(
                 path: "/v1/reports/weekly/\(ReportDay.apiString(from: requestedWeek))"
@@ -62,6 +66,9 @@ final class WeeklyReportViewModel {
             let analysis = await foodRequest
             guard requestedWeek == weekStart, loadID == activeID else { return }
             foodAnalysis = analysis
+            let curves = await overlayRequest
+            guard requestedWeek == weekStart, loadID == activeID else { return }
+            overlay = curves
         } catch {
             guard requestedWeek == weekStart, loadID == activeID else { return }
             if case APIError.network = error {
@@ -69,6 +76,25 @@ final class WeeklyReportViewModel {
             } else {
                 state = .failed("주간 리포트를 불러오지 못했어요.")
             }
+        }
+    }
+
+    /// 7일 그래프를 한꺼번에 불러온다(없는 날·실패한 날은 빈 배열)
+    private func fetchOverlay(week: Date) async -> [(date: Date, points: [GlucosePoint])] {
+        let calendar = ReportDay.calendar
+        let dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: week) }
+        let today = ReportDay.today()
+        return await withTaskGroup(of: (Int, [GlucosePoint]).self) { group in
+            for (index, date) in dates.enumerated() where date <= today {
+                group.addTask {
+                    let readings: GlucoseReadings? = try? await APIClient.shared.send(
+                        path: "/v1/glucose-readings/\(ReportDay.apiString(from: date))")
+                    return (index, readings.map { GlucosePoint.points(from: $0.readings, on: date, calendar: calendar) } ?? [])
+                }
+            }
+            var byIndex: [Int: [GlucosePoint]] = [:]
+            for await (index, points) in group { byIndex[index] = points }
+            return dates.enumerated().map { ($0.element, byIndex[$0.offset] ?? []) }
         }
     }
 

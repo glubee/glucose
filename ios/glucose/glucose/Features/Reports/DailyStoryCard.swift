@@ -11,10 +11,11 @@ import SwiftUI
 struct DailyStoryCard: View {
     let story: [String]
     let evidence: [String]
+    var title = "하루 이야기"
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
-            SectionHeader(title: "하루 이야기")
+            SectionHeader(title: title)
             Text(story.joined(separator: " "))
                 .font(.body1)
                 .foregroundStyle(Color.textPrimary)

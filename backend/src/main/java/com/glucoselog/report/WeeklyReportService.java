@@ -24,11 +24,22 @@ public class WeeklyReportService {
     private final DailyReportService dailyReportService;
     private final ReportSummaryBuilder summaryBuilder;
     private final Clock clock;
+    /** 주간 상세(요일별·시간대별·주간 이야기). 없으면(단위 테스트) 상세 없이 집계만 */
+    private final GlucoseTimelineService timelineService;
+    private final WeeklyStoryBuilder storyBuilder;
 
     public WeeklyReportService(DailyReportService dailyReportService, ReportSummaryBuilder summaryBuilder, Clock clock) {
+        this(dailyReportService, summaryBuilder, clock, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public WeeklyReportService(DailyReportService dailyReportService, ReportSummaryBuilder summaryBuilder, Clock clock,
+            GlucoseTimelineService timelineService, WeeklyStoryBuilder storyBuilder) {
         this.dailyReportService = dailyReportService;
         this.summaryBuilder = summaryBuilder;
         this.clock = clock;
+        this.timelineService = timelineService;
+        this.storyBuilder = storyBuilder;
     }
 
     public WeeklyReportResponse getWeeklyReport(UUID userId, LocalDate anyDateInWeek) {
@@ -80,7 +91,16 @@ public class WeeklyReportService {
                 lowCoverageDays,
                 pendingDays,
                 List.of());
-        return counts.withSummary(summaryBuilder.weekly(counts));
+        WeeklyReportResponse withSummary = counts.withSummary(summaryBuilder.weekly(counts));
+        if (timelineService == null || storyBuilder == null) {
+            return withSummary;
+        }
+        List<WeeklyStoryBuilder.DayInput> inputs = days.stream()
+                .map(day -> new WeeklyStoryBuilder.DayInput(day, timelineService.findDaySummary(userId, day.date())
+                        .map(GlucoseTimelineService.DaySummary::samples).orElse(List.of())))
+                .toList();
+        WeeklyStoryBuilder.Result detail = storyBuilder.build(inputs, withSummary);
+        return withSummary.withDetails(detail.story(), detail.days(), detail.timeBands(), detail.insights());
     }
 
     /** 일평균들의 단순 평균이 아니라 읽힌 값 개수로 가중한 평균. 읽힌 값이 하나도 없으면 null. */
