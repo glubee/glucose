@@ -21,13 +21,13 @@
 - 계정 삭제의 FK cascade와 iOS 캐시/위젯 정리가 남은 작업을 취소하며, 이전 API 필드를 쓰는 앱도 계속 동작한다.
 
 ## Task 1: 서버 완료 상태·멱등 명령
-**Files:** backend/.../progress/*, db/migration/V14__data_preservation.sql, test/.../progress/ProgressFlowTest.java, docs/backend-api.md.
+**Files:** backend/.../progress/*, db/migration/V14__progress_sync.sql, test/.../progress/ProgressFlowTest.java, docs/backend-api.md.
 **Interfaces:** GET /v1/progress, POST /v1/progress/sync; state/revision/acknowledged_operations.
 - [ ] HTTP 회귀 먼저: 404 실패 확인; 두 계정 격리, legacy 보존/충돌, 같은 명령·같은 날·7일 보상, 변경ID 재사용, 원자적 배치, 삭제 cascade.
 - [ ] 순수 상태 규칙·사용자 잠금·명령 보관·마이그레이션·계약을 구현하고 단위/HTTP 검사 통과 후 커밋.
 
 ## Task 2: 서버 사진 복원·상태
-**Files:** photo/*, intake/IntakeService.java, AppUserRepository.java, V14 migration, test/.../photo/PendingPhotoFlowTest.java.
+**Files:** photo/*, intake/IntakeService.java, AppUserRepository.java, V15__pending_photo_sync.sql, test/.../photo/PendingPhotoFlowTest.java.
 **Interfaces:** 목록/메타데이터/숨김 API와 선택 captured_at/client_id. Intake 저장에서 확인 처리.
 - [ ] 소유자·페이지·동일 시각·클라이언트ID 재시도·확인/삭제 후 미재등장·숨김 뒤 늦은 완료 회귀를 먼저 실패 확인.
 - [ ] 서버 API/기존 업로드 호환·행 잠금·기존 사진 확인 backfill을 구현하고 기존/신규 검사 통과 후 커밋.

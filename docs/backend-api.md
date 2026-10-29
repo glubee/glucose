@@ -529,3 +529,12 @@ JWT 계정별로 저장한다. 기존 리포트/인슐린/섭취 API는 유지�
 - 같은 명령/내용은 멱등, 같은 ID의 다른 내용은 409 `OPERATION_ID_REUSED`. 같은 날짜의 중복 완료도 보상을 늘리지 않는다. 기록만 저장 이후 완성은 업그레이드되며 역방향으로 낮아지지 않는다.
 - 최초 legacy_state는 기존 상태/잔여 꿀단지를 보존한다. 기존 서버 상태가 있으면 완료/보호 날짜만 합치며 잔액·현재 쉬어가기는 서버 기준이다. 배치 전체를 한 트랜잭션과 사용자 잠금으로 처리하고 계정 삭제 시 함께 삭제한다.
 
+## 19. 업로드한 확인 대기 사진 복원
+
+- 기존 `POST /v1/photos`에 선택 `captured_at(ISO8601), client_id(UUID)`를 추가한다. 같은 계정/client_id를 재전송하면 같은 photo_id와 새 업로드 주소를 반환한다. 응답의 추가 `uploaded`가 true면 PUT을 반복하지 않고 완료 확인만 할 수 있다. 기존 두 필드만 보내는 앱도 유지된다.
+- `GET /v1/photos?unconfirmed=true&limit=20&cursor=...`: 본인의 UPLOADED·미확인·미숨김 사진만 `{items, next_cursor}`로 반환한다. limit 1~100. 촬영 시각 내림차순/UUID 내림차순이며 cursor는 소수 초를 보존한다.
+- 목록 항목과 `GET /v1/photos/{photoId}` 응답: `{photo_id, client_id, captured_at, context, status, confirmed, dismissed}`. 목록에 객체 키나 서명 URL은 넣지 않는다. 원본 표시는 기존 `GET /v1/photos/{id}/view`를 사용한다.
+- `PATCH /v1/photos/{id}/metadata`: `{captured_at, client_id?, context?}` → 204. 이전 앱이 누락한 촬영 시각/client_id를 한 번 채우고 미확인 사진 분류를 갱신한다. 다른 사진의 client_id를 사용하면 409 `PHOTO_CLIENT_ID_REUSED`.
+- `POST /v1/photos/{id}/dismiss` → 204, 멱등으로 대기 목록에서 숨긴다. R2 파일 삭제는 수행하지 않는다. 이후 늦은 완료 통보/동일 client_id 업로드 시작은 409 `PHOTO_DISMISSED`.
+- 음식 기록 저장 시 본인의 업로드 완료 사진만 연결하고 함께 confirmed를 기록한다. 해당 음식 기록을 나중에 삭제해도 사진은 대기로 돌아오지 않는다. 다른 계정 사진은 404 `PHOTO_NOT_FOUND`. 기존 연결 사진도 Flyway에서 확인 처리한다.
+

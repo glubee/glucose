@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.glucoselog.common.ApiException;
+import com.glucoselog.photo.PhotoUploadService;
 import com.glucoselog.common.Cursor;
 import com.glucoselog.common.CursorCodec;
 import com.glucoselog.common.PageResponse;
@@ -21,14 +22,17 @@ public class IntakeService {
 
     private final IntakeRepository intakeRepository;
     private final FoodCatalogRepository foodCatalogRepository;
+    private final PhotoUploadService photoUploads;
 
-    public IntakeService(IntakeRepository intakeRepository, FoodCatalogRepository foodCatalogRepository) {
+    public IntakeService(IntakeRepository intakeRepository, FoodCatalogRepository foodCatalogRepository, PhotoUploadService photoUploads) {
         this.intakeRepository = intakeRepository;
         this.foodCatalogRepository = foodCatalogRepository;
+        this.photoUploads = photoUploads;
     }
 
     @Transactional
     public IntakeResponse create(UUID userId, IntakeRequest request) {
+        if (request.photoId() != null) photoUploads.confirmForIntake(userId, request.photoId());
         Intake intake = new Intake(userId, request.photoId(), request.context(), request.occurredAt());
         intake.replaceItems(buildItems(request.items()));
         return IntakeResponse.from(intakeRepository.save(intake));
