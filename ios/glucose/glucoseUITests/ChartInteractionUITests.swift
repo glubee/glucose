@@ -88,4 +88,18 @@ final class ChartInteractionUITests: XCTestCase {
         plot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
         XCTAssertTrue(app.buttons["선택 해제"].waitForExistence(timeout: 5))
     }
+
+    func testReportDateOpensCalendarAndShowsPickedDay() {
+        let app = reports()
+        let title = app.buttons["periodTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let before = title.label
+        app.buttons["이전 날"].tap()
+        XCTAssertNotEqual(title.label, before)
+        title.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["dayPicker"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["dayPickerConfirm"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["dayPickerConfirm"].exists)
+    }
 }

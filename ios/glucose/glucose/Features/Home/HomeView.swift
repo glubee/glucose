@@ -66,7 +66,8 @@ struct HomeView: View {
         }
     }
 
-    private func refresh() { Task { await viewModel.refresh() } }
+    /// 기록 시트를 닫은 뒤: 새 기록이 붙은 오늘 다이어리로 돌아온다
+    private func refresh() { Task { await viewModel.refresh(returnToToday: true) } }
 
     private var focusTriggerID: String? {
         let router = DeepLinkRouter.shared

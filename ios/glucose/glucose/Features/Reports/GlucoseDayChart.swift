@@ -121,6 +121,11 @@ struct GlucoseDayChart: View {
 
     private var marks: [DailyReport.Episode.IntakeMark] { episodes.flatMap(\.marks) }
 
+    /// 인슐린 표시를 놓을 높이: 세로축 바닥 바로 위
+    private var insulinBadgeY: Double {
+        Double(yDomain.lowerBound) + Double(yDomain.upperBound - yDomain.lowerBound) * 0.045
+    }
+
     private var selectedPoint: GlucosePoint? {
         guard let time = selection?.wrappedValue else { return nil }
         return GlucoseCurve(points: points).nearestObservedPoint(to: time)
@@ -178,6 +183,11 @@ struct GlucoseDayChart: View {
                 RuleMark(x: .value("인슐린", event.occurredAt))
                     .lineStyle(StrokeStyle(lineWidth: eventWidth("insulin-\(index)"), dash: [1, 2]))
                     .foregroundStyle(Color.insulin.opacity(eventOpacity("insulin-\(index)")))
+                // 곡선 아래 바닥에 주사기 표시: 언제 맞았는지 바로 보인다(그래프 안에 있어 넘기거나 확대해도 따라온다)
+                PointMark(x: .value("인슐린", event.occurredAt), y: .value("혈당", insulinBadgeY))
+                    .symbol { InsulinChartBadge() }
+                    .opacity(eventOpacity("insulin-\(index)"))
+                    .accessibilityLabel("인슐린 \(ReportDay.timeString(from: event.occurredAt))")
             }
 
             if let time = selection?.wrappedValue, selectedPoint == nil {
@@ -304,5 +314,18 @@ struct GlucoseDayChart: View {
             return "값 없음"
         }
         return "최저 \(minValue), 최고 \(maxValue) mg/dL, 섭취 기록 \(marks.count)개, 인슐린 기록 \(insulinEvents.count)개"
+    }
+}
+
+/// 그래프 바닥의 인슐린 표시(보라 동그라미 + 주사기)
+struct InsulinChartBadge: View {
+    var body: some View {
+        Image(systemName: "syringe.fill")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 20, height: 20)
+            .background(Color.insulin, in: Circle())
+            .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 1.5))
+            .accessibilityHidden(true)
     }
 }

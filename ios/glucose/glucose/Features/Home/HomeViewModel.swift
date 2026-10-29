@@ -13,6 +13,10 @@ import Foundation
 final class HomeViewModel {
 
     private(set) var today: Date
+    /// 홈 다이어리에 펼친 날(기본 오늘). 지난 날도 같은 줄노트로 볼 수 있다
+    private(set) var diaryDay: Date
+    var isDiaryToday: Bool { diaryDay == today }
+    var canDiaryGoForward: Bool { diaryDay < today }
     private(set) var report: DailyReportViewModel
     let timeline: TodayTimelineViewModel
 
@@ -26,6 +30,7 @@ final class HomeViewModel {
          preferences: UserPreferences? = nil, repository: RecordRepository? = nil) {
         let day = ReportDay.calendar.startOfDay(for: now)
         today = day
+        diaryDay = day
         report = DailyReportViewModel(day: day)
         timeline = TodayTimelineViewModel(repository: repository)
         self.store = store ?? RecordDataSource.dayClose
@@ -104,16 +109,33 @@ final class HomeViewModel {
         }
     }
 
-    func refresh(now: Date = .now) async {
+    /// returnToToday: 새 기록을 남긴 뒤처럼 오늘 다이어리로 돌아와야 할 때
+    func refresh(now: Date = .now, returnToToday: Bool = false) async {
         let day = ReportDay.calendar.startOfDay(for: now)
-        if day != today { today = day; report = DailyReportViewModel(day: day) }
+        if day != today {
+            if diaryDay == today { diaryDay = day }
+            today = day
+            report = DailyReportViewModel(day: day)
+        }
+        if returnToToday { diaryDay = today }
         let daily = report
         async let reportLoad: Void = daily.load()
-        await timeline.load(day: day)
+        await timeline.load(day: diaryDay)
         await reportLoad
         guard !Task.isCancelled else { return }
         timeline.prepareFocus(changes: .shared, photos: photos.photos)
         if !RecordDataSource.isPreview { WidgetSnapshot.refresh() }
+    }
+
+    /// 다이어리를 다른 날로 펼친다(오늘 이후는 안 됨)
+    func showDiary(day: Date) async {
+        diaryDay = min(ReportDay.calendar.startOfDay(for: day), today)
+        await timeline.load(day: diaryDay)
+    }
+
+    func moveDiary(byDays days: Int) async {
+        guard let day = ReportDay.calendar.date(byAdding: .day, value: days, to: diaryDay) else { return }
+        await showDiary(day: day)
     }
 
     func startRest(_ reason: RestPeriod.Reason, days: Int) async {

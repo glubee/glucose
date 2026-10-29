@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-/// ‹ 10월 27일 › — 이전/다음
+/// ‹ 10월 27일 › — 이전/다음. onTitleTap이 있으면 날짜를 눌러 달력에서 고른다
 struct ReportPeriodNavigator: View {
     let title: String
     let previousLabel: String
@@ -16,15 +16,31 @@ struct ReportPeriodNavigator: View {
     let canGoForward: Bool
     let onPrevious: () -> Void
     let onNext: () -> Void
+    var onTitleTap: (() -> Void)? = nil
 
     var body: some View {
         HStack {
             arrow("chevron.left", label: previousLabel, action: onPrevious)
             Spacer()
-            Text(title)
-                .font(.headline2)
-                .foregroundStyle(Color.textPrimary)
-                .monospacedDigit()
+            if let onTitleTap {
+                Button(action: onTitleTap) {
+                    HStack(spacing: Spacing.xxs) {
+                        Text(title).monospacedDigit()
+                        Image(systemName: "calendar").font(.subheadline.weight(.semibold))
+                    }
+                    .font(.headline2)
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(minHeight: Metrics.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(title), 눌러서 날짜 고르기")
+                .accessibilityIdentifier("periodTitle")
+            } else {
+                Text(title)
+                    .font(.headline2)
+                    .foregroundStyle(Color.textPrimary)
+                    .monospacedDigit()
+            }
             Spacer()
             arrow("chevron.right", label: nextLabel, action: onNext)
                 .disabled(!canGoForward)
@@ -42,6 +58,43 @@ struct ReportPeriodNavigator: View {
                 .frame(width: Metrics.minTapTarget, height: Metrics.minTapTarget)
         }
         .accessibilityLabel(label)
+    }
+}
+
+/// 달력에서 날짜 하나 고르기(오늘 이후는 못 고른다). 일일 리포트·홈 다이어리가 같이 쓴다
+struct DayPickerSheet: View {
+    let title: String
+    @State var date: Date
+    let onPick: (Date) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: Spacing.m) {
+                DatePicker(title, selection: $date, in: ...ReportDay.today(), displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .tint(Color.mintStrong)
+                    .environment(\.locale, Locale(identifier: "ko_KR"))
+                    .environment(\.calendar, ReportDay.calendar)
+                    .environment(\.timeZone, ReportDay.calendar.timeZone)
+                    .accessibilityIdentifier("dayPicker")
+                Button("이 날 보기") {
+                    onPick(ReportDay.calendar.startOfDay(for: date))
+                    dismiss()
+                }
+                .buttonStyle(.glubeePrimary)
+                .accessibilityIdentifier("dayPickerConfirm")
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Spacing.gutter)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } }
+            }
+        }
+        .presentationDetents([.large])
     }
 }
 

@@ -108,4 +108,21 @@ final class HomeRecordsUITests: XCTestCase {
         XCTAssertTrue(row.isHittable)
         XCTAssertEqual(row.value as? String, "새로 추가한 기록")
     }
+
+    func testDiaryMovesToPreviousDayAndBackToToday() {
+        let app = launch()
+        let previous = app.buttons["이전 날 다이어리"]
+        for _ in 0..<4 where !previous.isHittable { app.swipeUp() }
+        let date = app.buttons["diaryDate"]
+        let today = date.label
+        previous.tap()
+        XCTAssertTrue(app.staticTexts["지난 다이어리"].waitForExistence(timeout: 5))
+        XCTAssertNotEqual(date.label, today)
+        app.buttons["diaryToday"].tap()
+        XCTAssertTrue(app.staticTexts["오늘의 다이어리"].waitForExistence(timeout: 5))
+        app.buttons["diaryDate"].tap()
+        XCTAssertTrue(app.buttons["dayPickerConfirm"].waitForExistence(timeout: 5))
+        app.buttons["dayPickerConfirm"].tap()
+        XCTAssertTrue(app.staticTexts["오늘의 다이어리"].waitForExistence(timeout: 5))
+    }
 }

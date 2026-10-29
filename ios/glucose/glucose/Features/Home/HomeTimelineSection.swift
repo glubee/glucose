@@ -8,6 +8,7 @@ struct HomeTimelineSection: View {
     let highlightedID: String?
     let openPending: (PendingPhoto) -> Void
     let showAll: () -> Void
+    @State private var showDayPicker = false
 
     private static let photoWidth: CGFloat = 136
     private static let photoHeight: CGFloat = 100
@@ -36,13 +37,25 @@ struct HomeTimelineSection: View {
             ForEach(viewModel.todayEntries) { entry in
                 row(entry)
             }
-            nowRow
+            if viewModel.isDiaryToday {
+                nowRow
+            } else if !viewModel.timeline.isLoading && viewModel.todayEntries.isEmpty {
+                Text("이 날 남긴 기록이 없어요.")
+                    .font(.body2).foregroundStyle(Color.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.l)
+            }
         }
         .padding(.horizontal, Spacing.gutter)
         .padding(.top, Spacing.m)
         .padding(.bottom, Spacing.xl)
         .frame(maxWidth: .infinity, minHeight: 460, alignment: .top)
         .background(DiaryPaper())
+        .sheet(isPresented: $showDayPicker) {
+            DayPickerSheet(title: "다이어리 날짜", date: viewModel.diaryDay) { day in
+                Task { await viewModel.showDiary(day: day) }
+            }
+        }
     }
 
     // MARK: - 머리
@@ -50,7 +63,14 @@ struct HomeTimelineSection: View {
     private var heading: some View {
         VStack(spacing: Spacing.xxs) {
             HStack {
-                Text("오늘의 다이어리").font(.body2).foregroundStyle(Color.textSecondary)
+                Text(viewModel.isDiaryToday ? "오늘의 다이어리" : "지난 다이어리").font(.body2).foregroundStyle(Color.textSecondary)
+                if !viewModel.isDiaryToday {
+                    Button("오늘로") { Task { await viewModel.showDiary(day: viewModel.today) } }
+                        .font(.body2.weight(.semibold))
+                        .foregroundStyle(Diary.ink)
+                        .frame(minHeight: Metrics.minTapTarget)
+                        .accessibilityIdentifier("diaryToday")
+                }
                 Spacer()
                 Text(stamp)
                     .font(.caption1.weight(.semibold).monospacedDigit())
@@ -59,12 +79,32 @@ struct HomeTimelineSection: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Diary.ink.opacity(0.5), lineWidth: 1))
                     .rotationEffect(.degrees(-3))
             }
-            Text(longDate)
-                .font(.pretendard(24, relativeTo: .title, weight: .bold))
-                .foregroundStyle(Color.textPrimary)
+            HStack(spacing: Spacing.xs) {
+                dayArrow("chevron.left", label: "이전 날 다이어리", enabled: true) {
+                    Task { await viewModel.moveDiary(byDays: -1) }
+                }
+                Spacer(minLength: 0)
+                Button { showDayPicker = true } label: {
+                    HStack(spacing: Spacing.xxs) {
+                        Text(longDate)
+                            .font(.pretendard(24, relativeTo: .title, weight: .bold))
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(1)
+                        Image(systemName: "calendar").font(.body.weight(.semibold)).foregroundStyle(Diary.ink)
+                    }
+                    .foregroundStyle(Color.textPrimary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(longDate), 눌러서 날짜 고르기")
+                .accessibilityIdentifier("diaryDate")
+                Spacer(minLength: 0)
+                dayArrow("chevron.right", label: "다음 날 다이어리", enabled: viewModel.canDiaryGoForward) {
+                    Task { await viewModel.moveDiary(byDays: 1) }
+                }
+            }
             HStack(spacing: Spacing.xxs) {
                 Text(viewModel.todayEntries.isEmpty ? "오늘의 조각을 함께 모아봐요."
-                     : "오늘 남긴 조각 \(viewModel.todayEntries.count)개")
+                     : "\(viewModel.isDiaryToday ? "오늘" : "이 날") 남긴 조각 \(viewModel.todayEntries.count)개")
                     .font(.body2).foregroundStyle(Color.textSecondary)
                 Button(action: showAll) {
                     Text("전체 기록 ›").font(.body2).underline().foregroundStyle(Diary.ink)
@@ -189,6 +229,20 @@ struct HomeTimelineSection: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func dayArrow(_ systemImage: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(Color.surfaceMuted, in: Circle())
+                .frame(width: Metrics.minTapTarget, height: Metrics.minTapTarget)
+        }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.3)
+        .accessibilityLabel(label)
+    }
+
     private func contextTag(_ context: IntakeContext) -> some View {
         Text(context.chipName)
             .font(.caption2.weight(.bold))
@@ -211,7 +265,7 @@ struct HomeTimelineSection: View {
         formatter.locale = Locale(identifier: "ko_KR")
         formatter.timeZone = ReportDay.calendar.timeZone
         formatter.dateFormat = "M월 d일 EEEE"
-        return formatter.string(from: viewModel.today)
+        return formatter.string(from: viewModel.diaryDay)
     }
 
     private var stamp: String {
@@ -219,6 +273,6 @@ struct HomeTimelineSection: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = ReportDay.calendar.timeZone
         formatter.dateFormat = "MM.dd · EEE"
-        return formatter.string(from: viewModel.today).uppercased()
+        return formatter.string(from: viewModel.diaryDay).uppercased()
     }
 }

@@ -14,6 +14,7 @@ struct DailyReportView: View {
     @State private var showGraphUpload = false
     @State private var chartDetail: ChartDetailSnapshot?
     @State private var selectedPhoto: ChartPhotoGroup?
+    @State private var showDayPicker = false
 
     private struct ChartDetailSnapshot: Identifiable {
         let id = UUID()
@@ -31,7 +32,8 @@ struct DailyReportView: View {
                     previousLabel: "이전 날", nextLabel: "다음 날",
                     canGoForward: viewModel.canGoForward,
                     onPrevious: { Task { await viewModel.move(byDays: -1) } },
-                    onNext: { Task { await viewModel.move(byDays: 1) } })
+                    onNext: { Task { await viewModel.move(byDays: 1) } },
+                    onTitleTap: { showDayPicker = true })
 
                 switch viewModel.state {
                 case .loading:
@@ -78,6 +80,11 @@ struct DailyReportView: View {
         .fullScreenCover(item: $chartDetail) { snapshot in
             GlucoseDayDetailView(day: snapshot.day, points: snapshot.points, episodes: snapshot.report.episodes,
                                  insulinEvents: snapshot.report.insulinEvents ?? []) { closePhotoScreens() }
+        }
+        .sheet(isPresented: $showDayPicker) {
+            DayPickerSheet(title: "날짜 고르기", date: viewModel.day) { day in
+                Task { await viewModel.show(day: day) }
+            }
         }
         .sheet(isPresented: $showGraphUpload) {
             GraphUploadView { uploadedDate in
