@@ -116,6 +116,23 @@ final class PhotoPreservationTests: XCTestCase {
         XCTAssertTrue(store.photos.isEmpty)
     }
 
+    func testAccountErasureRemovesOwnedLegacyRemnantsButKeepsOtherAccountFiles() throws {
+        let folder = directory(), legacy = make(folder), id = UUID(), other = UUID()
+        _ = legacy.add(imageData: Data([1]), context: .meal)
+        let store = make(folder, accountScoped: true)
+        store.activateAccount(id, allowLegacy: true)
+        let remnant = folder.appendingPathComponent(".discarded/old.jpg")
+        try FileManager.default.createDirectory(at: remnant.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data([2]).write(to: remnant)
+        let otherFile = folder.appendingPathComponent("accounts/\(other.uuidString)/keep.jpg")
+        try FileManager.default.createDirectory(at: otherFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data([3]).write(to: otherFile)
+        store.eraseActiveAccount()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: remnant.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("legacy-owner.txt").path))
+        XCTAssertEqual(try Data(contentsOf: otherFile), Data([3]))
+    }
+
     func testPhotoAccountFoldersRestoreOnlyTheirOwners() throws {
         let folder = directory(), store = make(folder, accountScoped: true), a = UUID(), b = UUID()
         store.activateAccount(a)

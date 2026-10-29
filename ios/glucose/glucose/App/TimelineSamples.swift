@@ -5,7 +5,7 @@ import UIKit
 @MainActor
 final class TimelineSamples: RecordRepository, IntakeServing, InsulinServing {
     static var isEnabled: Bool {
-        LocalDemoSession.shared.isActive || ProcessInfo.processInfo.arguments.contains("-timelineSample")
+        SyncSamples.isEnabled || LocalDemoSession.shared.isActive || ProcessInfo.processInfo.arguments.contains("-timelineSample")
         || ProcessInfo.processInfo.arguments.contains("-timelineEmptySample")
     }
     private static let commandLineSamples = TimelineSamples()

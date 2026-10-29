@@ -133,4 +133,3 @@ private struct ReportFullPhotoView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-

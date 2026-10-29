@@ -135,6 +135,21 @@ class ProgressFlowTest {
         assertThat(jdbc.queryForObject("select count(*) from progress_command", Integer.class)).isEqualTo(before - 1);
     }
 
+    @Test
+    void offlineCompletionsAreAppliedBeforeAutomaticHoneypotUse() {
+        String token = login();
+        int hour = java.time.LocalTime.now(ZoneId.of("Asia/Seoul")).getHour();
+        LocalDate deadline = today.minusDays(hour < 12 ? 2 : 1);
+        List<String> closed = new ArrayList<>();
+        for (int offset = 8; offset >= 2; offset--) closed.add(deadline.minusDays(offset).toString());
+        var request = Map.of("legacy_state", Map.of("closed_days", closed, "honeypots", 1),
+                "operations", List.of(close(deadline.minusDays(1).toString(), false), close(deadline.toString(), false)));
+        var result = sync(token, request);
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map) result.getBody().get("state")).get("honeypots")).isEqualTo(1);
+        assertThat((List<?>) state(token).get("closed_days")).hasSize(9);
+    }
+
     private Map<String, Object> close(String day, boolean recordOnly) {
         return Map.of("id", UUID.randomUUID().toString(), "kind", "close_day", "day", day, "record_only", recordOnly);
     }

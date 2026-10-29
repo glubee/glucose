@@ -23,26 +23,26 @@
 ## Task 1: 서버 완료 상태·멱등 명령
 **Files:** backend/.../progress/*, db/migration/V14__progress_sync.sql, test/.../progress/ProgressFlowTest.java, docs/backend-api.md.
 **Interfaces:** GET /v1/progress, POST /v1/progress/sync; state/revision/acknowledged_operations.
-- [ ] HTTP 회귀 먼저: 404 실패 확인; 두 계정 격리, legacy 보존/충돌, 같은 명령·같은 날·7일 보상, 변경ID 재사용, 원자적 배치, 삭제 cascade.
-- [ ] 순수 상태 규칙·사용자 잠금·명령 보관·마이그레이션·계약을 구현하고 단위/HTTP 검사 통과 후 커밋.
+- [x] HTTP 회귀 먼저: 404 실패 확인; 두 계정 격리, legacy 보존/충돌, 같은 명령·같은 날·7일 보상, 변경ID 재사용, 원자적 배치, 삭제 cascade.
+- [x] 순수 상태 규칙·사용자 잠금·명령 보관·마이그레이션·계약을 구현하고 단위/HTTP 검사 통과 후 커밋.
 
 ## Task 2: 서버 사진 복원·상태
 **Files:** photo/*, intake/IntakeService.java, AppUserRepository.java, V15__pending_photo_sync.sql, test/.../photo/PendingPhotoFlowTest.java.
 **Interfaces:** 목록/메타데이터/숨김 API와 선택 captured_at/client_id. Intake 저장에서 확인 처리.
-- [ ] 소유자·페이지·동일 시각·클라이언트ID 재시도·확인/삭제 후 미재등장·숨김 뒤 늦은 완료 회귀를 먼저 실패 확인.
-- [ ] 서버 API/기존 업로드 호환·행 잠금·기존 사진 확인 backfill을 구현하고 기존/신규 검사 통과 후 커밋.
+- [x] 소유자·페이지·동일 시각·클라이언트ID 재시도·확인/삭제 후 미재등장·숨김 뒤 늦은 완료 회귀를 먼저 실패 확인.
+- [x] 서버 API/기존 업로드 호환·행 잠금·기존 사진 확인 backfill을 구현하고 기존/신규 검사 통과 후 커밋.
 
 ## Task 3: iOS 상태 값·영속 큐·계정 캐시
 **Files:** Core/Storage/DayCloseStore.swift, DayCloseState.swift, UserPreferences.swift, Core/Sync/ProgressModels.swift, AccountDataCoordinator.swift, AuthSession.swift, LocalDataEraser.swift; glucoseTests/DataPreservationTests.swift.
 **Interfaces:** makeSyncRequest(maxOperations:), applyServer(response:), activateAccount(_:allowLegacy:), 계정 식별/기존 자료 가져오기.
-- [ ] 중복 마무리·기록만 저장 업그레이드·큐 재실행·응답 도중 새 변경·계정 교체·기존 캐시 이전/격리 검사를 먼저 실패 확인.
-- [ ] 순수 상태 계산과 계정별 보관·명령 큐/확인·재생을 구현한다. 기존 UI 호출 인터페이스를 유지하고 단위 검사 후 커밋.
+- [x] 중복 마무리·기록만 저장 업그레이드·큐 재실행·응답 도중 새 변경·계정 교체·기존 캐시 이전/격리 검사를 먼저 실패 확인.
+- [x] 순수 상태 계산과 계정별 보관·명령 큐/확인·재생을 구현한다. 기존 UI 호출 인터페이스를 유지하고 단위 검사 후 커밋.
 
 ## Task 4: 사진 동기화·전체 동기화 연결
 **Files:** Core/Sync/PhotoSyncService.swift, DataSyncCoordinator.swift, PendingPhotoStore.swift, PhotoUploader.swift, PhotoUploadViewModel.swift, 사진 미리보기/썸네일, RootTabView.swift, GlucoseApp.swift.
 **Interfaces:** PhotoSyncServing pendingPage/metadata/update/dismiss; DataSyncCoordinator.refresh()와 상태; 원격 메타데이터 병합.
-- [ ] 복원 ID/시각/분류, 파일 없는 원격 사진, 숨김 outbox 실패/재시작, 부분 페이지·계정 변경 응답·확인 처리 회귀를 먼저 실패 확인.
-- [ ] 명령 push/pull·metadata 이전·사진 복원·숨김 재시도를 연결하고 로그인/활성화/마무리 이후 갱신한다. 기존 사진 흐름 회귀 통과 후 커밋.
+- [x] 복원 ID/시각/분류, 파일 없는 원격 사진, 숨김 outbox 실패/재시작, 부분 페이지·계정 변경 응답·확인 처리 회귀를 먼저 실패 확인.
+- [x] 명령 push/pull·metadata 이전·사진 복원·숨김 재시도를 연결하고 로그인/활성화/마무리 이후 갱신한다. 기존 사진 흐름 회귀 통과 후 커밋.
 
 ## Task 5: 백업 상태 UI·통합 검증·리뷰
 **Files:** Settings/BackupSettingsSection.swift, SettingsView.swift, DEBUG SyncSamples.swift, glucoseUITests/DataPreservationUITests.swift, 계획 검증 절.
@@ -50,8 +50,8 @@
 - [ ] 백엔드 전체 검사, iOS 단위/UI 전체 검사와 앱·위젯 빌드, diff·민감정보 확인.
 - [ ] 독립 전체 리뷰 한 번, 필요한 회귀 수정/재검증, 구현 선택·한계를 기록하고 로컬 커밋한다. 병합/배포하지 않는다.
 
-## 사용자 검증 환경 — 2026-10-29 추가 지시
-- 이후 화면 개발과 수동 검증은 로그인한 데모 전용 계정과 설정의 기존 데모 기능을 기준으로 한다.
-- `-reportSample`/`-timelineSample`로 실행한 화면은 서버 연동 검증 완료의 근거로 사용하지 않는다. 자동 회귀 검사는 격리된 합성 자료를 계속 사용한다.
-- 데모 계정과 로그인 상태를 확인한 뒤 기존 그래프 날짜를 조회한다. 기록 생성은 기존 자료 유무를 먼저 확인하며, 기록 삭제·날짜 이동·운영 배포를 이 지시로 추정해 실행하지 않는다.
-- 현재 이 시뮬레이터는 Apple 로그인에 실패한 상태다. 데모 계정에 인증되기 전에는 실제 데모 데이터 검증을 완료로 표시하지 않는다.
+## 사용자 검증 환경 — 최신 지시 반영
+- 사용자는 Apple 로그인 없이 설정의 기기 데모를 쓰며 구현과 로컬 검증을 계속하도록 승인했다. 서버 계정·운영 자료는 변경하지 않는다.
+- 화면 수동 확인은 설정의 로컬 데모로 진행한다. 백업 화면은 설정의 “백업 동작 예시 보기”에서 실제 coordinator와 격리 저장소/합성 서버 응답으로 검사하며 “로컬 검증 예시”임을 명시한다.
+- 자동 UI 검사의 `-backupSamples`는 같은 예시 화면을 직접 연다. 합성 자료 성공을 실제 계정의 클라우드 백업 성공으로 표현하지 않는다.
+- 실제 로그인·여러 기기·배포 서버·TestFlight 검증은 별도 환경이 필요하며 이 단계에서 완료로 표시하지 않는다.

@@ -45,7 +45,6 @@ public class ProgressSyncService {
                 if (!account.isInitialized()) state = legacy;
                 else state.mergeHistory(legacy);
             }
-            state.applyHoneypots(now);
             List<UUID> acknowledged = new ArrayList<>();
             for (ProgressOperation operation : operations) {
                 String payload = json.writeValueAsString(operation);
@@ -62,6 +61,8 @@ public class ProgressSyncService {
                 }
                 acknowledged.add(operation.id());
             }
+            // Offline completions must land before deciding which missing days need protection.
+            state.applyHoneypots(now);
             String saved = json.writeValueAsString(state);
             if (!saved.equals(account.getStateJson())) account.replace(saved, account.isInitialized() || state.hasData());
             return new Response(account.getRevision(), state, acknowledged);

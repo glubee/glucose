@@ -295,6 +295,19 @@ final class PendingPhotoStore {
         } catch { storageUnavailable = true; errorMessage = "사진 목록을 정리하지 못했어요." }
     }
 
+    func eraseActiveAccount() {
+        removeAll()
+        let marker = baseDirectory.appendingPathComponent("legacy-owner.txt")
+        guard accountScoped, let accountID,
+              (try? String(contentsOf: marker, encoding: .utf8)) == accountID.uuidString else { return }
+        do {
+            for file in try FileManager.default.contentsOfDirectory(at: baseDirectory, includingPropertiesForKeys: nil)
+                where file.lastPathComponent != "accounts" {
+                try FileManager.default.removeItem(at: file)
+            }
+        } catch { errorMessage = "일부 이전 사진을 정리하지 못했어요." }
+    }
+
     func uploadPending() async {
         guard !isUploading, canUpload, !storageUnavailable else { return }
         let generation = UUID()

@@ -117,6 +117,16 @@ final class UserPreferences {
         if accountScoped { defaults.set(false, forKey: "onboarding_completed_v2") }
     }
 
+    func eraseActiveAccount() {
+        reset()
+        guard accountScoped, let accountID else { return }
+        defaults.removeObject(forKey: key)
+        if defaults.string(forKey: "preferences_legacy_owner") == accountID.uuidString {
+            defaults.removeObject(forKey: "user_preferences_v1")
+            defaults.removeObject(forKey: "preferences_legacy_owner")
+        }
+    }
+
     private func save() {
         guard let data = try? JSONEncoder().encode(stored) else { return }
         defaults.set(data, forKey: key)

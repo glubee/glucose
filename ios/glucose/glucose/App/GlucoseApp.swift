@@ -42,7 +42,8 @@ struct GlucoseApp: App {
     private var content: some View {
         #if DEBUG
         // 실행 인자 -designCatalog 로 켜면 디자인 카탈로그를 바로 띄운다(시뮬레이터 확인용)
-        if ProcessInfo.processInfo.arguments.contains("-pendingPhotosSample") {
+        if SyncSamples.isEnabled { BackupSamplesView() }
+        else if ProcessInfo.processInfo.arguments.contains("-pendingPhotosSample") {
             DebugPhotoFlow(mode: .pending)
         } else if ProcessInfo.processInfo.arguments.contains("-dayClosePhotosSample") {
             DebugPhotoFlow(mode: .dayClose)

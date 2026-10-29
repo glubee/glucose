@@ -61,6 +61,16 @@ final class DayCloseStore {
         guard rest != nil else { return }
         mutate(ProgressOperation(kind: "end_rest", day: ReportDay.apiString(from: now)))
     }
+    func eraseActiveAccount() {
+        reset()
+        guard accountScoped, let accountID else { return }
+        defaults.removeObject(forKey: key)
+        if defaults.string(forKey: "day_close_legacy_owner") == accountID.uuidString {
+            defaults.removeObject(forKey: "day_close_v2")
+            defaults.removeObject(forKey: "day_close_legacy_owner")
+        }
+    }
+
     func reset() { envelope = Envelope(); save() }
 
     func activateAccount(_ id: UUID?, allowLegacy: Bool = false) {

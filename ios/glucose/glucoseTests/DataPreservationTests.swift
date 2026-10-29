@@ -122,4 +122,18 @@ final class DataPreservationTests: XCTestCase {
         XCTAssertTrue(store.claimLegacyForActiveAccount())
         XCTAssertFalse(store.recordOnlyDays.contains("2026-10-01"))
     }
+
+    func testDeletingAnAccountAlsoErasesItsClaimedLegacyPreferencesAndProgress() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!, id = UUID()
+        DayCloseStore(defaults: defaults).markClosed(day(1))
+        let original = UserPreferences(defaults: defaults); original.nickname = "예시 사용자"
+        let progress = DayCloseStore(defaults: defaults, accountScoped: true)
+        let prefs = UserPreferences(defaults: defaults, accountScoped: true)
+        progress.activateAccount(id, allowLegacy: true); prefs.activateAccount(id, allowLegacy: true)
+        progress.eraseActiveAccount(); prefs.eraseActiveAccount()
+        XCTAssertNil(defaults.data(forKey: "day_close_v2"))
+        XCTAssertNil(defaults.data(forKey: "user_preferences_v1"))
+        XCTAssertNil(defaults.data(forKey: "day_close_v3.\(id.uuidString)"))
+        XCTAssertNil(defaults.data(forKey: "user_preferences_v2.\(id.uuidString)"))
+    }
 }

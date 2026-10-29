@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @Environment(\.openURL) private var openURL
     #if DEBUG
+    @State private var showsBackupSamples = false
     @State private var demoStatus: String?
     @State private var demoRunning = false
     #endif
@@ -55,6 +56,16 @@ struct SettingsView: View {
                     .tint(Color.textPrimary)
                     .disabled(RecordDataSource.isPreview)
                 }
+
+                if RecordDataSource.isPreview {
+                    Section("기록 백업") {
+                        Text("기기 데모에서는 서버에 백업하지 않아요.")
+                            .font(.body2).foregroundStyle(Color.textSecondary)
+                        #if DEBUG
+                        Button("백업 동작 예시 보기") { showsBackupSamples = true }
+                        #endif
+                    }
+                } else { BackupSettingsSection() }
 
                 Section {
                     DatePicker("하루 마무리 시각", selection: dayCloseBinding, displayedComponents: .hourAndMinute)
@@ -123,6 +134,9 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showHelp) { HelpSheet() }
+            #if DEBUG
+            .sheet(isPresented: $showsBackupSamples) { BackupSamplesView() }
+            #endif
             .confirmationDialog("로그아웃하시겠어요?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
                 Button("로그아웃", role: .destructive) { viewModel.signOut() }
             }
