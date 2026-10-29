@@ -1,4 +1,5 @@
 import XCTest
+import Vision
 
 @MainActor
 final class DailyReportPhotoUITests: XCTestCase {
@@ -57,16 +58,32 @@ final class DailyReportPhotoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["사진 3장"].exists)
     }
 
-    func testDailyChartPhotoOpensWithoutOpeningExpandedChart() {
+    func testDailyChartEventOpensPopupBeforeExplicitPhotoView() throws {
         let app = launch()
-        let photo = app.buttons["chartPhoto-08:10"]
-        XCTAssertTrue(photo.waitForExistence(timeout: 8))
-        reveal(photo, in: app)
-        photo.tap()
+        let event = app.scrollViews["dailyReportContent"].buttons["chartEvent-insulin-0"]
+        XCTAssertTrue(event.waitForExistence(timeout: 8))
+        reveal(event, in: app)
+        event.tap()
+        XCTAssertTrue(app.staticTexts["이 시각의 기록"].waitForExistence(timeout: 5))
+        let screenshot = app.screenshot()
+        let popup = XCTAttachment(screenshot: screenshot)
+        popup.name = "Inline event popup"
+        popup.lifetime = .keepAlways
+        add(popup)
+        let recognition = VNRecognizeTextRequest()
+        recognition.recognitionLanguages = ["ko-KR"]
+        recognition.recognitionLevel = .accurate
+        try VNImageRequestHandler(data: screenshot.pngRepresentation).perform([recognition])
+        let titleVisible = (recognition.results ?? []).contains {
+            $0.topCandidates(1).first?.string.replacingOccurrences(of: " ", with: "").contains("이시각의기록") == true
+        }
+        XCTAssertTrue(titleVisible, "팝업 제목은 접근성 트리뿐 아니라 실제 화면에서도 보여야 한다")
+        app.buttons["popupEvent-intake-0"].tap()
+        app.buttons["사진 크게 보기"].tap()
         XCTAssertTrue(app.navigationBars["사진 기록"].waitForExistence(timeout: 5))
         app.buttons["closePhotoGallery"].tap()
-        XCTAssertFalse(app.buttons["3시간"].exists)
-        XCTAssertTrue(app.buttons["크게 보고 시각별로 확인하기"].exists)
+        app.buttons["closeChartEventPopup"].tap()
+        XCTAssertTrue(app.buttons["chartZoom-24"].exists)
     }
 
     func testGapPhotoRemainsAvailableBelowChart() {
@@ -82,18 +99,18 @@ final class DailyReportPhotoUITests: XCTestCase {
 
     func testExpandedChartPhotoWorksAfterZoomAndCanClose() {
         let app = launch("-chartDetail")
-        XCTAssertTrue(app.buttons["3시간"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["detailChartZoom-3"].waitForExistence(timeout: 8))
         let initialPhoto = app.buttons["chartPhoto-08:10"]
         XCTAssertTrue(initialPhoto.waitForExistence(timeout: 5))
         let originalX = initialPhoto.frame.midX
-        app.buttons["3시간"].tap()
+        app.buttons["detailChartZoom-3"].tap()
         let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "chartPhoto-")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 5))
         photo.tap()
         XCTAssertTrue(app.navigationBars["사진 기록"].waitForExistence(timeout: 5))
         app.buttons["closePhotoGallery"].tap()
-        XCTAssertTrue(app.buttons["하루"].waitForExistence(timeout: 5))
-        app.buttons["하루"].tap()
+        XCTAssertTrue(app.buttons["detailChartZoom-24"].waitForExistence(timeout: 5))
+        app.buttons["detailChartZoom-24"].tap()
         XCTAssertTrue(initialPhoto.waitForExistence(timeout: 5))
         XCTAssertEqual(initialPhoto.frame.midX, originalX, accuracy: 2)
         app.buttons["closeChartDetail"].tap()

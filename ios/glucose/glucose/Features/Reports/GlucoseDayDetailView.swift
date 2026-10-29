@@ -123,6 +123,7 @@ struct GlucoseDayDetailView: View {
                         .background(isOn ? Color.buttonFill : Color.clear, in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("detailChartZoom-\(hours)")
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }

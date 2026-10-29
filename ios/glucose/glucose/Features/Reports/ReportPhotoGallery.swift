@@ -55,7 +55,7 @@ struct ReportPhotoGallery: View {
     }
 }
 
-private struct ReportRecordDestination: View {
+struct ReportRecordDestination: View {
     let member: ChartPhotoMember
     let onChanged: () async -> Void
     @State private var resolution: ReportRecordResolver.Resolution?

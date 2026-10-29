@@ -63,6 +63,7 @@ struct GlucoseDayChart: View {
     var height: CGFloat = 240
     /// 크게 보기에서만: 한 화면에 보이는 시간(nil = 하루 전체)
     var visibleHours: Int? = nil
+    var visibleDuration: TimeInterval? = nil
     /// 크게 보기에서만: 누른 시각
     var selection: Binding<Date?>? = nil
     /// 크게 보기에서만: 확대했을 때 보이는 구간의 시작
@@ -70,12 +71,27 @@ struct GlucoseDayChart: View {
     /// 일일 리포트·크게 보기: 곡선 부근 사진과 아래 기록 줄을 보여준다
     var showsPhotos = false
     var onSelectPhoto: ((ChartPhotoGroup) -> Void)? = nil
+    var eventSelection: Binding<String?>? = nil
+    var onSelectEventCluster: ((ChartEventCluster) -> Void)? = nil
 
     private var dayRange: ClosedRange<Date> {
         let start = ReportDay.calendar.startOfDay(for: day)
         let end = ReportDay.calendar.date(byAdding: .day, value: 1, to: start) ?? start
         return start...end
     }
+
+    private var displayDuration: TimeInterval { visibleDuration ?? TimeInterval((visibleHours ?? 24) * 3600) }
+    private var visibleRange: ClosedRange<Date> {
+        let start = displayDuration >= 86_400 ? dayRange.lowerBound : (scrollPosition?.wrappedValue ?? dayRange.lowerBound)
+        return start...start.addingTimeInterval(displayDuration)
+    }
+    private var events: [ChartEvent] { ChartEvent.make(day: day, episodes: episodes, insulinEvents: insulinEvents) }
+    private func eventOpacity(_ id: String) -> Double {
+        guard let eventSelection else { return 1 }
+        guard let selected = eventSelection.wrappedValue else { return 0.18 }
+        return selected == id ? 1 : 0.08
+    }
+    private func eventWidth(_ id: String) -> CGFloat { eventSelection?.wrappedValue == id ? 2.5 : 1 }
 
     private var isolatedPoints: [GlucosePoint] {
         let counts = Dictionary(grouping: points, by: \.segment).mapValues(\.count)
@@ -126,12 +142,12 @@ struct GlucoseDayChart: View {
                     .foregroundStyle(Color.textPrimary)
             }
 
-            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+            ForEach(Array(marks.enumerated()), id: \.offset) { index, mark in
                 RuleMark(x: .value("기록", mark.occurredAt))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(mark.context == .hypoTreatment ? Color.mintStrong : Color.brand)
+                    .lineStyle(StrokeStyle(lineWidth: eventWidth("intake-\(index)"), dash: [3, 3]))
+                    .foregroundStyle((mark.context == .hypoTreatment ? Color.mintStrong : Color.brand).opacity(eventOpacity("intake-\(index)")))
                     .annotation(position: .top, spacing: 2) {
-                        if !showsPhotos || mark.photoId == nil {
+                        if eventSelection == nil && (!showsPhotos || mark.photoId == nil) {
                             Image(systemName: mark.context.systemImage)
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(mark.context == .hypoTreatment ? Color.mintStrong : Color.onBrandSoft)
@@ -139,10 +155,10 @@ struct GlucoseDayChart: View {
                     }
             }
 
-            ForEach(Array(insulinEvents.enumerated()), id: \.offset) { _, event in
+            ForEach(Array(insulinEvents.enumerated()), id: \.offset) { index, event in
                 RuleMark(x: .value("인슐린", event.occurredAt))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [1, 2]))
-                    .foregroundStyle(Color.insulin)
+                    .lineStyle(StrokeStyle(lineWidth: eventWidth("insulin-\(index)"), dash: [1, 2]))
+                    .foregroundStyle(Color.insulin.opacity(eventOpacity("insulin-\(index)")))
             }
 
             if let time = selection?.wrappedValue, selectedPoint == nil {
@@ -176,9 +192,9 @@ struct GlucoseDayChart: View {
         .chartXScale(domain: dayRange)
         .chartYScale(domain: yDomain)
         .chartXAxis {
-            AxisMarks(values: .stride(by: .hour, count: visibleHours.map { $0 <= 6 ? 1 : 3 } ?? 3)) { value in
+            AxisMarks(values: .stride(by: .hour, count: displayDuration <= 6 * 3600 ? 1 : 3)) { value in
                 AxisGridLine().foregroundStyle(Color.line)
-                AxisValueLabel {
+                AxisValueLabel(centered: false, anchor: .top) {
                     if let date = value.as(Date.self) {
                         Text("\(ReportDay.calendar.component(.hour, from: date))시")
                     }
@@ -194,7 +210,17 @@ struct GlucoseDayChart: View {
         .chartYAxisLabel("mg/dL", position: .topTrailing)
         .frame(height: height)
         .chartOverlay { proxy in
-            if showsPhotos {
+            if let eventSelection {
+                GeometryReader { geometry in
+                    if let container = proxy.plotContainerFrame {
+                        let frame = geometry[container]
+                        ChartEventMarkers(events: events, points: points, range: visibleRange,
+                                          size: frame.size, proxy: proxy, selectedID: eventSelection,
+                                          onSelect: { onSelectEventCluster?($0) })
+                            .offset(x: frame.minX, y: frame.minY)
+                    }
+                }
+            } else if showsPhotos {
                 GeometryReader { geometry in
                     if let container = proxy.plotContainerFrame {
                         let frame = geometry[container]
@@ -236,19 +262,33 @@ struct GlucoseDayChart: View {
         }
 
         Group {
-            if let selection, let visibleHours, let scrollPosition {
-                chart
-                    .chartScrollableAxes(.horizontal)
-                    .chartXVisibleDomain(length: TimeInterval(visibleHours * 3600))
-                    .chartScrollPosition(x: scrollPosition)
-                    .chartXSelection(value: selection)
+            if let selection, let scrollPosition, visibleDuration != nil || visibleHours != nil {
+                if let eventSelection {
+                    chart
+                        .chartScrollableAxes(.horizontal)
+                        .chartXVisibleDomain(length: displayDuration)
+                        .chartScrollPosition(x: scrollPosition)
+                        .chartXSelection(value: selection)
+                        .chartGesture { proxy in
+                            SpatialTapGesture().onEnded { value in
+                                eventSelection.wrappedValue = nil
+                                proxy.selectXValue(at: value.location.x)
+                            }
+                        }
+                } else {
+                    chart
+                        .chartScrollableAxes(.horizontal)
+                        .chartXVisibleDomain(length: displayDuration)
+                        .chartScrollPosition(x: scrollPosition)
+                        .chartXSelection(value: selection)
+                }
             } else if let selection {
                 chart.chartXSelection(value: selection)
             } else {
                 chart
             }
         }
-        .accessibilityElement(children: showsPhotos ? .contain : .ignore)
+        .accessibilityElement(children: showsPhotos || eventSelection != nil ? .contain : .ignore)
         .accessibilityLabel("하루 혈당 곡선")
         .accessibilityValue(accessibilitySummary)
 

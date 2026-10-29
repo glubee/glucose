@@ -64,42 +64,6 @@ enum ReportSamples {
             return .init(occurredAt: record.occurredAt, context: record.context, photoId: record.photoId,
                          foods: record.items.map { $0.name + " " + ($0.displayQuantity ?? "") })
         }
-        let report = DailyReport(
-            date: ReportDay.apiString(from: day),
-            glucose: .init(coverageRatio: 0.92, average: 142, min: 64, max: 238, readingsCount: 88, sufficient: true),
-            episodes: [
-                .init(startAt: at(day, 8, 10), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
-                      windowEndAt: at(day, 12, 10), reboundDetected: nil, intakeCount: 3,
-                      foods: ["현미밥 1공기", "계란말이 1접시"],
-                      intakes: [mark(0), mark(1), mark(2)]),
-                .init(startAt: at(day, 11), originalContext: .snack, effectiveContext: .snack, autoReclassified: false,
-                      windowEndAt: at(day, 15), reboundDetected: nil, intakeCount: 1,
-                      foods: ["요거트 1개"], intakes: [mark(3)]),
-                .init(startAt: at(day, 15, 30), originalContext: .snack, effectiveContext: .hypoTreatment, autoReclassified: true,
-                      windowEndAt: at(day, 17, 30), reboundDetected: false, intakeCount: 1,
-                      foods: ["포도당 캔디 3개"]),
-                .init(startAt: at(day, 19, 0), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
-                      windowEndAt: at(day, 23, 0), reboundDetected: nil, intakeCount: 3,
-                      foods: ["김치찌개 1그릇"], intakes: [mark(4)]),
-            ],
-            insulinEventsCount: 2,
-            insulinEvents: [.init(occurredAt: at(day, 8, 0), units: 4, kind: "식사"),
-                            .init(occurredAt: at(day, 18, 50), units: 5, kind: "식사")],
-            educationCards: [],
-            summary: ["혈당 그래프가 하루의 92% 읽혔어요.", "섭취 기록 묶음 4건, 인슐린 기록 2건이 있어요."],
-            story: ["이 날 그래프에서 읽힌 값은 최저 64, 최고 238이었어요.",
-                    "밤 2시 30분부터 오전 4시 30분까지는 그래프가 비어 있어 이 구간은 알 수 없어요.",
-                    "오전 8시에 식사 4단위를 기록했고, 오전 8시 10분에 현미밥 1공기, 계란말이 1접시를 먹었어요.",
-                    "먹기 전 120이었던 혈당은 1시간 20분 뒤 238로 가장 높았고, 오전 11시쯤 150으로 내려왔어요.",
-                    "오후 3시 15분쯤 혈당이 64까지 읽혀 오후 3시 30분에 포도당 캔디 3개를 먹었어요.",
-                    "그 뒤 15분 만에 88로 올라왔고, 2시간 동안 180을 넘는 값은 없었어요."],
-            insights: [.init(code: "NIGHT_FASTING_RISE", title: "먹지 않은 새벽에 혈당이 올랐어요",
-                             body: "밤 2시쯤 100이던 혈당이 오전 6시쯤 160까지 올랐고, 그 사이 음식 기록은 없어요. 이런 흐름은 새벽에 나오는 호르몬이 혈당을 올리는 '새벽 현상'일 가능성이 있어요. 며칠 반복되면 기록을 가지고 의료진과 확인해 보세요.",
-                             sources: [.init(name: "미국당뇨병학회(ADA) · 아침 고혈당",
-                                             url: "https://diabetes.org/living-with-diabetes/high-morning-blood-glucose")],
-                             reviewStatus: "DRAFT")],
-            reboundGlucoseThreshold: 180)
-
         // 새벽 2:30~4:30, 10:45~11:30은 비운다(끊긴 구간)
         var readings: [GlucoseReadings.Reading] = []
         for slot in 0..<96 {
@@ -110,10 +74,72 @@ enum ReportSamples {
             readings.append(.init(time: String(format: "%02d:%02d", slot / 4, slot % 4 * 15),
                                   value: missing ? nil : Int(base), flag: "NORMAL"))
         }
-        return (report, GlucosePoint.points(from: readings, on: day, calendar: ReportDay.calendar))
+        let points = GlucosePoint.points(from: readings, on: day, calendar: ReportDay.calendar)
+        let values = points.map(\.value)
+        let low = values.min() ?? 0, high = values.max() ?? 0
+        let coverage = Double(values.count) / 96
+        let average = Double(values.reduce(0, +)) / Double(max(1, values.count))
+        let report = DailyReport(
+            date: ReportDay.apiString(from: day),
+            glucose: .init(coverageRatio: coverage, average: average, min: low, max: high, readingsCount: values.count, sufficient: true),
+            episodes: [
+                .init(startAt: at(day, 8, 10), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
+                      windowEndAt: at(day, 12, 10), reboundDetected: nil, intakeCount: 3,
+                      foods: ["현미밥 1공기", "계란말이 1접시", "우유 1잔"],
+                      intakes: [mark(0), mark(1), mark(2)]),
+                .init(startAt: at(day, 11), originalContext: .snack, effectiveContext: .snack, autoReclassified: false,
+                      windowEndAt: at(day, 15), reboundDetected: nil, intakeCount: 1,
+                      foods: ["요거트 1개"], intakes: [mark(3)]),
+                .init(startAt: at(day, 15, 30), originalContext: .hypoTreatment, effectiveContext: .hypoTreatment, autoReclassified: false,
+                      windowEndAt: at(day, 17, 30), reboundDetected: false, intakeCount: 1,
+                      foods: ["포도당 캔디 3개"]),
+                .init(startAt: at(day, 19, 0), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
+                      windowEndAt: at(day, 23, 0), reboundDetected: nil, intakeCount: 1,
+                      foods: ["김치찌개 1그릇"], intakes: [mark(4)]),
+            ],
+            insulinEventsCount: 2,
+            insulinEvents: [.init(occurredAt: at(day, 8, 0), units: 4, kind: "식사"),
+                            .init(occurredAt: at(day, 18, 50), units: 5, kind: "식사")],
+            educationCards: [],
+            summary: ["혈당 그래프 \(values.count)칸을 읽었어요.", "섭취 기록 묶음 4건, 인슐린 기록 2건이 있어요."],
+            story: ["이 날 그래프에서 읽힌 값은 최저 \(low), 최고 \(high)이었어요.",
+                    "02:30~04:15, 10:45~11:15에는 읽힌 값이 없어요.",
+                    "08:00과 18:50에 인슐린을 기록했고, 음식 기록은 6건 있어요."],
+            insights: [],
+            reboundGlucoseThreshold: 180)
+
+        return (report, points)
+    }
+
+    static func insulinRecord(for marker: DailyReport.InsulinMarker) -> InsulinRecord? {
+        let events = daily(marker.occurredAt).0.insulinEvents ?? []
+        guard let index = events.firstIndex(where: {
+            $0.occurredAt == marker.occurredAt && $0.units == marker.units && $0.kind == marker.kind
+        }) else { return nil }
+        return .init(id: UUID(uuidString: String(format: "30000000-0000-0000-0000-%012d", index + 1))!,
+                     occurredAt: marker.occurredAt, units: marker.units, kind: marker.kind)
     }
 
     static func food(_ day: Date, weekly: Bool) -> FoodObservationReport {
+        if !weekly {
+            let points = daily(day).1
+            let baseline = points.last { $0.time <= at(day, 8, 10) }!
+            let window = points.filter { $0.time > at(day, 8, 10) && $0.time <= at(day, 12, 10) }
+            let peak = window.max { $0.value < $1.value }!
+            let last = window.last!
+            let observation = FoodObservationReport.Observation(
+                intakeId: "sample-1", occurredAt: at(day, 8, 10), context: .meal,
+                foods: [.init(name: "현미밥", count: 1, unit: "공기")], windowEndAt: at(day, 12, 10), windowMinutes: 240,
+                status: "LIMITED", baseline: .init(time: baseline.time, value: baseline.value),
+                peak: .init(time: peak.time, value: peak.value), peakDelta: peak.value - baseline.value,
+                endReading: .init(time: last.time, value: last.value), endDelta: last.value - baseline.value,
+                readingsCount: window.count, expectedReadingsCount: 16, coverageRatio: Double(window.count) / 16,
+                clippedReadingsCount: 0, overlappingIntakeIds: ["sample-2", "sample-3", "sample-4"],
+                insulinEventsCount: 1, comparable: false, notes: ["관찰 구간에 다른 음식 기록과 끊긴 구간이 있어요."],
+                summary: "기록 직전 \(baseline.value)에서 \(ReportDay.timeString(from: peak.time))에 \(peak.value)까지 읽혔어요.")
+            return .init(kind: "DAILY", observations: [observation], repeatedFoods: [],
+                         limitations: ["화면 확인을 위해 만든 예시 기록이에요."])
+        }
         let observation = FoodObservationReport.Observation(
             intakeId: "sample-1", occurredAt: at(day, 8, 10), context: .meal,
             foods: [.init(name: "김밥", count: 1, unit: "줄")], windowEndAt: at(day, 12, 10), windowMinutes: 240,

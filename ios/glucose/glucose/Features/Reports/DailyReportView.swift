@@ -66,6 +66,7 @@ struct DailyReportView: View {
             .padding(.horizontal, Spacing.gutter)
             .padding(.bottom, Spacing.l)
         }
+        .accessibilityIdentifier("dailyReportContent")
         .background(Color.canvas)
         .refreshable { await viewModel.load() }
         .task(id: RecordChanges.shared.revision) { await viewModel.load() }
@@ -179,7 +180,7 @@ struct DailyReportView: View {
                         selectedPhoto = $0
                     }
                 } else {
-                    GlucoseDayChart(day: viewModel.day, points: points,
+                    InteractiveGlucoseChart(day: viewModel.day, points: points,
                                     episodes: report.episodes, insulinEvents: report.insulinEvents ?? [],
                                     showsPhotos: true, onSelectPhoto: { selectedPhoto = $0 })
                     ChartLegend()

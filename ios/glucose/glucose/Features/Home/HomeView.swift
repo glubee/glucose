@@ -166,8 +166,8 @@ struct HomeView: View {
             Text("오늘의 흐름").font(.pretendard(17, relativeTo: .headline, weight: .bold)).foregroundStyle(Color.textPrimary)
             switch viewModel.report.state {
             case .loaded(let report, let points) where !points.isEmpty:
-                GlucoseDayChart(day: viewModel.today, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [], height: 170)
+                InteractiveGlucoseChart(day: viewModel.today, points: points, episodes: report.episodes,
+                                insulinEvents: report.insulinEvents ?? [], height: 220)
             default:
                 GeometryReader { geometry in
                     ZStack(alignment: .topLeading) {
