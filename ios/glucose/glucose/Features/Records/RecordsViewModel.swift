@@ -10,6 +10,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 final class RecordsViewModel {
 
@@ -23,6 +24,10 @@ final class RecordsViewModel {
     private(set) var state: LoadState = .idle
     private(set) var isLoadingMore = false
     private(set) var hasMore = true
+    private(set) var filter: RecordFilter = .all
+    private var seenIDs = Set<String>()
+    private var intakeCursors = Set<String>()
+    private var insulinCursors = Set<String>()
 
     private let repository: RecordRepository
     private let pageSize = 20
@@ -43,14 +48,18 @@ final class RecordsViewModel {
         items.isEmpty && isLoadingMore
     }
 
-    func load() async {
+    func load(filter: RecordFilter? = nil) async {
+        if let filter { self.filter = filter }
         loadID = UUID()
         intakeBuffer = []
         insulinBuffer = []
         intakeCursor = nil
         insulinCursor = nil
-        intakeExhausted = false
-        insulinExhausted = false
+        intakeExhausted = self.filter == .insulin
+        insulinExhausted = self.filter == .food || self.filter == .response
+        seenIDs = []
+        intakeCursors = []
+        insulinCursors = []
         hasMore = true
         items = []
         state = .idle
@@ -59,6 +68,11 @@ final class RecordsViewModel {
 
     func refresh() async {
         await load()
+    }
+
+    func loadNextPage() async {
+        guard hasMore, !isLoadingMore else { return }
+        await fetchMore()
     }
 
     func loadMoreIfNeeded(currentItem: RecordItem) async {
@@ -75,13 +89,18 @@ final class RecordsViewModel {
         defer { if activeID == loadID { isLoadingMore = false } }
 
         var newlyEmitted: [RecordItem] = []
+        var refills = 0
 
         while newlyEmitted.count < pageSize {
             do {
-                if intakeBuffer.isEmpty && !intakeExhausted {
+                while intakeBuffer.isEmpty && !intakeExhausted {
+                    refills += 1
+                    guard refills <= 1000 else { throw APIError.invalidResponse }
                     guard try await refillIntake(activeID: activeID) else { return }
                 }
-                if insulinBuffer.isEmpty && !insulinExhausted {
+                while insulinBuffer.isEmpty && !insulinExhausted {
+                    refills += 1
+                    guard refills <= 1000 else { throw APIError.invalidResponse }
                     guard try await refillInsulin(activeID: activeID) else { return }
                 }
             } catch {
@@ -93,7 +112,7 @@ final class RecordsViewModel {
             }
 
             guard let next = popNextItem() else { break }
-            newlyEmitted.append(next)
+            if seenIDs.insert(TimelineEntry.record(next).id).inserted { newlyEmitted.append(next) }
         }
 
         guard activeID == loadID, !Task.isCancelled else { return }
@@ -130,7 +149,8 @@ final class RecordsViewModel {
     private func refillIntake(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchIntakePage(cursor: intakeCursor, limit: pageSize)
         guard activeID == loadID, !Task.isCancelled else { return false }
-        intakeBuffer.append(contentsOf: page.items)
+        if let next = page.nextCursor, !intakeCursors.insert(next).inserted { throw APIError.invalidResponse }
+        intakeBuffer.append(contentsOf: page.items.filter { filter.includes($0) })
         intakeCursor = page.nextCursor
         if page.nextCursor == nil { intakeExhausted = true }
         return true
@@ -139,7 +159,8 @@ final class RecordsViewModel {
     private func refillInsulin(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchInsulinPage(cursor: insulinCursor, limit: pageSize)
         guard activeID == loadID, !Task.isCancelled else { return false }
-        insulinBuffer.append(contentsOf: page.items)
+        if let next = page.nextCursor, !insulinCursors.insert(next).inserted { throw APIError.invalidResponse }
+        insulinBuffer.append(contentsOf: page.items.filter { filter.includes($0) })
         insulinCursor = page.nextCursor
         if page.nextCursor == nil { insulinExhausted = true }
         return true
