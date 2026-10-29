@@ -11,8 +11,8 @@ import UserNotifications
 
 struct SettingsView: View {
     @State private var viewModel = SettingsViewModel()
-    @State private var preferences = RecordDataSource.preferences
-    @State private var store = RecordDataSource.dayClose
+    private var preferences: UserPreferences { RecordDataSource.preferences }
+    private var store: DayCloseStore { RecordDataSource.dayClose }
     @State private var showSignOutConfirm = false
     @State private var showDeleteConfirm = false
     @State private var showGraphUpload = false
@@ -233,7 +233,7 @@ struct SettingsView: View {
 
 /// 평소 인슐린 목록 고치기. 사용자가 넣은 값 그대로 쓰고, 앱이 정하거나 추천하지 않는다
 private struct UsualInsulinEditor: View {
-    @State private var preferences = RecordDataSource.preferences
+    private var preferences: UserPreferences { RecordDataSource.preferences }
     @State private var name = ""
     @State private var unitsText = ""
 

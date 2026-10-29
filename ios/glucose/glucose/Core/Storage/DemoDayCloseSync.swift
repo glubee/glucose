@@ -17,23 +17,33 @@ enum DemoDayCloseSync {
     /// 최근 `days`일(오늘 제외)을 서버 그래프 기준으로 다시 채운다
     /// 채운 날 수를 돌려준다
     @discardableResult
-    static func run(days: Int = 42) async -> Int {
+    static func run(days: Int = 42, store: DayCloseStore? = nil,
+                    fetchCoverage: ((Date) async -> Double?)? = nil,
+                    canCommit: (() -> Bool)? = nil, onSaved: (() -> Void)? = nil) async -> Int {
+        let scope = DemoExecutionScope()
+        let isCurrent = canCommit ?? { scope.isCurrent }
+        guard isCurrent() else { return 0 }
         let calendar = ReportDay.calendar
         let today = calendar.startOfDay(for: .now)
         var found: [(day: Date, coverage: Double)] = []
+        guard days > 0 else { return 0 }
         for offset in (1...days).reversed() {
+            guard isCurrent() else { return 0 }
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
             let path = "/v1/glucose-readings/\(ReportDay.apiString(from: day))"
-            if let readings: GlucoseReadings = try? await APIClient.shared.send(path: path) {
+            if let fetchCoverage {
+                if let coverage = await fetchCoverage(day) { found.append((day, coverage)) }
+            } else if let readings: GlucoseReadings = try? await APIClient.shared.send(path: path) {
                 found.append((day, readings.coverageRatio ?? 0))
             }
         }
-        let store = DayCloseStore.shared
+        guard isCurrent() else { return 0 }
+        let store = store ?? DayCloseStore.shared
         store.reset()
         for entry in found {
             store.markClosed(entry.day, recordOnly: entry.coverage < 0.5)
         }
-        WidgetSnapshot.refresh()
+        if let onSaved { onSaved() } else { WidgetSnapshot.refresh() }
         return found.count
     }
 }

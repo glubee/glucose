@@ -53,7 +53,8 @@ struct GlucoseApp: App {
             // 로그인 없이 탭 화면 보기
             RootTabView()
         } else if ProcessInfo.processInfo.arguments.contains("-settings") {
-            SettingsView()
+            if LocalDemoSession.shared.isActive { RootTabView() }
+            else { SettingsView() }
         } else if ProcessInfo.processInfo.arguments.contains("-story") {
             // 로그인 없이 하루 이야기 카드 보기(예시)
             let sample = ReportSamples.daily(.now).0
@@ -80,7 +81,8 @@ struct GlucoseApp: App {
             // 로그인 없이 혈당 가져오기 화면 보기(-graphUploadSample: 예시 4장)
             GraphUploadView()
         } else if ProcessInfo.processInfo.arguments.contains("-login") {
-            LoginView()
+            if LocalDemoSession.shared.isActive { RootTabView() }
+            else { LoginView() }
         } else if ProcessInfo.processInfo.arguments.contains("-records") {
             // 로그인 없이 전체 기록 화면 보기(로그인 전이라 오류 상태로 보인다)
             RecordsView()
@@ -92,7 +94,7 @@ struct GlucoseApp: App {
             // 로그인 없이 홈만 보기. -homeSeed: 최근 6일 완성 + 꿀단지, -homeRest: 쉬어가는 중
             HomeView()
                 .onAppear {
-                    let store = DayCloseStore.shared
+                    let store = RecordDataSource.dayClose
                     let arguments = ProcessInfo.processInfo.arguments
                     if arguments.contains("-homeSeed") || arguments.contains("-homeRest") {
                         store.reset()
@@ -109,13 +111,13 @@ struct GlucoseApp: App {
             // 로그인 없이 하루 마무리 화면만 보기(확인 대기 사진 1장 예시, 업로드는 로그인 전이라 안 됨)
             DayCloseView()
                 .onAppear {
-                    guard PendingPhotoStore.shared.photos.isEmpty,
+                    guard RecordDataSource.photos.photos.isEmpty,
                           let data = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200))
                             .image(actions: { context in
                                 UIColor.systemOrange.setFill()
                                 context.fill(CGRect(x: 0, y: 0, width: 200, height: 200))
                             }).jpegData(compressionQuality: 0.8) else { return }
-                    PendingPhotoStore.shared.add(imageData: data, context: .meal,
+                    RecordDataSource.photos.add(imageData: data, context: .meal,
                                                  capturedAt: .now.addingTimeInterval(-3 * 3600))
                 }
         } else if ProcessInfo.processInfo.arguments.contains("-capture") {

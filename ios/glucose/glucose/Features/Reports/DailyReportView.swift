@@ -21,7 +21,7 @@ struct DailyReportView: View {
         let report: DailyReport
         let points: [GlucosePoint]
     }
-    private let store = DayCloseStore.shared
+    private var store: DayCloseStore { RecordDataSource.dayClose }
 
     var body: some View {
         ScrollView {

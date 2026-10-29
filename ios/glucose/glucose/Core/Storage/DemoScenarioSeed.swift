@@ -22,8 +22,10 @@ enum DemoScenarioSeed {
         var created = 0
         var skippedDays: [String] = []
         var failures: [String] = []
+        var interrupted = false
 
         var text: String {
+            if interrupted { return "로그인 또는 실행 모드가 바뀌어 데모 작업을 멈췄어요. 이미 처리한 기록은 그대로 있어요." }
             guard let anchor else { return "최근 60일 안에서 그래프를 찾지 못했어요. 로그인 계정과 그래프 업로드를 확인해 주세요." }
             var lines = ["기준(가장 최근 그래프): \(anchor)", "새로 넣은 기록: \(created)건"]
             if !skippedDays.isEmpty { lines.append("이미 기록이 있어 건너뛴 날: \(skippedDays.joined(separator: ", "))") }
@@ -129,8 +131,10 @@ enum DemoScenarioSeed {
     @discardableResult
     static func run() async -> Report {
         var report = Report()
+        let scope = DemoExecutionScope()
+        guard scope.isCurrent else { report.interrupted = true; return report }
         let calendar = ReportDay.calendar
-        guard let anchor = await latestGraphDay(),
+        guard let anchor = await latestGraphDay(scope: scope),
               let originalLast = ReportDay.date(fromAPIString: originalLastDay),
               let shift = calendar.dateComponents([.day], from: originalLast, to: anchor).day else {
             print("[demoSeed] 그래프 없음")
@@ -139,6 +143,7 @@ enum DemoScenarioSeed {
         report.anchor = ReportDay.apiString(from: anchor)
 
         for (originalDay, records) in scenarios.sorted(by: { $0.key < $1.key }) {
+            guard scope.isCurrent else { report.interrupted = true; return report }
             guard let original = ReportDay.date(fromAPIString: originalDay),
                   let day = calendar.date(byAdding: .day, value: shift, to: original) else { continue }
             let dayString = ReportDay.apiString(from: day)
@@ -148,6 +153,7 @@ enum DemoScenarioSeed {
                 continue
             }
             for record in records {
+                guard scope.isCurrent else { report.interrupted = true; return report }
                 do {
                     try await post(record, on: day)
                     report.created += 1
@@ -156,6 +162,7 @@ enum DemoScenarioSeed {
                 }
             }
         }
+        guard scope.isCurrent else { report.interrupted = true; return report }
         print("[demoSeed] \(report.text)")
         WidgetSnapshot.refresh(noteRecord: true)
         return report
@@ -163,8 +170,10 @@ enum DemoScenarioSeed {
 
     /// 시나리오 날짜(옮긴 뒤)에 있는 음식·인슐린 기록을 지운다. 데모 계정에서만 쓴다
     static func clear() async -> String {
+        let scope = DemoExecutionScope()
+        guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
         let calendar = ReportDay.calendar
-        guard let anchor = await latestGraphDay(),
+        guard let anchor = await latestGraphDay(scope: scope),
               let originalLast = ReportDay.date(fromAPIString: originalLastDay),
               let shift = calendar.dateComponents([.day], from: originalLast, to: anchor).day else {
             return "최근 60일 안에서 그래프를 찾지 못했어요."
@@ -174,23 +183,28 @@ enum DemoScenarioSeed {
                   let day = calendar.date(byAdding: .day, value: shift, to: original) else { return nil }
             return ReportDay.apiString(from: day)
         })
+        guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
         let repository = LiveRecordRepository()
         var targets: [RecordItem] = []
         var cursor: String?
         repeat {
+            guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
             guard let page = try? await repository.fetchIntakePage(cursor: cursor, limit: 100) else { break }
             targets += page.items.filter { days.contains(ReportDay.apiString(from: $0.occurredAt)) }
             cursor = page.nextCursor
         } while cursor != nil
         cursor = nil
         repeat {
+            guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
             guard let page = try? await repository.fetchInsulinPage(cursor: cursor, limit: 100) else { break }
             targets += page.items.filter { days.contains(ReportDay.apiString(from: $0.occurredAt)) }
             cursor = page.nextCursor
         } while cursor != nil
 
+        guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
         var removed = 0
         for item in targets {
+            guard scope.isCurrent else { return "로그인 또는 실행 모드가 바뀌어 작업을 멈췄어요." }
             let path: String
             switch item {
             case .intake(let record): path = "/v1/intakes/\(record.id.uuidString)"
@@ -234,10 +248,11 @@ enum DemoScenarioSeed {
     }
 
     /// 최근 60일 중 그래프가 있는 가장 늦은 날
-    private static func latestGraphDay() async -> Date? {
+    private static func latestGraphDay(scope: DemoExecutionScope) async -> Date? {
         let calendar = ReportDay.calendar
         let today = calendar.startOfDay(for: .now)
         for offset in 0...60 {
+            guard scope.isCurrent else { return nil }
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
             if (try? await APIClient.shared.send(path: "/v1/glucose-readings/\(ReportDay.apiString(from: day))") as GlucoseReadings) != nil {
                 return day
