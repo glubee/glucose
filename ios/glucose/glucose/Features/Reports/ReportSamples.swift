@@ -88,14 +88,20 @@ enum ReportSamples {
                       windowEndAt: at(day, 23, 0), reboundDetected: nil, intakeCount: 1,
                       foods: ["김치찌개 1그릇"], intakes: [mark(4)]),
             ],
-            insulinEventsCount: 2,
+            insulinEventsCount: 3,
+            // 아침엔 식사 인슐린과 기저 인슐린을 함께 맞은 예시
             insulinEvents: [.init(occurredAt: at(day, 8, 0), units: 4, kind: "식사"),
+                            .init(occurredAt: at(day, 8, 0), units: 14, kind: "기저"),
                             .init(occurredAt: at(day, 18, 50), units: 5, kind: "식사")],
             educationCards: [],
-            summary: ["혈당 그래프 \(values.count)칸을 읽었어요.", "섭취 기록 묶음 4건, 인슐린 기록 2건이 있어요."],
+            summary: ["혈당 그래프 \(values.count)칸을 읽었어요.", "섭취 기록 묶음 4건, 인슐린 기록 3건이 있어요."],
+            // 서버 DailyStoryBuilder처럼 시간순 문장(인슐린은 가까운 식사 장면에 함께)
             story: ["이 날 그래프에서 읽힌 값은 최저 \(low), 최고 \(high)이었어요.",
-                    "02:30~04:15, 10:45~11:15에는 읽힌 값이 없어요.",
-                    "08:00과 18:50에 인슐린을 기록했고, 음식 기록은 6건 있어요."],
+                    "새벽 2시 30분부터 오전 4시 15분까지는 그래프가 비어 있어 이 구간은 알 수 없어요.",
+                    "오전 8시에 식사 4단위와 기저 14단위를 기록했고, 오전 8시 10분에 현미밥, 계란말이, 우유를 먹었어요.",
+                    "오전 11시에 요거트를 먹었어요.",
+                    "오후 3시 30분에 저혈당 대응으로 포도당 캔디를 먹었어요.",
+                    "오후 6시 50분에 식사 5단위를 기록했고, 오후 7시에 김치찌개를 먹었어요."],
             insights: [],
             reboundGlucoseThreshold: 180)
 

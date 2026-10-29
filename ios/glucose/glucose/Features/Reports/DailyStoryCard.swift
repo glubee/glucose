@@ -19,12 +19,7 @@ struct DailyStoryCard: View {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 ForEach(story.indices, id: \.self) { index in
                     HStack(alignment: .top, spacing: Spacing.xs) {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 5))
-                            .foregroundStyle(Color.onBrandSoft)
-                            .frame(width: 8)
-                            .padding(.top, 9)
-                            .accessibilityHidden(true)
+                        bullet(for: story[index])
                         Text(highlighted(story[index]))
                             .font(.body1)
                             .foregroundStyle(Color.textPrimary)
@@ -55,6 +50,26 @@ struct DailyStoryCard: View {
             .tint(Color.textSecondary)
         }
         .card(.brand)
+    }
+
+    /// 인슐린 기록이 들어간 문장은 주사기 표시로 구분한다(문장은 서버 그대로)
+    @ViewBuilder
+    private func bullet(for sentence: String) -> some View {
+        if sentence.contains("단위를 기록") {
+            Image(systemName: "syringe.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.insulin)
+                .frame(width: 14)
+                .padding(.top, 5)
+                .accessibilityLabel("인슐린")
+        } else {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 5))
+                .foregroundStyle(Color.onBrandSoft)
+                .frame(width: 14)
+                .padding(.top, 9)
+                .accessibilityHidden(true)
+        }
     }
 
     private func highlighted(_ source: String) -> AttributedString {

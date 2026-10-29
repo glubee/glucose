@@ -121,6 +121,19 @@ struct GlucoseDayChart: View {
 
     private var marks: [DailyReport.Episode.IntakeMark] { episodes.flatMap(\.marks) }
 
+    /// 같은 시각(2분 안) 인슐린 묶음: 첫 기록 순번, 시각, 개수
+    private var insulinGroups: [(first: Int, time: Date, count: Int)] {
+        var groups: [(first: Int, time: Date, count: Int)] = []
+        for (index, event) in insulinEvents.enumerated().sorted(by: { $0.element.occurredAt < $1.element.occurredAt }) {
+            if let last = groups.last, abs(event.occurredAt.timeIntervalSince(last.time)) <= 120 {
+                groups[groups.count - 1].count += 1
+            } else {
+                groups.append((index, event.occurredAt, 1))
+            }
+        }
+        return groups
+    }
+
     /// 인슐린 표시를 놓을 높이: 세로축 바닥 바로 위
     private var insulinBadgeY: Double {
         Double(yDomain.lowerBound) + Double(yDomain.upperBound - yDomain.lowerBound) * 0.045
@@ -183,11 +196,14 @@ struct GlucoseDayChart: View {
                 RuleMark(x: .value("인슐린", event.occurredAt))
                     .lineStyle(StrokeStyle(lineWidth: eventWidth("insulin-\(index)"), dash: [1, 2]))
                     .foregroundStyle(Color.insulin.opacity(eventOpacity("insulin-\(index)")))
-                // 곡선 아래 바닥에 주사기 표시: 언제 맞았는지 바로 보인다(그래프 안에 있어 넘기거나 확대해도 따라온다)
-                PointMark(x: .value("인슐린", event.occurredAt), y: .value("혈당", insulinBadgeY))
-                    .symbol { InsulinChartBadge() }
-                    .opacity(eventOpacity("insulin-\(index)"))
-                    .accessibilityLabel("인슐린 \(ReportDay.timeString(from: event.occurredAt))")
+            }
+            // 곡선 아래 바닥에 주사기 표시: 언제 맞았는지 바로 보인다(그래프 안에 있어 넘기거나 확대해도 따라온다).
+            // 같은 시각에 두 가지를 맞았으면 하나로 묶고 개수를 붙인다
+            ForEach(insulinGroups, id: \.first) { group in
+                PointMark(x: .value("인슐린", group.time), y: .value("혈당", insulinBadgeY))
+                    .symbol { InsulinChartBadge(count: group.count) }
+                    .opacity(eventOpacity("insulin-\(group.first)"))
+                    .accessibilityLabel("인슐린 \(group.count)가지 \(ReportDay.timeString(from: group.time))")
             }
 
             if let time = selection?.wrappedValue, selectedPoint == nil {
@@ -319,6 +335,9 @@ struct GlucoseDayChart: View {
 
 /// 그래프 바닥의 인슐린 표시(보라 동그라미 + 주사기)
 struct InsulinChartBadge: View {
+    /// 같은 시각에 함께 맞은 개수
+    var count = 1
+
     var body: some View {
         Image(systemName: "syringe.fill")
             .font(.system(size: 9, weight: .bold))
@@ -326,6 +345,16 @@ struct InsulinChartBadge: View {
             .frame(width: 20, height: 20)
             .background(Color.insulin, in: Circle())
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 1.5))
+            .overlay(alignment: .topTrailing) {
+                if count > 1 {
+                    Text("\(count)")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(Color.onButton)
+                        .frame(width: 13, height: 13)
+                        .background(Color.buttonFill, in: Circle())
+                        .offset(x: 6, y: -6)
+                }
+            }
             .accessibilityHidden(true)
     }
 }

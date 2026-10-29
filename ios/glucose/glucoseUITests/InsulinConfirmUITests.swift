@@ -41,4 +41,22 @@ final class InsulinConfirmUITests: XCTestCase {
         XCTAssertEqual((kind.value as? String) ?? "", "예: 초속효성 인슐린")
         XCTAssertTrue(app.switches["평소 인슐린에 추가하기"].exists)
     }
+
+    func testTogetherDoseFillsOtherUsualInsulinAndNeedsUnits() {
+        let app = launch()
+        let add = app.buttons["insulinAddTogether"]
+        XCTAssertTrue(add.waitForExistence(timeout: 8))
+        add.tap()
+        let kind = app.textFields["insulinTogetherKind"]
+        XCTAssertTrue(kind.waitForExistence(timeout: 5))
+        XCTAssertEqual(kind.value as? String, "기저 인슐린")
+        // 기저 인슐린은 평소 단위가 비어 있어 단위를 넣어야 저장된다
+        XCTAssertFalse(app.buttons["투여 확인"].isEnabled)
+        let units = app.textFields["insulinTogetherUnits"]
+        units.tap()
+        units.typeText("14")
+        XCTAssertTrue(app.buttons["투여 확인"].isEnabled)
+        app.buttons["함께 맞은 인슐린 빼기"].tap()
+        XCTAssertFalse(kind.exists)
+    }
 }

@@ -121,4 +121,30 @@ class DailyStoryBuilderTest {
         assertThat(DailyStoryBuilder.time(at(0, 30))).isEqualTo("밤 12시 30분");
         assertThat(DailyStoryBuilder.time(at(12, 0))).isEqualTo("낮 12시");
     }
+
+    @Test
+    void 같은_시각에_함께_맞은_인슐린은_한_문장으로_묶는다() {
+        List<GlucoseSample> samples = day(m -> 120);
+        List<String> lines = builder.build(samples,
+                List.of(episode(at(8, 10), PhotoContext.MEAL, List.of("현미밥 1공기"))),
+                List.of(new DailyReportResponse.InsulinEventMarker(at(8, 0), new BigDecimal("4"), "노보래피드"),
+                        new DailyReportResponse.InsulinEventMarker(at(8, 1), new BigDecimal("14"), "트레시바")));
+
+        assertThat(lines).contains("오전 8시에 노보래피드 4단위와 트레시바 14단위를 기록했고, 오전 8시 10분에 현미밥 1공기를 먹었어요.");
+        assertClean(lines);
+    }
+
+    @Test
+    void 식사와_떨어진_곳에서_함께_맞은_인슐린도_한_문장이다() {
+        List<GlucoseSample> samples = day(m -> 120);
+        List<String> lines = builder.build(samples, List.of(),
+                List.of(new DailyReportResponse.InsulinEventMarker(at(22, 0), new BigDecimal("14"), "트레시바"),
+                        new DailyReportResponse.InsulinEventMarker(at(22, 0), new BigDecimal("2"), "노보래피드"),
+                        new DailyReportResponse.InsulinEventMarker(at(23, 30), new BigDecimal("1"), "노보래피드")));
+
+        assertThat(lines).contains("오후 10시에 트레시바 14단위와 노보래피드 2단위를 기록했어요.",
+                "오후 11시 30분에 노보래피드 1단위를 기록했어요.");
+        assertThat(lines.indexOf("오후 10시에 트레시바 14단위와 노보래피드 2단위를 기록했어요."))
+                .isLessThan(lines.indexOf("오후 11시 30분에 노보래피드 1단위를 기록했어요."));
+    }
 }

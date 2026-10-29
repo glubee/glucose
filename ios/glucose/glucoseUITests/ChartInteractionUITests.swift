@@ -74,12 +74,11 @@ final class ChartInteractionUITests: XCTestCase {
     func testReportScrollsWhenDraggingVerticallyOnChart() {
         let app = reports()
         let plot = revealPlot(in: app)
-        let zoom = app.buttons["chartZoom-3"]
-        XCTAssertTrue(zoom.isHittable)
-        let before = zoom.frame.minY
+        XCTAssertTrue(plot.isHittable)
+        let before = plot.frame.minY
         let start = plot.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.6))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -180)))
-        XCTAssertLessThan(zoom.frame.minY, before - 60)
+        XCTAssertLessThan(plot.frame.minY, before - 60)
     }
 
     func testTappingChartShowsValueAboveIt() {

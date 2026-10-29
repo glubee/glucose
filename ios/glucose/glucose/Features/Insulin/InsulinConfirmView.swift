@@ -7,6 +7,7 @@
 //  저장한 뒤 "인슐린 하나 더 기록하기"로 같은 화면에서 이어서 남길 수 있다(식사 + 기저 등).
 //  등록한 인슐린 칩 끝의 "+ 다른 인슐린"으로 처음 설정에 없던 인슐린도 넣고 평소 인슐린에 더할 수 있다.
 //  실제 투여 시각은 확인 카드에서 바로 바꿀 수 있고, 평소 값과 다르게 넣으면 "평소 값도 이렇게 바꾸기"를 고를 수 있다.
+//  두 가지를 같이 맞았으면 "함께 맞은 인슐린 더하기"로 같은 시각 기록을 한 번에 남긴다.
 //  앱은 용량을 계산하거나 추천하지 않는다.
 //
 
@@ -24,6 +25,17 @@ struct InsulinConfirmView: View {
     @State private var addingNew = false
     /// 등록한 평소 인슐린 값을 이번에 넣은 값으로 바꿀지
     @State private var updateUsual = false
+    /// 같은 시각에 함께 맞은 인슐린(예: 식사 인슐린 + 기저 인슐린). 저장하면 시각이 같은 기록이 하나씩 생긴다
+    @State private var extras: [ExtraDose] = []
+    @State private var extraError: String?
+
+    private struct ExtraDose: Identifiable {
+        let id = UUID()
+        var kind: String
+        var unitsText: String
+        var units: Double? { Double(unitsText.replacingOccurrences(of: ",", with: ".")) }
+        var isValid: Bool { !kind.trimmingCharacters(in: .whitespaces).isEmpty && (units ?? 0) > 0 }
+    }
     @State private var saved = false
     /// 이 화면에서 연달아 남긴 기록(예: 식사 인슐린 + 기저 인슐린)
     @State private var savedEntries: [String] = []
@@ -121,7 +133,9 @@ struct InsulinConfirmView: View {
                     .accessibilityIdentifier("insulinTimePicker")
             }
 
-            if let message = viewModel.errorMessage {
+            togetherSection
+
+            if let message = viewModel.errorMessage ?? extraError {
                 Text(message).font(.caption1).foregroundStyle(Color.alert)
             }
 
@@ -133,7 +147,7 @@ struct InsulinConfirmView: View {
                 if viewModel.isSaving { ProgressView().tint(Color.onButton) } else { Text("투여 확인") }
             }
             .buttonStyle(.glubeePrimary)
-            .disabled(viewModel.isSaving)
+            .disabled(viewModel.isSaving || !extrasValid)
             Button("닫기") { dismiss() }
                 .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
                 .foregroundStyle(Color.textSecondary)
@@ -189,6 +203,8 @@ struct InsulinConfirmView: View {
 
                     timeSection
 
+                    togetherSection
+
                     if canUpdateUsual {
                         Toggle("평소 값도 이렇게 바꾸기", isOn: $updateUsual)
                             .font(.body2)
@@ -202,7 +218,7 @@ struct InsulinConfirmView: View {
                             .tint(Color.mintStrong)
                     }
 
-                    if let message = viewModel.errorMessage {
+                    if let message = viewModel.errorMessage ?? extraError {
                         Text(message).font(.caption1).foregroundStyle(Color.alert)
                     }
                 }
@@ -215,7 +231,7 @@ struct InsulinConfirmView: View {
                 if viewModel.isSaving { ProgressView().tint(Color.onBrand) } else { Text("투여 확인") }
             }
             .buttonStyle(.glubeePrimary)
-            .disabled(!viewModel.isSaveEnabled || viewModel.isSaving)
+            .disabled(!viewModel.isSaveEnabled || viewModel.isSaving || !extrasValid)
         }
         .padding(.horizontal, Spacing.gutter)
         .padding(.top, Spacing.l)
@@ -306,6 +322,8 @@ struct InsulinConfirmView: View {
         editing = false
         addingNew = false
         updateUsual = false
+        extras = []
+        extraError = nil
         rememberAsUsual = usualInsulins.isEmpty
         withAnimation(.spring(duration: 0.3)) { saved = false }
     }
@@ -333,6 +351,8 @@ struct InsulinConfirmView: View {
     }
 
     private func save() async {
+        guard extrasValid else { return }
+        extraError = nil
         guard await viewModel.save() else { return }
         let name = viewModel.kind.trimmingCharacters(in: .whitespaces)
         if updateUsual, canUpdateUsual, let index = usualInsulins.firstIndex(where: { $0.id == selectedInsulinId }) {
@@ -346,7 +366,79 @@ struct InsulinConfirmView: View {
         onSaved()
         let units = viewModel.units.map(Self.format) ?? ""
         savedEntries.append("\(ReportDay.timeString(from: viewModel.occurredAt)) · \(viewModel.kind) \(units)단위")
+        // 함께 맞은 인슐린은 같은 시각으로 하나씩 저장한다
+        var failed = 0
+        for dose in extras {
+            let kind = dose.kind.trimmingCharacters(in: .whitespaces)
+            let extra = InsulinRecordFormViewModel(occurredAt: viewModel.occurredAt, units: dose.units, kind: kind)
+            if await extra.save() {
+                savedEntries.append("\(ReportDay.timeString(from: viewModel.occurredAt)) · \(kind) \(dose.units.map(Self.format) ?? "")단위")
+            } else {
+                failed += 1
+            }
+        }
+        if failed > 0 { savedEntries.append("함께 맞은 인슐린 \(failed)개는 저장하지 못했어요. 다시 기록해 주세요.") }
+        if !extras.isEmpty { onSaved() }
+        extras = []
         withAnimation(.spring(duration: 0.35)) { saved = true }
+    }
+
+    // MARK: - 함께 맞은 인슐린
+
+    private var extrasValid: Bool { extras.allSatisfy(\.isValid) }
+
+    private var togetherSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            ForEach($extras) { $dose in
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "plus")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.insulin)
+                        .accessibilityHidden(true)
+                    TextField("함께 맞은 인슐린", text: $dose.kind)
+                        .font(.body1)
+                        .padding(.horizontal, Spacing.s)
+                        .frame(minHeight: Metrics.minTapTarget)
+                        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
+                        .accessibilityIdentifier("insulinTogetherKind")
+                    TextField("단위", text: $dose.unitsText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.body1.monospacedDigit())
+                        .padding(.horizontal, Spacing.s)
+                        .frame(width: 72)
+                        .frame(minHeight: Metrics.minTapTarget)
+                        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
+                        .accessibilityIdentifier("insulinTogetherUnits")
+                    Text("U").foregroundStyle(Color.textSecondary)
+                    Button { extras.removeAll { $0.id == dose.id } } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Color.textSecondary)
+                    }
+                    .frame(width: 32, height: Metrics.minTapTarget)
+                    .accessibilityLabel("함께 맞은 인슐린 빼기")
+                }
+            }
+            Button(action: addTogether) {
+                Label(extras.isEmpty ? "함께 맞은 인슐린 더하기" : "하나 더 더하기", systemImage: "plus.circle")
+                    .font(.body2.weight(.semibold))
+                    .foregroundStyle(Color.insulin)
+                    .frame(minHeight: Metrics.minTapTarget)
+            }
+            .accessibilityIdentifier("insulinAddTogether")
+            if !extras.isEmpty {
+                Text("같은 시각으로 각각 저장돼요.")
+                    .font(.caption1).foregroundStyle(Color.textSecondary)
+            }
+        }
+    }
+
+    /// 아직 고르지 않은 평소 인슐린을 먼저 채운다(예: 식사 인슐린을 골랐으면 기저 인슐린)
+    private func addTogether() {
+        let used = Set([viewModel.kind] + extras.map(\.kind))
+        let next = usualInsulins.first { !used.contains($0.name) }
+        withAnimation(.spring(duration: 0.25)) {
+            extras.append(ExtraDose(kind: next?.name ?? "", unitsText: next?.units.map(Self.format) ?? ""))
+        }
     }
 
     /// 고른 평소 인슐린과 이름·단위가 달라졌을 때만 "평소 값도 바꾸기"를 보여준다

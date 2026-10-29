@@ -33,9 +33,10 @@ final class TimelineSamples: RecordRepository, IntakeServing, InsulinServing {
         let old = IntakeRecord(id: UUID(), occurredAt: day.addingTimeInterval(-3600), context: .snack,
                                items: [.init(id: UUID(), name: "어제 간식", count: 1, unit: "개")])
         intakes[old.id] = Self.response(old)
-        for (hour, minute, units) in [(8, 0, 4.0), (18, 50, 5.0)] {
+        // 아침엔 두 가지를 함께 맞은 예시
+        for (hour, minute, units, kind) in [(8, 0, 4.0, "식사 인슐린"), (8, 0, 14.0, "기저 인슐린"), (18, 50, 5.0, "식사 인슐린")] {
             let id = UUID(), date = Self.at(hour, minute)
-            insulins[id] = .init(id: id, occurredAt: date, units: units, kind: "직접 기록한 종류",
+            insulins[id] = .init(id: id, occurredAt: date, units: units, kind: kind,
                                  createdAt: date, updatedAt: date)
         }
         // 점심에 찍고 아직 확인하지 않은 사진

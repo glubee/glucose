@@ -34,8 +34,11 @@ struct HomeTimelineSection: View {
                 }
             }
 
-            ForEach(viewModel.todayEntries) { entry in
-                row(entry)
+            ForEach(diaryRows) { item in
+                switch item {
+                case .entry(let entry): row(entry)
+                case .insulin(let records): insulinRow(records)
+                }
             }
             if viewModel.isDiaryToday {
                 nowRow
@@ -116,6 +119,73 @@ struct HomeTimelineSection: View {
     }
 
     // MARK: - 한 칸
+
+    /// 시간줄 칸: 같은 시각(2분 안)에 맞은 인슐린은 한 칸으로 묶는다(식사 + 기저 등)
+    private enum DiaryRow: Identifiable {
+        case entry(TimelineEntry)
+        case insulin([InsulinRecord])
+
+        var id: String {
+            switch self {
+            case .entry(let entry): entry.id
+            case .insulin(let records): "insulin-group-\(records[0].id)"
+            }
+        }
+    }
+
+    private var diaryRows: [DiaryRow] {
+        var rows: [DiaryRow] = []
+        for entry in viewModel.todayEntries {
+            if case .record(.insulin(let record)) = entry {
+                if case .insulin(let group)? = rows.last,
+                   abs(record.occurredAt.timeIntervalSince(group[0].occurredAt)) <= 120 {
+                    rows[rows.count - 1] = .insulin(group + [record])
+                } else {
+                    rows.append(.insulin([record]))
+                }
+            } else {
+                rows.append(.entry(entry))
+            }
+        }
+        return rows
+    }
+
+    private func insulinRow(_ records: [InsulinRecord]) -> some View {
+        DiaryTimeRow(time: records[0].occurredAt, label: records.count > 1 ? "인슐린 \(records.count)가지" : "인슐린") {
+            DiaryNoteCard(tint: .insulin) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Label(records.count > 1 ? "인슐린 함께 맞음" : "인슐린 기록", systemImage: "syringe.fill")
+                        .font(.caption1.weight(.semibold))
+                        .foregroundStyle(Color.insulin)
+                    ForEach(records) { record in
+                        let item = RecordItem.insulin(record)
+                        NavigationLink(value: item) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("\(record.kind) · \(record.units.formattedUnits)U")
+                                    .font(.body1)
+                                    .foregroundStyle(Color.textPrimary)
+                                Spacer(minLength: Spacing.xs)
+                                Text("수정 ›").font(.body2).underline().foregroundStyle(Diary.ink)
+                            }
+                            .frame(minHeight: 36)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, Spacing.xxs)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(highlightedID == item.timelineID ? Color.brand : Color.clear, lineWidth: 3)
+                                .allowsHitTesting(false).accessibilityHidden(true)
+                        }
+                        .id(item.timelineID)
+                        .accessibilityIdentifier("timeline-\(item.timelineID)")
+                        .accessibilityValue(highlightedID == item.timelineID ? "새로 추가한 기록" : "")
+                    }
+                }
+            }
+            .padding(Spacing.xxs)
+        }
+    }
 
     private func row(_ entry: TimelineEntry) -> some View {
         DiaryTimeRow(time: entry.occurredAt, label: label(for: entry)) {

@@ -30,7 +30,8 @@ final class ChartEventTests: XCTestCase {
         XCTAssertLessThan(full.count, events.count)
         XCTAssertTrue(full.contains { $0.events.count > 1 })
         XCTAssertGreaterThan(zoomed.count, 1)
-        XCTAssertEqual(zoomed.flatMap(\.events).count, 4)
+        // 7~10시: 아침 음식 3개 + 8시에 함께 맞은 인슐린 2개
+        XCTAssertEqual(zoomed.flatMap(\.events).count, 5)
     }
 
     func testClustersDoNotDropRecordsAndStayApartAtEdges() {

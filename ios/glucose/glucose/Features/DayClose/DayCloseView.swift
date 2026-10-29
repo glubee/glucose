@@ -513,16 +513,32 @@ struct DayCloseView: View {
         return (report.insulinEvents ?? []).sorted { $0.occurredAt < $1.occurredAt }
     }
 
+    private var insulinGroups: [[DailyReport.InsulinMarker]] {
+        var groups: [[DailyReport.InsulinMarker]] = []
+        for event in insulinEvents {
+            if let first = groups.last?.first, abs(event.occurredAt.timeIntervalSince(first.occurredAt)) <= 120 {
+                groups[groups.count - 1].append(event)
+            } else {
+                groups.append([event])
+            }
+        }
+        return groups
+    }
+
     @ViewBuilder
     private var insulinSection: some View {
-        ForEach(Array(insulinEvents.enumerated()), id: \.offset) { _, event in
-            DiaryTimeRow(time: event.occurredAt, label: "인슐린") {
+        // 같은 시각(2분 안)에 함께 맞은 인슐린은 한 카드로
+        ForEach(Array(insulinGroups.enumerated()), id: \.offset) { _, group in
+            DiaryTimeRow(time: group[0].occurredAt, label: group.count > 1 ? "인슐린 \(group.count)가지" : "인슐린") {
                 DiaryNoteCard(tint: .insulin) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("인슐린 기록 · 저장됨").font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
-                        Text("\(event.kind) · \(event.units.formatted(.number.precision(.fractionLength(0...1))))U")
-                            .font(.body2).foregroundStyle(Color.textSecondary)
-                        Text("실제 투여 \(ReportDay.timeString(from: event.occurredAt))")
+                        Text(group.count > 1 ? "인슐린 함께 맞음 · 저장됨" : "인슐린 기록 · 저장됨")
+                            .font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
+                        ForEach(Array(group.enumerated()), id: \.offset) { _, event in
+                            Text("\(event.kind) · \(event.units.formatted(.number.precision(.fractionLength(0...1))))U")
+                                .font(.body2).foregroundStyle(Color.textSecondary)
+                        }
+                        Text("실제 투여 \(ReportDay.timeString(from: group[0].occurredAt))")
                             .font(.caption1).foregroundStyle(Color.textSecondary)
                     }
                 }

@@ -82,10 +82,10 @@ public class DailyStoryBuilder {
             attached.addAll(nearby);
             scenes.add(episodeScene(episode, nextStart, nearby, values));
         }
-        for (DailyReportResponse.InsulinEventMarker event : insulinEvents) {
-            if (!attached.contains(event)) {
-                scenes.add(new Scene(event.occurredAt(), List.of(time(event.occurredAt()) + "에 " + insulin(event) + "를 기록했어요.")));
-            }
+        List<DailyReportResponse.InsulinEventMarker> alone = insulinEvents.stream()
+                .filter(event -> !attached.contains(event)).toList();
+        for (List<DailyReportResponse.InsulinEventMarker> together : sameTime(alone)) {
+            scenes.add(new Scene(together.get(0).occurredAt(), List.of(insulinPhrase(together) + "어요.")));
         }
         scenes.addAll(lowScenes(values, sorted));
         scenes.addAll(gapScenes(readings));
@@ -101,8 +101,8 @@ public class DailyStoryBuilder {
         Instant start = episode.startAt();
         List<String> sentences = new ArrayList<>();
         String what = episode.foods().isEmpty() ? null : String.join(", ", episode.foods());
-        String insulinPart = insulin.stream()
-                .map(event -> time(event.occurredAt()) + "에 " + insulin(event) + "를 기록했")
+        String insulinPart = sameTime(insulin).stream()
+                .map(DailyStoryBuilder::insulinPhrase)
                 .reduce((a, b) -> a + "고, " + b).map(text -> text + "고, ").orElse("");
 
         if (episode.effectiveContext() == PhotoContext.HYPO_TREATMENT) {
@@ -290,6 +290,29 @@ public class DailyStoryBuilder {
         long m = minutes % 60;
         if (h == 0) return m + "분";
         return h + "시간" + (m == 0 ? "" : " " + m + "분");
+    }
+
+    /** 같은 시각(2분 안)에 함께 맞은 인슐린끼리 묶는다(예: 식사 인슐린 + 기저 인슐린) */
+    private static List<List<DailyReportResponse.InsulinEventMarker>> sameTime(
+            List<DailyReportResponse.InsulinEventMarker> events) {
+        List<List<DailyReportResponse.InsulinEventMarker>> groups = new ArrayList<>();
+        for (DailyReportResponse.InsulinEventMarker event : events.stream()
+                .sorted(Comparator.comparing(DailyReportResponse.InsulinEventMarker::occurredAt)).toList()) {
+            List<DailyReportResponse.InsulinEventMarker> last = groups.isEmpty() ? null : groups.get(groups.size() - 1);
+            if (last != null && Duration.between(last.get(0).occurredAt(), event.occurredAt()).abs().toMinutes() <= 2) {
+                last.add(event);
+            } else {
+                groups.add(new ArrayList<>(List.of(event)));
+            }
+        }
+        return groups;
+    }
+
+    /** "오전 8시에 노보래피드 4단위와 트레시바 14단위를 기록했" (끝맺음은 부르는 쪽이 붙인다) */
+    private static String insulinPhrase(List<DailyReportResponse.InsulinEventMarker> together) {
+        // "단위"는 받침이 없어 늘 "와"
+        return time(together.get(0).occurredAt()) + "에 "
+                + String.join("와 ", together.stream().map(DailyStoryBuilder::insulin).toList()) + "를 기록했";
     }
 
     private static String insulin(DailyReportResponse.InsulinEventMarker event) {
