@@ -22,7 +22,7 @@ struct DayCloseView: View {
     @State private var showsDeleteError = false
 
     init(day: Date? = nil, photoStore: PendingPhotoStore? = nil) {
-        _viewModel = State(initialValue: DayCloseViewModel(day: day, photoStore: photoStore ?? .shared))
+        _viewModel = State(initialValue: DayCloseViewModel(day: day, photoStore: photoStore ?? RecordDataSource.photos))
     }
 
     var body: some View {
@@ -414,7 +414,7 @@ private struct TimelineRow: View {
     private var icon: some View {
         switch row.kind {
         case .photo(let photo):
-            if let image = UIImage(contentsOfFile: PendingPhotoStore.shared.imageURL(for: photo).path) {
+            if let image = UIImage(contentsOfFile: RecordDataSource.photos.imageURL(for: photo).path) {
                 Image(uiImage: image).resizable().scaledToFill()
                     .frame(width: 40, height: 40)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.field))

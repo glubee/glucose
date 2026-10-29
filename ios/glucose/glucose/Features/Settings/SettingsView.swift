@@ -11,8 +11,8 @@ import UserNotifications
 
 struct SettingsView: View {
     @State private var viewModel = SettingsViewModel()
-    @State private var preferences = UserPreferences.shared
-    @State private var store = DayCloseStore.shared
+    @State private var preferences = RecordDataSource.preferences
+    @State private var store = RecordDataSource.dayClose
     @State private var showSignOutConfirm = false
     @State private var showDeleteConfirm = false
     @State private var showGraphUpload = false
@@ -53,12 +53,14 @@ struct SettingsView: View {
                         row("혈당 가져오기", "리브레에서 혈당 그래프를 가져와요.")
                     }
                     .tint(Color.textPrimary)
+                    .disabled(RecordDataSource.isPreview)
                 }
 
                 Section {
                     DatePicker("하루 마무리 시각", selection: dayCloseBinding, displayedComponents: .hourAndMinute)
+                        .disabled(RecordDataSource.isPreview)
                     if notificationStatus != .authorized {
-                        Button("알림 켜기") { Task { await enableNotifications() } }
+                        Button("알림 켜기") { Task { await enableNotifications() } }.disabled(RecordDataSource.isPreview)
                     }
                 } header: {
                     Text("알림")
@@ -74,7 +76,7 @@ struct SettingsView: View {
                             "쉬는 동안은 연속일이 줄지 않고 알림도 멈춰요.")
                         Button("다시 시작하기") {
                             store.endRest()
-                            Task { await NudgeScheduler.refresh() }
+                            Task { if !RecordDataSource.isPreview { await NudgeScheduler.refresh() } }
                         }
                     } else {
                         Button { showRest = true } label: {
@@ -95,13 +97,17 @@ struct SettingsView: View {
                 demoSection
                 #endif
 
-                Section {
-                    Button("로그아웃", role: .destructive) { showSignOutConfirm = true }
-                    Button("계정 삭제", role: .destructive) { showDeleteConfirm = true }
-                        .disabled(viewModel.isDeleting)
-                } footer: {
-                    Text("계정을 지우면 모든 기록이 함께 지워지고 되돌릴 수 없어요.")
-                }
+                #if DEBUG
+                if LocalDemoSession.shared.isActive {
+                    Section {
+                        Button("기기 데모 종료") { LocalDemoSession.shared.deactivate() }
+                    } footer: {
+                        Text("데모의 편집 내용은 앱을 다시 열면 초기 예시로 돌아가요. 실제 계정의 기록은 바뀌지 않아요.")
+                    }
+                } else { accountSection }
+                #else
+                accountSection
+                #endif
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage).foregroundStyle(Color.alert).font(.caption1)
@@ -113,7 +119,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showRest) {
                 RestSheet { reason, days in
                     store.startRest(reason, days: days)
-                    Task { await NudgeScheduler.refresh() }
+                    Task { if !RecordDataSource.isPreview { await NudgeScheduler.refresh() } }
                 }
             }
             .sheet(isPresented: $showHelp) { HelpSheet() }
@@ -128,31 +134,57 @@ struct SettingsView: View {
         }
     }
 
+    private var accountSection: some View {
+        Section {
+            Button("로그아웃", role: .destructive) { showSignOutConfirm = true }
+            Button("계정 삭제", role: .destructive) { showDeleteConfirm = true }
+                .disabled(viewModel.isDeleting)
+        } footer: {
+            Text("계정을 지우면 모든 기록이 함께 지워지고 되돌릴 수 없어요.")
+        }
+    }
+
     #if DEBUG
     /// 개발 빌드에만 보이는 데모 데이터 버튼(데모 계정 전용, docs: CLAUDE.md "데모")
     private var demoSection: some View {
         Section {
-            Button("시나리오 기록 넣기") { runDemo { await DemoScenarioSeed.run().text } }
+            Button("시나리오 기록 넣기") {
+                if usesLocalDemo { LocalDemoSession.shared.activate() }
+                else { runDemo { await DemoScenarioSeed.run().text } }
+            }
             Button("시나리오 기록 지우고 다시 넣기") {
-                runDemo {
+                if usesLocalDemo { LocalDemoSession.shared.activate(reset: true) }
+                else { runDemo {
                     let cleared = await DemoScenarioSeed.clear()
                     return cleared + "\n" + (await DemoScenarioSeed.run().text)
-                }
+                } }
             }
-            Button("벌집·연속 서버 기준으로 다시 채우기") {
-                runDemo { "그래프 있는 \(await DemoDayCloseSync.run())일을 채웠어요." }
+            Button(usesLocalDemo ? "데모 벌집·연속 다시 채우기" : "벌집·연속 서버 기준으로 다시 채우기") {
+                if usesLocalDemo {
+                    LocalDemoSession.shared.activate()
+                    let store = RecordDataSource.dayClose
+                    store.reset()
+                    for offset in (1...7).reversed() {
+                        if let day = ReportDay.calendar.date(byAdding: .day, value: -offset, to: ReportDay.today()) { store.markClosed(day) }
+                    }
+                    demoStatus = "기기 데모의 지난 7일 완료 상태를 채웠어요."
+                } else { runDemo { "그래프 있는 \(await DemoDayCloseSync.run())일을 채웠어요." } }
             }
             if demoRunning { ProgressView() }
             if let demoStatus {
                 Text(demoStatus).font(.caption1).foregroundStyle(Color.textSecondary).textSelection(.enabled)
             }
         } header: {
-            Text("데모 데이터 (개발용)")
+            Text(LocalDemoSession.shared.isActive ? "기기 데모 (개발용)" : "데모 데이터 (개발용)")
         } footer: {
-            Text("데모 계정에서만 쓰세요. 시나리오는 그래프 곡선에 맞춘 식사·처치·인슐린 기록이고, 이미 기록이 있는 날은 건너뛰어요.")
+            Text(usesLocalDemo
+                 ? "로그인 없이 예시 그래프와 기록을 함께 불러와요. 기기 데모에서는 서버에 저장하지 않아요."
+                 : "서버 데모 계정에서만 쓰세요. 먼저 업로드한 그래프가 필요하며, 이미 기록이 있는 날은 건너뛰어요.")
         }
         .disabled(demoRunning)
     }
+
+    private var usesLocalDemo: Bool { LocalDemoSession.shared.isActive || !AuthSession.shared.isAuthenticated }
 
     private func runDemo(_ work: @escaping @MainActor () async -> String) {
         demoRunning = true
@@ -180,8 +212,8 @@ struct SettingsView: View {
             },
             set: { date in
                 preferences.dayCloseTime = ReportDay.calendar.dateComponents([.hour, .minute], from: date)
-                WidgetSnapshot.refresh()
-                Task { await NudgeScheduler.refresh() }
+                if !RecordDataSource.isPreview { WidgetSnapshot.refresh() }
+                Task { if !RecordDataSource.isPreview { await NudgeScheduler.refresh() } }
             }
         )
     }
@@ -201,7 +233,7 @@ struct SettingsView: View {
 
 /// 평소 인슐린 목록 고치기. 사용자가 넣은 값 그대로 쓰고, 앱이 정하거나 추천하지 않는다
 private struct UsualInsulinEditor: View {
-    @State private var preferences = UserPreferences.shared
+    @State private var preferences = RecordDataSource.preferences
     @State private var name = ""
     @State private var unitsText = ""
 

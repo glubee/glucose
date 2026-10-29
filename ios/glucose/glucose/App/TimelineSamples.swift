@@ -5,17 +5,20 @@ import UIKit
 @MainActor
 final class TimelineSamples: RecordRepository, IntakeServing, InsulinServing {
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains("-timelineSample")
+        LocalDemoSession.shared.isActive || ProcessInfo.processInfo.arguments.contains("-timelineSample")
         || ProcessInfo.processInfo.arguments.contains("-timelineEmptySample")
     }
-    static let shared = TimelineSamples()
+    private static let commandLineSamples = TimelineSamples()
+    static var shared: TimelineSamples {
+        LocalDemoSession.shared.isActive ? LocalDemoSession.shared.samples : commandLineSamples
+    }
     let photos: PendingPhotoStore
     let dayClose: DayCloseStore
     let preferences: UserPreferences
     private var intakes: [UUID: IntakeResponse] = [:]
     private var insulins: [UUID: InsulinEventResponse] = [:]
 
-    private init() {
+    init() {
         let defaults = UserDefaults(suiteName: "timeline-preview-\(UUID())")!
         dayClose = DayCloseStore(defaults: defaults)
         preferences = UserPreferences(defaults: defaults)

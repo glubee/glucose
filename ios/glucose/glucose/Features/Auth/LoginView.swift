@@ -43,6 +43,13 @@ struct LoginView: View {
                 .disabled(viewModel.isLoading)
                 .overlay { if viewModel.isLoading { ProgressView() } }
 
+                #if DEBUG
+                Button("로그인 없이 데모 보기") { LocalDemoSession.shared.activate() }
+                    .buttonStyle(.glubeeSecondary)
+                    .accessibilityIdentifier("startLocalDemo")
+                    .disabled(viewModel.isLoading)
+                #endif
+
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
                         .font(.caption1)

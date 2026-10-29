@@ -84,6 +84,9 @@ final class APIClient {
         allowRetry: Bool,
         accountGeneration: UUID? = nil
     ) async throws -> (Data, HTTPURLResponse) {
+        #if DEBUG
+        if await LocalDemoSession.shared.isActive { throw APIError.notAuthenticated }
+        #endif
         let currentGeneration = await AuthSession.shared.generation
         let scope = authenticated ? (accountGeneration ?? currentGeneration) : nil
         try await validateScope(scope)

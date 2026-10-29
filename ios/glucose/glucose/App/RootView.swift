@@ -10,6 +10,15 @@ import SwiftUI
 
 struct RootView: View {
     var body: some View {
+        #if DEBUG
+        if LocalDemoSession.shared.isActive { RootTabView() }
+        else { accountContent }
+        #else
+        accountContent
+        #endif
+    }
+
+    @ViewBuilder private var accountContent: some View {
         if !UserPreferences.shared.onboardingCompleted {
             OnboardingView()
         } else if AuthSession.shared.isAuthenticated {

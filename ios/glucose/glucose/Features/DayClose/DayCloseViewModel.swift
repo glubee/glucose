@@ -52,11 +52,12 @@ final class DayCloseViewModel {
     let photoStore: PendingPhotoStore
     private let dayCloseStore: DayCloseStore
 
-    init(day: Date? = nil, photoStore: PendingPhotoStore = .shared, dayCloseStore: DayCloseStore = .shared) {
+    init(day: Date? = nil, photoStore: PendingPhotoStore? = nil, dayCloseStore: DayCloseStore? = nil) {
+        let dayCloseStore = dayCloseStore ?? RecordDataSource.dayClose
         let target = day ?? dayCloseStore.targetDay()
         self.day = target
         self.report = DailyReportViewModel(day: target)
-        self.photoStore = photoStore
+        self.photoStore = photoStore ?? RecordDataSource.photos
         self.dayCloseStore = dayCloseStore
         if dayCloseStore.isClosed(target) {
             isFinished = true
@@ -176,9 +177,11 @@ final class DayCloseViewModel {
         dayCloseStore.markClosed(day, recordOnly: recordOnly)
         isFinished = true
         step = .done
-        WidgetSnapshot.refresh()
-        // 마무리한 날의 알림은 빼고 다시 예약한다
-        await NudgeScheduler.refresh()
+        if !RecordDataSource.isPreview {
+            WidgetSnapshot.refresh()
+            // 마무리한 날의 알림은 빼고 다시 예약한다
+            await NudgeScheduler.refresh()
+        }
     }
 
     var streakAfter: Int { dayCloseStore.streak(endingAt: day) }

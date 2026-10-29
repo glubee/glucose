@@ -16,7 +16,7 @@ struct InsulinRecordFormView: View {
 
     private let onSaved: () -> Void
     private let onDeleted: () -> Void
-    private let usualNames = UserPreferences.shared.usualInsulins.map(\.name)
+    private let usualNames = RecordDataSource.preferences.usualInsulins.map(\.name)
 
     init(
         mode: InsulinRecordFormViewModel.Mode = .create,
