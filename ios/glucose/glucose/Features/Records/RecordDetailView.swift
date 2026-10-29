@@ -9,6 +9,7 @@ import SwiftUI
 
 struct RecordDetailView: View {
     let item: RecordItem
+    var allowsEditing = true
     var onChanged: () async -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
@@ -43,6 +44,7 @@ struct RecordDetailView: View {
 
                     Button("기록 고치기") { showEditFood = true }
                         .buttonStyle(.glubeeSecondary)
+                        .disabled(!allowsEditing)
                 case .insulin(let record):
                     VStack(alignment: .leading, spacing: Spacing.s) {
                         SectionHeader(title: "인슐린 기록")
@@ -55,6 +57,7 @@ struct RecordDetailView: View {
 
                     Button("기록 고치기") { showEditInsulin = true }
                         .buttonStyle(.glubeeSecondary)
+                        .disabled(!allowsEditing)
                 }
             }
             .padding(.horizontal, Spacing.gutter)

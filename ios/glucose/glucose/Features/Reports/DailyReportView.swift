@@ -4,7 +4,7 @@
 //
 //  사실만 보여준다: 혈당이 어땠는지, 무엇을 언제 기록했는지. 인슐린 용량·식사량 조언은 하지 않는다.
 //  판단에 필요한 데이터가 없으면 "아니다"가 아니라 "판단할 수 없다"고 표시한다.
-//  v5: 큰 평균 숫자 + 데이터 칩 → 하루 흐름 카드 → 요약·음식 관찰 → 기록 묶음·인슐린 → 글루비 한마디.
+//  하루 이야기 → 평균·데이터 칩 → 사진이 있는 하루 흐름 → 음식 관찰·기록 묶음·인슐린.
 //
 
 import SwiftUI
@@ -12,7 +12,15 @@ import SwiftUI
 struct DailyReportView: View {
     let viewModel: DailyReportViewModel
     @State private var showGraphUpload = false
-    @State private var showChartDetail = false
+    @State private var chartDetail: ChartDetailSnapshot?
+    @State private var selectedPhoto: ChartPhotoGroup?
+
+    private struct ChartDetailSnapshot: Identifiable {
+        let id = UUID()
+        let day: Date
+        let report: DailyReport
+        let points: [GlucosePoint]
+    }
     private let store = DayCloseStore.shared
 
     var body: some View {
@@ -31,19 +39,19 @@ struct DailyReportView: View {
                 case .failed(let message):
                     ReportLoadState(message: message) { Task { await viewModel.load() } }
                 case .loaded(let report, let points):
+                    if let story = report.story, !story.isEmpty {
+                        DailyStoryCard(story: story, evidence: report.summary ?? [])
+                    } else {
+                        ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
+                    }
                     if viewModel.requiresGraphReprocessing {
                         reprocessCard
                     } else {
                         glucoseHero(report: report)
-                        chartCard(report: report, points: points)
                     }
-                    if let story = report.story, !story.isEmpty {
-                        DailyStoryCard(story: story, evidence: report.summary ?? [])
-                        if let insights = report.insights, !insights.isEmpty {
-                            DailyInsightsCard(insights: insights)
-                        }
-                    } else {
-                        ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
+                    chartCard(report: report, points: viewModel.requiresGraphReprocessing ? [] : points)
+                    if let insights = report.insights, !insights.isEmpty {
+                        DailyInsightsCard(insights: insights)
                     }
                     FoodObservationSection(state: viewModel.foodAnalysis)
                     episodesCard(report.episodes, reboundThreshold: report.reboundGlucoseThreshold)
@@ -61,12 +69,29 @@ struct DailyReportView: View {
         .background(Color.canvas)
         .refreshable { await viewModel.load() }
         .task(id: RecordChanges.shared.revision) { await viewModel.load() }
+        .onChange(of: viewModel.day) { _, _ in closePhotoScreens() }
+        .onChange(of: RecordChanges.shared.revision) { _, _ in closePhotoScreens() }
+        .sheet(item: $selectedPhoto) { group in
+            ReportPhotoGallery(group: group) { closePhotoScreens() }
+        }
+        .fullScreenCover(item: $chartDetail) { snapshot in
+            GlucoseDayDetailView(day: snapshot.day, points: snapshot.points, episodes: snapshot.report.episodes,
+                                 insulinEvents: snapshot.report.insulinEvents ?? []) { closePhotoScreens() }
+        }
         .sheet(isPresented: $showGraphUpload) {
             GraphUploadView { uploadedDate in
                 guard let date = ReportDay.date(fromAPIString: uploadedDate) else { return }
                 Task { await viewModel.show(day: date) }
             }
         }
+    }
+
+    private var isPreview: Bool {
+        #if DEBUG
+        ReportSamples.isEnabled
+        #else
+        false
+        #endif
     }
 
     // MARK: - 평균 + 데이터 칩
@@ -92,10 +117,10 @@ struct DailyReportView: View {
                 }
             }
             .buttonStyle(.glubeePrimary)
-            .disabled(viewModel.isReprocessing)
+            .disabled(viewModel.isReprocessing || isPreview)
             Button("다른 원본 이미지 올리기") { showGraphUpload = true }
                 .buttonStyle(.glubeeSecondary)
-                .disabled(viewModel.isReprocessing)
+                .disabled(viewModel.isReprocessing || isPreview)
         }
         .card(.brand)
     }
@@ -142,22 +167,24 @@ struct DailyReportView: View {
 
     @ViewBuilder
     private func chartCard(report: DailyReport, points: [GlucosePoint]) -> some View {
-        if report.glucose != nil {
+        if report.glucose != nil || report.episodes.flatMap(\.marks).contains(where: { $0.photoId != nil }) {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 SectionHeader(title: "하루 흐름",
                               trailing: "식사 \(report.episodes.count) · 인슐린 \(report.insulinEventsCount)")
                 if points.isEmpty {
-                    Text("곡선을 불러오지 못했어요. 아래로 당겨 새로고침해주세요.")
-                        .font(.body2)
-                        .foregroundStyle(Color.textSecondary)
+                    Text("읽힌 혈당값이 없어 곡선을 표시할 수 없어요.")
+                        .font(.body2).foregroundStyle(Color.textSecondary)
+                    ChartPhotoTimeline(groups: ChartPhotoGroup.make(marks: report.episodes.flatMap(\.marks),
+                                                                    day: viewModel.day, points: points)) {
+                        selectedPhoto = $0
+                    }
                 } else {
                     GlucoseDayChart(day: viewModel.day, points: points,
-                                    episodes: report.episodes, insulinEvents: report.insulinEvents ?? [])
-                        .contentShape(Rectangle())
-                        .onTapGesture { showChartDetail = true }
+                                    episodes: report.episodes, insulinEvents: report.insulinEvents ?? [],
+                                    showsPhotos: true, onSelectPhoto: { selectedPhoto = $0 })
                     ChartLegend()
                     Button {
-                        showChartDetail = true
+                        chartDetail = ChartDetailSnapshot(day: viewModel.day, report: report, points: points)
                     } label: {
                         Label("크게 보고 시각별로 확인하기", systemImage: "arrow.up.left.and.arrow.down.right")
                     }
@@ -165,11 +192,12 @@ struct DailyReportView: View {
                 }
             }
             .card()
-            .fullScreenCover(isPresented: $showChartDetail) {
-                GlucoseDayDetailView(day: viewModel.day, points: points, episodes: report.episodes,
-                                     insulinEvents: report.insulinEvents ?? [])
-            }
         }
+    }
+
+    private func closePhotoScreens() {
+        selectedPhoto = nil
+        chartDetail = nil
     }
 
     // MARK: - 기록(에피소드)

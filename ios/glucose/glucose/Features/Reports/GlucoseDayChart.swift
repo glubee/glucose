@@ -28,7 +28,7 @@ struct GlucosePoint: Identifiable {
 
         let sorted = readings.compactMap { reading -> (Date, Int?)? in
             guard let time = time(of: reading.time, on: day, calendar: calendar) else { return nil }
-            return (time, reading.value)
+            return (time, reading.flag == "MISSING" ? nil : reading.value)
         }
         .sorted { $0.0 < $1.0 }
 
@@ -47,9 +47,11 @@ struct GlucosePoint: Identifiable {
     }
 
     private static func time(of hhmm: String, on day: Date, calendar: Calendar) -> Date? {
-        let parts = hhmm.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return nil }
-        return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
+        let parts = hhmm.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts.allSatisfy({ $0.count == 2 && $0.allSatisfy { "0123456789".contains($0) } }),
+              let hour = Int(parts[0]), let minute = Int(parts[1]),
+              (0..<24).contains(hour), (0..<60).contains(minute) else { return nil }
+        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
     }
 }
 
@@ -65,8 +67,9 @@ struct GlucoseDayChart: View {
     var selection: Binding<Date?>? = nil
     /// 크게 보기에서만: 확대했을 때 보이는 구간의 시작
     var scrollPosition: Binding<Date>? = nil
-    /// 크게 보기에서만: 기록 표시 자리에 음식 사진을 보여준다
+    /// 일일 리포트·크게 보기: 곡선 부근 사진과 아래 기록 줄을 보여준다
     var showsPhotos = false
+    var onSelectPhoto: ((ChartPhotoGroup) -> Void)? = nil
 
     private var dayRange: ClosedRange<Date> {
         let start = ReportDay.calendar.startOfDay(for: day)
@@ -100,8 +103,7 @@ struct GlucoseDayChart: View {
 
     private var selectedPoint: GlucosePoint? {
         guard let time = selection?.wrappedValue else { return nil }
-        return points.min { abs($0.time.timeIntervalSince(time)) < abs($1.time.timeIntervalSince(time)) }
-            .flatMap { abs($0.time.timeIntervalSince(time)) <= GlucosePoint.interval ? $0 : nil }
+        return GlucoseCurve(points: points).nearestObservedPoint(to: time)
     }
 
     var body: some View {
@@ -112,7 +114,7 @@ struct GlucoseDayChart: View {
                     y: .value("혈당", point.value),
                     series: .value("구간", point.segment)
                 )
-                .interpolationMethod(.monotone)
+                .interpolationMethod(.linear)
                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                 .foregroundStyle(Color.textPrimary)
             }
@@ -124,14 +126,12 @@ struct GlucoseDayChart: View {
                     .foregroundStyle(Color.textPrimary)
             }
 
-            ForEach(marks) { mark in
+            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                 RuleMark(x: .value("기록", mark.occurredAt))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     .foregroundStyle(mark.context == .hypoTreatment ? Color.mintStrong : Color.brand)
                     .annotation(position: .top, spacing: 2) {
-                        if showsPhotos, let photoId = mark.photoId {
-                            FoodPhotoThumbnail(photoId: photoId, size: 30)
-                        } else {
+                        if !showsPhotos || mark.photoId == nil {
                             Image(systemName: mark.context.systemImage)
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(mark.context == .hypoTreatment ? Color.mintStrong : Color.onBrandSoft)
@@ -145,6 +145,11 @@ struct GlucoseDayChart: View {
                     .foregroundStyle(Color.insulin)
             }
 
+            if let time = selection?.wrappedValue, selectedPoint == nil {
+                RuleMark(x: .value("선택", time))
+                    .foregroundStyle(Color.textSecondary)
+                    .annotation(position: .top) { Text("값 없음").font(.caption1) }
+            }
             if let point = selectedPoint {
                 RuleMark(x: .value("선택", point.time))
                     .lineStyle(StrokeStyle(lineWidth: 2))
@@ -188,6 +193,47 @@ struct GlucoseDayChart: View {
         }
         .chartYAxisLabel("mg/dL", position: .topTrailing)
         .frame(height: height)
+        .chartOverlay { proxy in
+            if showsPhotos {
+                GeometryReader { geometry in
+                    if let container = proxy.plotContainerFrame {
+                        let frame = geometry[container]
+                        let start = (visibleHours ?? 24) < 24
+                            ? (scrollPosition?.wrappedValue ?? dayRange.lowerBound) : dayRange.lowerBound
+                        let span = TimeInterval((visibleHours ?? 24) * 3600)
+                        let groups = photoGroups
+                        let anchors = groups.compactMap { group -> PhotoMarkerLayout.Anchor? in
+                            guard let value = group.anchorValue, let y = proxy.position(forY: value) else { return nil }
+                            let x = group.time.timeIntervalSince(start) / span * frame.width
+                            return .init(id: group.id, point: CGPoint(x: x, y: y))
+                        }
+                        let placements = PhotoMarkerLayout.place(anchors: anchors, bounds: frame.size)
+                        ZStack(alignment: .topLeading) {
+                            ForEach(placements) { placement in
+                                Path { path in
+                                    path.move(to: placement.anchor)
+                                    path.addLine(to: CGPoint(x: placement.frame.midX, y: placement.frame.midY))
+                                }
+                                .stroke(Color.brand, lineWidth: 1)
+                                .allowsHitTesting(false)
+                                if let group = groups.first(where: { $0.id == placement.id }) {
+                                    Button { onSelectPhoto?(group) } label: {
+                                        ChartPhotoBadge(group: group, size: 34)
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("\(ReportDay.timeString(from: group.time)) 음식 사진 \(group.members.count)장")
+                                    .accessibilityIdentifier("chartPhoto-\(ReportDay.timeString(from: group.time))")
+                                    .position(x: placement.frame.midX, y: placement.frame.midY)
+                                }
+                            }
+                        }
+                        .frame(width: frame.width, height: frame.height, alignment: .topLeading)
+                        .offset(x: frame.minX, y: frame.minY)
+                    }
+                }
+            }
+        }
 
         Group {
             if let selection, let visibleHours, let scrollPosition {
@@ -202,9 +248,17 @@ struct GlucoseDayChart: View {
                 chart
             }
         }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: showsPhotos ? .contain : .ignore)
         .accessibilityLabel("하루 혈당 곡선")
         .accessibilityValue(accessibilitySummary)
+
+        if showsPhotos, !photoGroups.isEmpty {
+            ChartPhotoTimeline(groups: photoGroups) { onSelectPhoto?($0) }
+        }
+    }
+
+    private var photoGroups: [ChartPhotoGroup] {
+        ChartPhotoGroup.make(marks: marks, day: day, points: points)
     }
 
     private var accessibilitySummary: String {

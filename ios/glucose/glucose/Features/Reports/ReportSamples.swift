@@ -8,36 +8,85 @@
 
 #if DEBUG
 import Foundation
+import UIKit
 
 enum ReportSamples {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("-reportSample") }
+    static var isEnabled: Bool {
+        ["-reportSample", "-dailyReportPreview", "-chartDetail"].contains { ProcessInfo.processInfo.arguments.contains($0) }
+    }
+
+    static func photoID(_ index: Int) -> UUID {
+        UUID(uuidString: String(format: "10000000-0000-0000-0000-%012d", index))!
+    }
+
+    static func records(_ day: Date) -> [IntakeRecord] {
+        let entries = [(8, 10, "현미밥", "공기"), (8, 20, "계란말이", "접시"), (8, 35, "우유", "잔"),
+                       (11, 0, "요거트", "개"), (19, 0, "김치찌개", "그릇")]
+        return entries.enumerated().map { index, entry in
+            IntakeRecord(id: UUID(uuidString: String(format: "20000000-0000-0000-0000-%012d", index + 1))!,
+                         occurredAt: at(day, entry.0, entry.1), context: index == 3 ? .snack : .meal,
+                         items: [FoodItem(id: UUID(), name: entry.2, count: 1, unit: entry.3)], photoId: photoID(index + 1))
+        }
+    }
+
+    static func record(for mark: DailyReport.Episode.IntakeMark) -> IntakeRecord? {
+        records(mark.occurredAt).first {
+            $0.occurredAt == mark.occurredAt && $0.photoId == mark.photoId && $0.context == mark.context
+        }
+    }
+
+    private static let photoImages: [UUID: UIImage] = Dictionary(uniqueKeysWithValues: (1...5).map { index in
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 240)).image { context in
+            UIColor(red: 0.98, green: 0.94, blue: 0.84, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+            UIColor.white.setFill()
+            UIBezierPath(ovalIn: CGRect(x: 55, y: 20, width: 210, height: 200)).fill()
+            UIColor.systemOrange.withAlphaComponent(0.8).setFill()
+            UIBezierPath(roundedRect: CGRect(x: 100, y: 60, width: 100, height: 70), cornerRadius: 25).fill()
+            UIColor.systemGreen.withAlphaComponent(0.7).setFill()
+            UIBezierPath(ovalIn: CGRect(x: 100 + index * 8, y: 130, width: 60, height: 45)).fill()
+        }
+        return (photoID(index), image)
+    })
+
+    static func image(for photoId: UUID) -> UIImage? {
+        isEnabled ? photoImages[photoId] : nil
+    }
 
     private static func at(_ day: Date, _ hour: Int, _ minute: Int = 0) -> Date {
         ReportDay.calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
     }
 
     static func daily(_ day: Date) -> (DailyReport, [GlucosePoint]) {
+        let records = records(day)
+        func mark(_ index: Int) -> DailyReport.Episode.IntakeMark {
+            let record = records[index]
+            return .init(occurredAt: record.occurredAt, context: record.context, photoId: record.photoId,
+                         foods: record.items.map { $0.name + " " + ($0.displayQuantity ?? "") })
+        }
         let report = DailyReport(
             date: ReportDay.apiString(from: day),
             glucose: .init(coverageRatio: 0.92, average: 142, min: 64, max: 238, readingsCount: 88, sufficient: true),
             episodes: [
                 .init(startAt: at(day, 8, 10), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
-                      windowEndAt: at(day, 12, 10), reboundDetected: nil, intakeCount: 2,
+                      windowEndAt: at(day, 12, 10), reboundDetected: nil, intakeCount: 3,
                       foods: ["현미밥 1공기", "계란말이 1접시"],
-                      intakes: [.init(occurredAt: at(day, 8, 10), context: .meal, photoId: nil, foods: ["현미밥 1공기"]),
-                                .init(occurredAt: at(day, 8, 40), context: .meal, photoId: nil, foods: ["계란말이 1접시"])]),
+                      intakes: [mark(0), mark(1), mark(2)]),
+                .init(startAt: at(day, 11), originalContext: .snack, effectiveContext: .snack, autoReclassified: false,
+                      windowEndAt: at(day, 15), reboundDetected: nil, intakeCount: 1,
+                      foods: ["요거트 1개"], intakes: [mark(3)]),
                 .init(startAt: at(day, 15, 30), originalContext: .snack, effectiveContext: .hypoTreatment, autoReclassified: true,
                       windowEndAt: at(day, 17, 30), reboundDetected: false, intakeCount: 1,
                       foods: ["포도당 캔디 3개"]),
                 .init(startAt: at(day, 19, 0), originalContext: .meal, effectiveContext: .meal, autoReclassified: false,
                       windowEndAt: at(day, 23, 0), reboundDetected: nil, intakeCount: 3,
-                      foods: ["백미밥 1공기", "김치찌개 1그릇", "계란말이 1접시"]),
+                      foods: ["김치찌개 1그릇"], intakes: [mark(4)]),
             ],
             insulinEventsCount: 2,
             insulinEvents: [.init(occurredAt: at(day, 8, 0), units: 4, kind: "식사"),
                             .init(occurredAt: at(day, 18, 50), units: 5, kind: "식사")],
             educationCards: [],
-            summary: ["혈당 그래프가 하루의 92% 읽혔어요.", "섭취 기록 묶음 3건, 인슐린 기록 2건이 있어요."],
+            summary: ["혈당 그래프가 하루의 92% 읽혔어요.", "섭취 기록 묶음 4건, 인슐린 기록 2건이 있어요."],
             story: ["이 날 그래프에서 읽힌 값은 최저 64, 최고 238이었어요.",
                     "밤 2시 30분부터 오전 4시 30분까지는 그래프가 비어 있어 이 구간은 알 수 없어요.",
                     "오전 8시에 식사 4단위를 기록했고, 오전 8시 10분에 현미밥 1공기, 계란말이 1접시를 먹었어요.",
