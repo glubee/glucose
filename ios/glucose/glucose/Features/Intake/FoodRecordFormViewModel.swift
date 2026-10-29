@@ -49,12 +49,13 @@ final class FoodRecordFormViewModel {
         let request = draft.request
         defer { isSaving = false }
         do {
+            let response: IntakeResponse
             switch mode {
-            case .create: _ = try await service.create(request)
-            case .edit(let id): _ = try await service.update(id: id, request: request)
+            case .create: response = try await service.create(request)
+            case .edit(let id): response = try await service.update(id: id, request: request)
             }
             hasCompleted = true
-            changes.publish(mode == .create ? .created : .updated)
+            changes.publish(mode == .create ? .created : .updated, recordID: response.id)
             return true
         } catch APIError.notAuthenticated {
             errorMessage = "로그인한 뒤 다시 저장해 주세요. 입력한 내용은 그대로 있어요."
@@ -73,7 +74,7 @@ final class FoodRecordFormViewModel {
         do {
             try await service.delete(id: id)
             hasCompleted = true
-            changes.publish(.deleted)
+            changes.publish(.deleted, recordID: id)
             return true
         } catch {
             errorMessage = "지우지 못했어요. 기록은 그대로 있어요. 다시 시도해 주세요."

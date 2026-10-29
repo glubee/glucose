@@ -71,6 +71,7 @@ final class IntakeRecordingTests: XCTestCase {
         XCTAssertEqual(service.creates[0].items.map(\.name), ["김밥", "우유"])
         XCTAssertEqual(service.creates[0].items[0].unit, "줄")
         XCTAssertEqual(changes.revision, 1)
+        XCTAssertEqual(changes.lastRecordID, service.response.id)
         let repeated = await model.save()
         XCTAssertFalse(repeated)
         XCTAssertEqual(service.creates.count, 1)
@@ -203,6 +204,7 @@ final class IntakeRecordingTests: XCTestCase {
         XCTAssertEqual(service.creates[0].items[0].tags, ["HIGH_FAT"])
         XCTAssertEqual(changes.revision, 1)
         let duplicate = await model.confirm()
+        XCTAssertEqual(changes.lastRecordID, service.response.id)
         XCTAssertFalse(duplicate)
         XCTAssertEqual(service.creates.count, 1)
     }

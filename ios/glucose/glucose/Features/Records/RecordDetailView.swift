@@ -74,11 +74,9 @@ struct RecordDetailView: View {
                     units: record.units,
                     kind: record.kind,
                     onSaved: {
-                        RecordChanges.shared.publish(.updated)
                         Task { await onChanged(); dismiss() }
                     },
                     onDeleted: {
-                        RecordChanges.shared.publish(.deleted)
                         Task { await onChanged(); dismiss() }
                     }
                 )

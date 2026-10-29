@@ -90,9 +90,9 @@ final class RecognitionResultViewModel {
         saveErrorMessage = nil
         let request = draft.request
         do {
-            _ = try await service.create(request)
+            let response = try await service.create(request)
             state = .saved
-            changes.publish(.created)
+            changes.publish(.created, recordID: response.id)
             return true
         } catch {
             saveErrorMessage = "저장하지 못했어요. 입력한 내용은 그대로 있어요. 다시 시도해 주세요."

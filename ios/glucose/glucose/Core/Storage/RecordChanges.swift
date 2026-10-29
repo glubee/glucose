@@ -9,9 +9,11 @@ final class RecordChanges {
     static let shared = RecordChanges()
     private(set) var revision = 0
     private(set) var lastMutation: Mutation?
+    private(set) var lastRecordID: UUID?
 
-    func publish(_ mutation: Mutation) {
+    func publish(_ mutation: Mutation, recordID: UUID? = nil) {
         lastMutation = mutation
+        lastRecordID = recordID
         revision += 1
     }
 }

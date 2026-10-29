@@ -10,6 +10,28 @@ final class TodayTimelineViewModel {
     private var generation = UUID()
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    private(set) var focusID: String?
+
+    private var handledRevision = 0
+
+    func prepareFocus(changes: RecordChanges, photos: [PendingPhoto]) {
+        guard changes.revision > handledRevision else { return }
+        let rows = entries(photos: photos)
+        if changes.lastMutation == .created, let id = changes.lastRecordID {
+            focusID = rows.first { row in
+                if case .record(let item) = row { return item.id == id }
+                return false
+            }?.id
+            // 재조회 실패로 아직 안 보이는 새 기록은 재시도 후 찾는다.
+            if focusID == nil && errorMessage != nil { return }
+        }
+        handledRevision = changes.revision
+    }
+    func finishFocus(_ id: String) { if focusID == id { focusID = nil } }
+    func requestPhotoFocus(_ id: UUID, photos: [PendingPhoto]) {
+        let target = "pending-\(id)"
+        if entries(photos: photos).contains(where: { $0.id == target }) { focusID = target }
+    }
 
     init(repository: RecordRepository = LiveRecordRepository()) {
         records = RecordsViewModel(repository: repository)
@@ -20,7 +42,7 @@ final class TodayTimelineViewModel {
         let end = ReportDay.calendar.date(byAdding: .day, value: 1, to: start)!
         let active = UUID()
         generation = active
-        if self.day != start { saved = [] }
+        if self.day != start { saved = []; focusID = nil }
         self.day = start
         isLoading = true
         errorMessage = nil
