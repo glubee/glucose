@@ -38,9 +38,9 @@ struct RecordsView: View {
                 }
             }
             .navigationDestination(for: RecordItem.self) { item in
-                RecordDetailView(item: item) { await viewModel.refresh() }
+                RecordDetailView(item: item)
             }
-            .task { await viewModel.load() }
+            .task(id: RecordChanges.shared.revision) { await viewModel.load() }
         }
     }
 

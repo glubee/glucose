@@ -26,6 +26,10 @@ struct GlucoseApp: App {
                 Task { await NudgeScheduler.refresh() }
             }
         }
+        .onChange(of: RecordChanges.shared.revision) { _, _ in
+            WidgetSnapshot.refresh(noteRecord: RecordChanges.shared.lastMutation == .created)
+            Task { await NudgeScheduler.refresh() }
+        }
     }
 
     @ViewBuilder

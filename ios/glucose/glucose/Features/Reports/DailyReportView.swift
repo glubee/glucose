@@ -60,7 +60,7 @@ struct DailyReportView: View {
         }
         .background(Color.canvas)
         .refreshable { await viewModel.load() }
-        .task { await viewModel.load() }
+        .task(id: RecordChanges.shared.revision) { await viewModel.load() }
         .sheet(isPresented: $showGraphUpload) {
             GraphUploadView { uploadedDate in
                 guard let date = ReportDay.date(fromAPIString: uploadedDate) else { return }

@@ -1,11 +1,3 @@
-//
-//  RecognitionResultViewModel.swift
-//  glucose
-//
-//  사진 업로드 후 음식 인식 job을 폴링한다(409 RECOGNITION_NOT_READY면 지연 후 재시도).
-//  결과는 제안일 뿐이고 사용자가 이름·개수를 수정/삭제/추가한 뒤 POST /v1/intakes로 확정한다.
-//
-
 import Foundation
 
 enum RecognitionResultState: Equatable {
@@ -17,110 +9,85 @@ enum RecognitionResultState: Equatable {
     case saved
 }
 
+@MainActor
 @Observable
 final class RecognitionResultViewModel {
-
     let photoId: UUID
-    let context: IntakeContext
-    /// 먹은 시각. 빠른 촬영 사진은 촬영 시각으로 시작하고, 사용자가 고칠 수 있다
-    var occurredAt: Date
-
+    var draft: FoodRecordDraft
     private(set) var state: RecognitionResultState = .polling
-    private(set) var items: [EditableFoodItem] = []
     private(set) var saveErrorMessage: String?
 
-    private var pollTask: Task<Void, Never>?
+    private let service: IntakeServing
+    private let changes: RecordChanges
 
-    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now) {
+    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now,
+         service: IntakeServing? = nil, changes: RecordChanges? = nil) {
         self.photoId = photoId
-        self.context = context
-        self.occurredAt = occurredAt
+        draft = FoodRecordDraft(context: context, occurredAt: occurredAt, photoId: photoId, items: [])
+        self.service = service ?? IntakeService()
+        self.changes = changes ?? .shared
     }
 
-    var isSaveEnabled: Bool {
-        !items.isEmpty && items.allSatisfy { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
-    }
+    var items: [EditableFoodItem] { draft.items }
+    var isSaveEnabled: Bool { draft.isValid }
 
-    func startPolling() {
-        pollTask?.cancel()
-        state = .polling
-        pollTask = Task { [weak self] in
-            await self?.poll()
-        }
-    }
-
-    func cancelPolling() {
-        pollTask?.cancel()
-    }
-
-    private func poll() async {
+    /// 화면을 닫으면 SwiftUI task와 함께 결과 조회도 취소된다.
+    func loadRecognition() async {
+        guard state == .polling else { return }
         #if DEBUG
-        // 실행 인자 -recognition: 로그인 없이 인식 결과 화면 보기(예시 음식 2개)
         if ProcessInfo.processInfo.arguments.contains("-recognition") {
-            items = [
+            draft.items = [
                 EditableFoodItem(name: "김밥", count: 1, unit: "줄", categoryHint: nil, tags: []),
-                EditableFoodItem(name: "오렌지 주스", count: 1, unit: "잔", categoryHint: nil, tags: []),
+                EditableFoodItem(name: "오렌지 주스", count: 1, unit: "잔", categoryHint: nil, tags: [])
             ]
             state = .ready
             return
         }
         #endif
-        var delayNanoseconds: UInt64 = 1_000_000_000
-        let maxDelayNanoseconds: UInt64 = 5_000_000_000
-
+        var delay: UInt64 = 1_000_000_000
         while !Task.isCancelled {
             do {
-                let result: RecognitionResponse = try await APIClient.shared.send(
-                    path: "/v1/photos/\(photoId.uuidString)/recognition"
-                )
-                items = result.items.map(\.asEditableItem)
+                let result = try await service.recognize(photoId: photoId)
+                guard !Task.isCancelled else { return }
+                draft.items = result.items.map(\.asEditableItem)
                 state = result.isFoodPhoto ? .ready : .notFoodPhoto
                 return
-            } catch APIError.server(let status, let body) where status == 409 {
-                _ = body
-                try? await Task.sleep(nanoseconds: delayNanoseconds)
-                delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
-            } catch APIError.server(422, _) {
-                state = .failed("음식을 알아보지 못했어요.\n먹은 음식을 직접 적어주세요.")
+            } catch is CancellationError {
                 return
+            } catch APIError.server(409, let body) where body.code == "RECOGNITION_NOT_READY" {
+                do { try await Task.sleep(nanoseconds: delay) } catch { return }
+                delay = min(delay * 2, 5_000_000_000)
             } catch {
+                guard !Task.isCancelled else { return }
                 state = .failed("결과를 불러오지 못했어요.\n먹은 음식을 직접 적어주세요.")
                 return
             }
         }
     }
 
-    func addBlankItem() {
-        items.append(.blank())
-    }
+    func addBlankItem() { draft.items.append(.blank()) }
 
-    func removeItem(id: EditableFoodItem.ID) {
-        items.removeAll { $0.id == id }
-    }
+    func removeItem(id: EditableFoodItem.ID) { draft.items.removeAll { $0.id == id } }
 
     func updateItem(id: EditableFoodItem.ID, name: String? = nil, count: Int? = nil, unit: String? = nil) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        if let name { items[index].name = name }
-        if let count { items[index].count = max(1, count) }
-        if let unit { items[index].unit = unit }
+        guard let index = draft.items.firstIndex(where: { $0.id == id }) else { return }
+        if let name { draft.items[index].name = name }
+        if let count { draft.items[index].count = count }
+        if let unit { draft.items[index].unit = unit }
     }
 
     func confirm() async -> Bool {
+        guard isSaveEnabled, state != .polling, state != .saving, state != .saved else { return false }
         state = .saving
         saveErrorMessage = nil
+        let request = draft.request
         do {
-            let request = CreateIntakeRequest(
-                context: context.rawValue,
-                occurredAt: occurredAt,
-                photoId: photoId,
-                items: items.map { $0.toRequest() }
-            )
-            let _: IntakeResponse = try await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
+            _ = try await service.create(request)
             state = .saved
-            await MainActor.run { WidgetSnapshot.refresh(noteRecord: true) }
+            changes.publish(.created)
             return true
         } catch {
-            saveErrorMessage = "저장하지 못했어요. 다시 눌러주세요."
+            saveErrorMessage = "저장하지 못했어요. 입력한 내용은 그대로 있어요. 다시 시도해 주세요."
             state = .ready
             return false
         }

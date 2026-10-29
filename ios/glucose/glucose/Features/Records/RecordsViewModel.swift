@@ -33,6 +33,7 @@ final class RecordsViewModel {
     private var insulinCursor: String?
     private var intakeExhausted = false
     private var insulinExhausted = false
+    private var loadID = UUID()
 
     init(repository: RecordRepository = LiveRecordRepository()) {
         self.repository = repository
@@ -43,6 +44,7 @@ final class RecordsViewModel {
     }
 
     func load() async {
+        loadID = UUID()
         intakeBuffer = []
         insulinBuffer = []
         intakeCursor = nil
@@ -51,6 +53,7 @@ final class RecordsViewModel {
         insulinExhausted = false
         hasMore = true
         items = []
+        state = .idle
         await fetchMore()
     }
 
@@ -67,20 +70,22 @@ final class RecordsViewModel {
     }
 
     private func fetchMore() async {
+        let activeID = loadID
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        defer { if activeID == loadID { isLoadingMore = false } }
 
         var newlyEmitted: [RecordItem] = []
 
         while newlyEmitted.count < pageSize {
             do {
                 if intakeBuffer.isEmpty && !intakeExhausted {
-                    try await refillIntake()
+                    guard try await refillIntake(activeID: activeID) else { return }
                 }
                 if insulinBuffer.isEmpty && !insulinExhausted {
-                    try await refillInsulin()
+                    guard try await refillInsulin(activeID: activeID) else { return }
                 }
             } catch {
+                guard activeID == loadID, !Task.isCancelled else { return }
                 items.append(contentsOf: newlyEmitted)
                 hasMore = hasRemainingData
                 state = .error(Self.errorMessage(for: error))
@@ -91,6 +96,7 @@ final class RecordsViewModel {
             newlyEmitted.append(next)
         }
 
+        guard activeID == loadID, !Task.isCancelled else { return }
         items.append(contentsOf: newlyEmitted)
         hasMore = hasRemainingData
         state = .loaded
@@ -121,18 +127,22 @@ final class RecordsViewModel {
         }
     }
 
-    private func refillIntake() async throws {
+    private func refillIntake(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchIntakePage(cursor: intakeCursor, limit: pageSize)
+        guard activeID == loadID, !Task.isCancelled else { return false }
         intakeBuffer.append(contentsOf: page.items)
         intakeCursor = page.nextCursor
         if page.nextCursor == nil { intakeExhausted = true }
+        return true
     }
 
-    private func refillInsulin() async throws {
+    private func refillInsulin(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchInsulinPage(cursor: insulinCursor, limit: pageSize)
+        guard activeID == loadID, !Task.isCancelled else { return false }
         insulinBuffer.append(contentsOf: page.items)
         insulinCursor = page.nextCursor
         if page.nextCursor == nil { insulinExhausted = true }
+        return true
     }
 
     private static func errorMessage(for error: Error) -> String {

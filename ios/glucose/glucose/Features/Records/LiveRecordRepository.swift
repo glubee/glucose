@@ -38,7 +38,9 @@ extension IntakeResponse {
             id: id,
             occurredAt: occurredAt,
             context: IntakeContext(rawValue: context) ?? .meal,
-            items: items.map { FoodItem(id: $0.id, name: $0.name, count: $0.count, unit: $0.unit) }
+            items: items.map { FoodItem(id: $0.id, name: $0.name, count: $0.count, unit: $0.unit,
+                                       categoryHint: $0.categoryHint, tags: $0.tags) },
+            photoId: photoId
         )
     }
 }

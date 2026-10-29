@@ -13,6 +13,7 @@ struct RecordDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showEditInsulin = false
+    @State private var showEditFood = false
 
     var body: some View {
         ScrollView {
@@ -39,6 +40,9 @@ struct RecordDetailView: View {
                         }
                     }
                     .card()
+
+                    Button("기록 고치기") { showEditFood = true }
+                        .buttonStyle(.glubeeSecondary)
                 case .insulin(let record):
                     VStack(alignment: .leading, spacing: Spacing.s) {
                         SectionHeader(title: "인슐린 기록")
@@ -66,9 +70,22 @@ struct RecordDetailView: View {
                     occurredAt: record.occurredAt,
                     units: record.units,
                     kind: record.kind,
-                    onSaved: { Task { await onChanged(); dismiss() } },
-                    onDeleted: { Task { await onChanged(); dismiss() } }
+                    onSaved: {
+                        RecordChanges.shared.publish(.updated)
+                        Task { await onChanged(); dismiss() }
+                    },
+                    onDeleted: {
+                        RecordChanges.shared.publish(.deleted)
+                        Task { await onChanged(); dismiss() }
+                    }
                 )
+            }
+        }
+        .sheet(isPresented: $showEditFood) {
+            if case .intake(let record) = item {
+                FoodRecordFormView(record: record,
+                                   onSaved: { Task { await onChanged(); dismiss() } },
+                                   onDeleted: { Task { await onChanged(); dismiss() } })
             }
         }
     }

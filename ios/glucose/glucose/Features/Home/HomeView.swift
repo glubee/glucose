@@ -12,6 +12,7 @@ import SwiftUI
 struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     @State private var showFoodSheet = false
+    @State private var showManualFood = false
     @State private var photoCapture: PhotoCaptureRequest?
     @State private var showInsulin = false
     @State private var showPendingPhotos = false
@@ -27,13 +28,14 @@ struct HomeView: View {
             }
         }
         .background(Color.canvas)
-        .task {
+        .task(id: RecordChanges.shared.revision) {
             await viewModel.refresh()
             countUp()
         }
         .sheet(isPresented: $showFoodSheet) {
-            FoodRecordSheet { request in photoCapture = request }
+            FoodRecordSheet(onWrite: { showManualFood = true }) { request in photoCapture = request }
         }
+        .sheet(isPresented: $showManualFood) { FoodRecordFormView() }
         .sheet(item: $photoCapture, onDismiss: refresh) { request in
             PhotoCaptureView(context: request.context, opensCamera: request.opensCamera)
         }
