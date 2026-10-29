@@ -10,6 +10,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 final class RecordsViewModel {
 
@@ -23,6 +24,10 @@ final class RecordsViewModel {
     private(set) var state: LoadState = .idle
     private(set) var isLoadingMore = false
     private(set) var hasMore = true
+    private(set) var filter: RecordFilter = .all
+    private var seenIDs = Set<String>()
+    private var intakeCursors = Set<String>()
+    private var insulinCursors = Set<String>()
 
     private let repository: RecordRepository
     private let pageSize = 20
@@ -33,24 +38,31 @@ final class RecordsViewModel {
     private var insulinCursor: String?
     private var intakeExhausted = false
     private var insulinExhausted = false
+    private var loadID = UUID()
 
-    init(repository: RecordRepository = LiveRecordRepository()) {
-        self.repository = repository
+    init(repository: RecordRepository? = nil) {
+        self.repository = repository ?? RecordDataSource.repository
     }
 
     var isInitialLoading: Bool {
         items.isEmpty && isLoadingMore
     }
 
-    func load() async {
+    func load(filter: RecordFilter? = nil) async {
+        if let filter { self.filter = filter }
+        loadID = UUID()
         intakeBuffer = []
         insulinBuffer = []
         intakeCursor = nil
         insulinCursor = nil
-        intakeExhausted = false
-        insulinExhausted = false
+        intakeExhausted = self.filter == .insulin
+        insulinExhausted = self.filter == .food || self.filter == .response
+        seenIDs = []
+        intakeCursors = []
+        insulinCursors = []
         hasMore = true
         items = []
+        state = .idle
         await fetchMore()
     }
 
@@ -58,29 +70,41 @@ final class RecordsViewModel {
         await load()
     }
 
+    func loadNextPage() async {
+        guard hasMore, !isLoadingMore else { return }
+        await fetchMore()
+    }
+
     func loadMoreIfNeeded(currentItem: RecordItem) async {
         guard hasMore, !isLoadingMore else { return }
-        guard let index = items.firstIndex(where: { $0.id == currentItem.id }) else { return }
+        guard let index = items.firstIndex(where: { $0.timelineID == currentItem.timelineID }) else { return }
         if index >= items.count - 5 {
             await fetchMore()
         }
     }
 
     private func fetchMore() async {
+        let activeID = loadID
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        defer { if activeID == loadID { isLoadingMore = false } }
 
         var newlyEmitted: [RecordItem] = []
+        var refills = 0
 
         while newlyEmitted.count < pageSize {
             do {
-                if intakeBuffer.isEmpty && !intakeExhausted {
-                    try await refillIntake()
+                while intakeBuffer.isEmpty && !intakeExhausted {
+                    refills += 1
+                    guard refills <= 1000 else { throw APIError.invalidResponse }
+                    guard try await refillIntake(activeID: activeID) else { return }
                 }
-                if insulinBuffer.isEmpty && !insulinExhausted {
-                    try await refillInsulin()
+                while insulinBuffer.isEmpty && !insulinExhausted {
+                    refills += 1
+                    guard refills <= 1000 else { throw APIError.invalidResponse }
+                    guard try await refillInsulin(activeID: activeID) else { return }
                 }
             } catch {
+                guard activeID == loadID, !Task.isCancelled else { return }
                 items.append(contentsOf: newlyEmitted)
                 hasMore = hasRemainingData
                 state = .error(Self.errorMessage(for: error))
@@ -88,9 +112,10 @@ final class RecordsViewModel {
             }
 
             guard let next = popNextItem() else { break }
-            newlyEmitted.append(next)
+            if seenIDs.insert(TimelineEntry.record(next).id).inserted { newlyEmitted.append(next) }
         }
 
+        guard activeID == loadID, !Task.isCancelled else { return }
         items.append(contentsOf: newlyEmitted)
         hasMore = hasRemainingData
         state = .loaded
@@ -121,18 +146,24 @@ final class RecordsViewModel {
         }
     }
 
-    private func refillIntake() async throws {
+    private func refillIntake(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchIntakePage(cursor: intakeCursor, limit: pageSize)
-        intakeBuffer.append(contentsOf: page.items)
+        guard activeID == loadID, !Task.isCancelled else { return false }
+        if let next = page.nextCursor, !intakeCursors.insert(next).inserted { throw APIError.invalidResponse }
+        intakeBuffer.append(contentsOf: page.items.filter { filter.includes($0) })
         intakeCursor = page.nextCursor
         if page.nextCursor == nil { intakeExhausted = true }
+        return true
     }
 
-    private func refillInsulin() async throws {
+    private func refillInsulin(activeID: UUID) async throws -> Bool {
         let page = try await repository.fetchInsulinPage(cursor: insulinCursor, limit: pageSize)
-        insulinBuffer.append(contentsOf: page.items)
+        guard activeID == loadID, !Task.isCancelled else { return false }
+        if let next = page.nextCursor, !insulinCursors.insert(next).inserted { throw APIError.invalidResponse }
+        insulinBuffer.append(contentsOf: page.items.filter { filter.includes($0) })
         insulinCursor = page.nextCursor
         if page.nextCursor == nil { insulinExhausted = true }
+        return true
     }
 
     private static func errorMessage(for error: Error) -> String {

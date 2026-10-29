@@ -65,7 +65,7 @@ struct WeeklyReportView: View {
         }
         .background(Color.canvas)
         .refreshable { await viewModel.load() }
-        .task { await viewModel.load() }
+        .task(id: RecordChanges.shared.revision) { await viewModel.load() }
     }
 
     // MARK: - 한 주 겹쳐 보기

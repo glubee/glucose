@@ -18,6 +18,13 @@ enum RecordItem: Identifiable, Hashable {
         }
     }
 
+    var timelineID: String {
+        switch self {
+        case .intake: "intake-\(id)"
+        case .insulin: "insulin-\(id)"
+        }
+    }
+
     var occurredAt: Date {
         switch self {
         case .intake(let record): record.occurredAt

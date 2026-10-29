@@ -49,7 +49,7 @@ final class DayCloseViewModel {
     /// 완성 연출용: 이번 마무리 전 연속일
     private(set) var streakBefore = 0
 
-    private let photoStore: PendingPhotoStore
+    let photoStore: PendingPhotoStore
     private let dayCloseStore: DayCloseStore
 
     init(day: Date? = nil, photoStore: PendingPhotoStore = .shared, dayCloseStore: DayCloseStore = .shared) {
@@ -139,14 +139,14 @@ final class DayCloseViewModel {
     /// 이날 찍었지만 아직 확인하지 않은 사진(찍은 순서)
     var pendingPhotos: [PendingPhoto] {
         photoStore.photos
-            .filter { ReportDay.calendar.isDate($0.capturedAt, inSameDayAs: day) }
+            .filter { !$0.hasConfirmedRecord && ReportDay.calendar.isDate($0.capturedAt, inSameDayAs: day) }
             .sorted { $0.capturedAt < $1.capturedAt }
     }
 
     var isUploadingPhotos: Bool { photoStore.isUploading }
 
     func confirmed(_ photo: PendingPhoto) async {
-        photoStore.remove(photo.id)
+        photoStore.finishConfirmation(photo.id)
         await refresh()
     }
 

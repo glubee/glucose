@@ -85,6 +85,8 @@ struct SettingsView: View {
                 }
 
                 Section("도움말") {
+                    NavigationLink("안내 모아보기") { EducationCardsView() }
+                        .foregroundStyle(Color.textPrimary)
                     Button { showHelp = true } label: { row("앱 사용 도움말", "기록하고 돌아보는 방법") }
                         .tint(Color.textPrimary)
                 }

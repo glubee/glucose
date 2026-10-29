@@ -32,8 +32,8 @@ struct CreateIntakeRequest: Encodable {
 
 struct IntakeItemRequest: Encodable {
     let name: String
-    let count: Int
-    let unit: String
+    let count: Int?
+    let unit: String?
     let categoryHint: String?
     let tags: [String]
 }

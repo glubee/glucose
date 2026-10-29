@@ -23,7 +23,8 @@ struct InsulinConfirmView: View {
     private let preferences: UserPreferences
     private let onSaved: () -> Void
 
-    init(preferences: UserPreferences = .shared, onSaved: @escaping () -> Void = {}) {
+    init(preferences: UserPreferences? = nil, onSaved: @escaping () -> Void = {}) {
+        let preferences = preferences ?? RecordDataSource.preferences
         self.preferences = preferences
         self.onSaved = onSaved
         let first = preferences.usualInsulins.first
@@ -265,7 +266,7 @@ struct InsulinConfirmView: View {
             preferences.usualInsulins = [UsualInsulin(name: viewModel.kind.trimmingCharacters(in: .whitespaces),
                                                       units: viewModel.units)]
         }
-        WidgetSnapshot.refresh(noteRecord: true)
+        if !RecordDataSource.isPreview { WidgetSnapshot.refresh(noteRecord: true) }
         onSaved()
         withAnimation(.spring(duration: 0.35)) { saved = true }
     }

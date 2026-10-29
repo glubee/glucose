@@ -1,42 +1,61 @@
-//
-//  PhotoUploadViewModel.swift
-//  glucose
-//
-//  사진 기록 화면의 업로드 상태. 실제 업로드는 PhotoUploader가 한다.
-//  실패하면 사용자가 "다시 시도"를 눌러야 한다(자동 재시도 없음).
-//
-
 import Foundation
 
 enum PhotoUploadState: Equatable {
-    case idle
-    case starting
+    case idle, starting
     case uploading(progress: Double)
-    case completing
-    case done
+    case completing, done
     case failed(String)
 }
 
+@MainActor
 @Observable
 final class PhotoUploadViewModel {
-
     private(set) var state: PhotoUploadState = .idle
     private(set) var photoId: UUID?
+    private var checkpoint: PhotoUploadCheckpoint?
+    private var operationID = UUID()
+    private let uploader: PhotoUploader
+
+    init(uploader: PhotoUploader? = nil) { self.uploader = uploader ?? PhotoUploader() }
+
+    var isInFlight: Bool {
+        switch state {
+        case .starting, .uploading, .completing: true
+        default: false
+        }
+    }
+
+    func reset() {
+        guard !isInFlight else { return }
+        operationID = UUID()
+        checkpoint = nil
+        photoId = nil
+        state = .idle
+    }
 
     func upload(imageData: Data, context: IntakeContext) async {
+        guard !isInFlight, state != .done else { return }
+        let activeID = UUID()
+        operationID = activeID
         state = .starting
-        let uploader = PhotoUploader()
-        uploader.onProgress = { fraction in
-            Task { @MainActor [weak self] in self?.state = .uploading(progress: fraction) }
+        uploader.onProgress = { [weak self] fraction in
+            guard let self, operationID == activeID, isInFlight else { return }
+            state = .uploading(progress: fraction)
         }
-        uploader.onCompleting = {
-            Task { @MainActor [weak self] in self?.state = .completing }
+        uploader.onCompleting = { [weak self] in
+            guard let self, operationID == activeID, isInFlight else { return }
+            state = .completing
         }
         do {
-            photoId = try await uploader.upload(imageData: imageData, context: context)
+            let id = try await uploader.upload(imageData: imageData, context: context, checkpoint: checkpoint) { [self] value in
+                checkpoint = value
+            }
+            guard operationID == activeID else { return }
+            photoId = id
             state = .done
         } catch {
-            state = .failed("올리지 못했어요. 다시 시도해 주세요.")
+            guard operationID == activeID else { return }
+            state = .failed("올리지 못했어요. 사진은 그대로 있어요. 다시 시도해 주세요.")
         }
     }
 }

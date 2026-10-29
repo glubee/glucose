@@ -15,6 +15,9 @@ struct GlucoseDayDetailView: View {
     let episodes: [DailyReport.Episode]
     let insulinEvents: [DailyReport.InsulinMarker]
 
+    var onChanged: () async -> Void = {}
+    @State private var selectedPhoto: ChartPhotoGroup?
+
     @Environment(\.dismiss) private var dismiss
     @State private var visibleHours = 24
     @State private var selection: Date?
@@ -22,11 +25,13 @@ struct GlucoseDayDetailView: View {
 
     private static let nearbyWindow: TimeInterval = 45 * 60
 
-    init(day: Date, points: [GlucosePoint], episodes: [DailyReport.Episode], insulinEvents: [DailyReport.InsulinMarker]) {
+    init(day: Date, points: [GlucosePoint], episodes: [DailyReport.Episode], insulinEvents: [DailyReport.InsulinMarker],
+         onChanged: @escaping () async -> Void = {}) {
         self.day = day
         self.points = points
         self.episodes = episodes
         self.insulinEvents = insulinEvents
+        self.onChanged = onChanged
         _scrollPosition = State(initialValue: ReportDay.calendar.startOfDay(for: day))
     }
 
@@ -56,7 +61,8 @@ struct GlucoseDayDetailView: View {
 
                     GlucoseDayChart(day: day, points: points, episodes: episodes, insulinEvents: insulinEvents,
                                     height: 360, visibleHours: visibleHours, selection: $selection,
-                                    scrollPosition: $scrollPosition, showsPhotos: true)
+                                    scrollPosition: $scrollPosition, showsPhotos: true,
+                                    onSelectPhoto: { selectedPhoto = $0 })
                         .padding(.top, Spacing.l)
                         .card(padding: Spacing.s)
 
@@ -79,12 +85,22 @@ struct GlucoseDayDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") { dismiss() }
+                    Button("닫기") { dismiss() }.accessibilityIdentifier("closeChartDetail")
+                }
+            }
+            .sheet(item: $selectedPhoto) { group in
+                ReportPhotoGallery(group: group) {
+                    selectedPhoto = nil
+                    dismiss()
+                    await onChanged()
                 }
             }
             .onChange(of: visibleHours) { _, hours in
                 // 확대하면 고른 시각(없으면 첫 기록)이 화면에 들어오게 옮긴다
-                guard hours < 24 else { return }
+                guard hours < 24 else {
+                    scrollPosition = ReportDay.calendar.startOfDay(for: day)
+                    return
+                }
                 let center = selection ?? marks.first?.occurredAt ?? scrollPosition
                 move(to: center)
             }
@@ -107,6 +123,7 @@ struct GlucoseDayDetailView: View {
                         .background(isOn ? Color.buttonFill : Color.clear, in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("detailChartZoom-\(hours)")
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
@@ -149,7 +166,7 @@ struct GlucoseDayDetailView: View {
                 Text("앞뒤 45분 안의 기록")
                     .font(.sectionLabel)
                     .foregroundStyle(Color.textSecondary)
-                ForEach(nearbyMarks) { mark in markRow(mark) }
+                ForEach(Array(nearbyMarks.enumerated()), id: \.offset) { _, mark in markRow(mark) }
                 ForEach(Array(nearbyInsulin.enumerated()), id: \.offset) { _, event in insulinRow(event) }
             }
         }
@@ -166,7 +183,7 @@ struct GlucoseDayDetailView: View {
                     .font(.body2)
                     .foregroundStyle(Color.textSecondary)
             }
-            ForEach(timeline, id: \.time) { entry in
+            ForEach(Array(timeline.enumerated()), id: \.offset) { _, entry in
                 Button {
                     selection = entry.time
                     move(to: entry.time)
@@ -219,8 +236,8 @@ struct GlucoseDayDetailView: View {
                     .font(.body1)
                     .foregroundStyle(Color.textPrimary)
                     .multilineTextAlignment(.leading)
-                if let value = nearestPoint(to: mark.occurredAt)?.value {
-                    Text("기록 시각 그래프 \(value) mg/dL")
+                if let point = nearestPoint(to: mark.occurredAt) {
+                    Text("가까운 관측 · \(ReportDay.timeString(from: point.time)) · \(point.value) mg/dL")
                         .font(.caption1)
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -255,8 +272,7 @@ struct GlucoseDayDetailView: View {
     // MARK: - 도움 함수
 
     private func nearestPoint(to time: Date) -> GlucosePoint? {
-        points.min { abs($0.time.timeIntervalSince(time)) < abs($1.time.timeIntervalSince(time)) }
-            .flatMap { abs($0.time.timeIntervalSince(time)) <= GlucosePoint.interval ? $0 : nil }
+        GlucoseCurve(points: points).nearestObservedPoint(to: time)
     }
 
     /// 고른 시각이 화면 가운데쯤 오게 확대 구간을 옮긴다(하루 밖으로는 안 나간다)

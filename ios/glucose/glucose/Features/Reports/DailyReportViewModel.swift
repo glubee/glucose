@@ -51,6 +51,8 @@ final class DailyReportViewModel {
         #if DEBUG
         if ReportSamples.isEnabled {
             let (report, points) = ReportSamples.daily(requestedDay)
+            // 재분석 필요 상태에서도 사진을 볼 수 있는지 검증하는 합성 예시.
+            requiresGraphReprocessing = ProcessInfo.processInfo.arguments.contains("-reportReprocessSample")
             state = .loaded(report, points)
             foodAnalysis = .loaded(ReportSamples.food(requestedDay, weekly: false))
             return

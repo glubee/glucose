@@ -17,6 +17,35 @@ struct FoodPhotoThumbnail: View {
 
     var body: some View {
         Group {
+            #if DEBUG
+            if let sample = ReportSamples.image(for: photoId) {
+                Image(uiImage: sample).resizable().scaledToFill()
+            } else {
+                remoteImage
+            }
+            #else
+            remoteImage
+            #endif
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.25))
+        .overlay(RoundedRectangle(cornerRadius: size * 0.25).strokeBorder(Color.canvas, lineWidth: 1.5))
+        .accessibilityLabel("음식 사진")
+        .task(id: photoId) {
+            url = nil
+            failed = false
+            #if DEBUG
+            if ReportSamples.isEnabled { return }
+            #endif
+            let loaded = await PhotoViewURLCache.shared.url(for: photoId)
+            guard !Task.isCancelled else { return }
+            url = loaded
+            failed = loaded == nil
+        }
+    }
+
+    private var remoteImage: some View {
+        Group {
             if let url {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -28,14 +57,6 @@ struct FoodPhotoThumbnail: View {
             } else {
                 placeholder(failed ? "photo" : "")
             }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.25))
-        .overlay(RoundedRectangle(cornerRadius: size * 0.25).strokeBorder(Color.canvas, lineWidth: 1.5))
-        .accessibilityLabel("음식 사진")
-        .task(id: photoId) {
-            url = await PhotoViewURLCache.shared.url(for: photoId)
-            failed = url == nil
         }
     }
 
@@ -66,6 +87,8 @@ final class PhotoViewURLCache {
 
     private var entries: [UUID: Entry] = [:]
     private var inFlight: [UUID: Task<URL?, Never>] = [:]
+
+    func invalidate(_ photoId: UUID) { entries[photoId] = nil }
 
     func url(for photoId: UUID) async -> URL? {
         if let entry = entries[photoId], entry.expiresAt > .now.addingTimeInterval(30) { return entry.url }

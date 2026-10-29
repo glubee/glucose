@@ -19,12 +19,17 @@ struct GlucoseApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             // 업로드하지 못한 빠른 촬영 사진은 앱이 다시 열릴 때 재시도한다
-            if phase == .active {
+            if phase == .active, !RecordDataSource.isPreview {
                 Task { await PendingPhotoStore.shared.uploadPending() }
                 DayCloseStore.shared.applyHoneypots()
                 WidgetSnapshot.refresh()
                 Task { await NudgeScheduler.refresh() }
             }
+        }
+        .onChange(of: RecordChanges.shared.revision) { _, _ in
+            guard !RecordDataSource.isPreview else { return }
+            WidgetSnapshot.refresh(noteRecord: RecordChanges.shared.lastMutation == .created)
+            Task { await NudgeScheduler.refresh() }
         }
     }
 
@@ -32,7 +37,13 @@ struct GlucoseApp: App {
     private var content: some View {
         #if DEBUG
         // 실행 인자 -designCatalog 로 켜면 디자인 카탈로그를 바로 띄운다(시뮬레이터 확인용)
-        if ProcessInfo.processInfo.arguments.contains("-designCatalog") {
+        if ProcessInfo.processInfo.arguments.contains("-pendingPhotosSample") {
+            DebugPhotoFlow(mode: .pending)
+        } else if ProcessInfo.processInfo.arguments.contains("-dayClosePhotosSample") {
+            DebugPhotoFlow(mode: .dayClose)
+        } else if ProcessInfo.processInfo.arguments.contains("-quickCaptureSample") {
+            DebugPhotoFlow(mode: .quick)
+        } else if ProcessInfo.processInfo.arguments.contains("-designCatalog") {
             DesignCatalogView()
         } else if ProcessInfo.processInfo.arguments.contains("-tabs") {
             // 로그인 없이 탭 화면 보기
@@ -51,10 +62,9 @@ struct GlucoseApp: App {
             }
             .background(Color.canvas)
         } else if ProcessInfo.processInfo.arguments.contains("-chartDetail") {
-            // 로그인 없이 그래프 크게 보기(예시 데이터)
-            let sample = ReportSamples.daily(.now)
-            GlucoseDayDetailView(day: .now, points: sample.1, episodes: sample.0.episodes,
-                                 insulinEvents: sample.0.insulinEvents ?? [])
+            DebugReportFlow(showsChart: true)
+        } else if ProcessInfo.processInfo.arguments.contains("-dailyReportPreview") {
+            DebugReportFlow(showsChart: false)
         } else if ProcessInfo.processInfo.arguments.contains("-reports") {
             // 로그인 없이 리포트 탭 보기. -reportSample: 예시 값, -clinician: 진료용 리포트 시트, -weekly: 주간만
             if ProcessInfo.processInfo.arguments.contains("-clinician") {
@@ -73,7 +83,7 @@ struct GlucoseApp: App {
         } else if ProcessInfo.processInfo.arguments.contains("-insulinForm") {
             InsulinRecordFormView(mode: .edit(id: UUID()), units: 6, kind: "식사", onSaved: {})
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
-            ReviewView()
+            RecordsView(showsCloseButton: false)
         } else if ProcessInfo.processInfo.arguments.contains("-home") {
             // 로그인 없이 홈만 보기. -homeSeed: 최근 6일 완성 + 꿀단지, -homeRest: 쉬어가는 중
             HomeView()
@@ -108,8 +118,8 @@ struct GlucoseApp: App {
             // 로그인 없이 음식 사진 기록 화면 보기
             PhotoCaptureView()
         } else if ProcessInfo.processInfo.arguments.contains("-recognition") {
-            // 로그인 없이 음식 확인 화면 보기(예시 음식 2개)
-            NavigationStack { RecognitionResultView(photoId: UUID(), context: .meal) {} }
+            // 홈 위에서 열어 개발 모드에서도 취소·저장 후 돌아갈 곳이 있게 한다.
+            DebugRecognitionFlow()
         } else if ProcessInfo.processInfo.arguments.contains("-insulinConfirm") {
             // 로그인 없이 투여 확인 화면만 보기(평소 인슐린 2개 예시)
             InsulinConfirmView(preferences: .debugSample)

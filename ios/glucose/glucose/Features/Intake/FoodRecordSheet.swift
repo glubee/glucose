@@ -17,7 +17,13 @@ struct PhotoCaptureRequest: Identifiable {
 
 struct FoodRecordSheet: View {
     let onChoose: (PhotoCaptureRequest) -> Void
+    let onWrite: () -> Void
     @Environment(\.dismiss) private var dismiss
+
+    init(onWrite: @escaping () -> Void, onChoose: @escaping (PhotoCaptureRequest) -> Void) {
+        self.onWrite = onWrite
+        self.onChoose = onChoose
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
@@ -30,10 +36,30 @@ struct FoodRecordSheet: View {
                    tone: .plain, request: PhotoCaptureRequest(context: .meal, opensCamera: true))
             option(icon: "photo.on.rectangle", title: "앨범에서 고르기", subtitle: "찍어둔 사진으로 기록해요",
                    tone: .plain, request: PhotoCaptureRequest(context: .meal, opensCamera: false))
+            Button {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: onWrite)
+            } label: {
+                HStack(spacing: Spacing.s) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("글로 남기기").font(.headline2)
+                        Text("사진 없이 먹은 음식과 시각을 적어요.")
+                            .font(.caption1).foregroundStyle(Color.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color.textPrimary)
+                .card(padding: Spacing.s)
+            }
+            .buttonStyle(.plain)
             Spacer(minLength: 0)
         }
         .padding(Spacing.gutter)
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
     private func option(icon: String, title: String, subtitle: String, tone: CardTone,

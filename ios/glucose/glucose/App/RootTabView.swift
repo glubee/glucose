@@ -9,7 +9,7 @@ struct RootTabView: View {
     @State private var router = DeepLinkRouter.shared
 
     var body: some View {
-        // v5 탭: 홈 · 리포트 · 리뷰 · 설정 (지난 기록 목록은 리포트의 "전체 기록")
+        // 홈 · 리포트 · 기록 · 설정. 리포트의 전체 기록 시트도 같은 목록을 쓴다.
         TabView {
             HomeView()
                 .tabItem { Label("홈", systemImage: "house.fill") }
@@ -17,8 +17,8 @@ struct RootTabView: View {
             ReportsView()
                 .tabItem { Label("리포트", systemImage: "chart.bar.fill") }
 
-            ReviewView()
-                .tabItem { Label("리뷰", systemImage: "doc.text.fill") }
+            RecordsView(showsCloseButton: false)
+                .tabItem { Label("기록", systemImage: "list.bullet.rectangle") }
 
             SettingsView()
                 .tabItem { Label("설정", systemImage: "gearshape.fill") }
@@ -34,6 +34,7 @@ struct RootTabView: View {
             DayCloseView()
         }
         .task {
+            guard !RecordDataSource.isPreview else { return }
             // 로그인 직후에도 대기 중인 사진을 올린다
             await PendingPhotoStore.shared.uploadPending()
             #if DEBUG

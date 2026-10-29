@@ -9,10 +9,12 @@ import SwiftUI
 
 struct RecordDetailView: View {
     let item: RecordItem
+    var allowsEditing = true
     var onChanged: () async -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var showEditInsulin = false
+    @State private var showEditFood = false
 
     var body: some View {
         ScrollView {
@@ -39,6 +41,10 @@ struct RecordDetailView: View {
                         }
                     }
                     .card()
+
+                    Button("기록 고치기") { showEditFood = true }
+                        .buttonStyle(.glubeeSecondary)
+                        .disabled(!allowsEditing)
                 case .insulin(let record):
                     VStack(alignment: .leading, spacing: Spacing.s) {
                         SectionHeader(title: "인슐린 기록")
@@ -51,6 +57,7 @@ struct RecordDetailView: View {
 
                     Button("기록 고치기") { showEditInsulin = true }
                         .buttonStyle(.glubeeSecondary)
+                        .disabled(!allowsEditing)
                 }
             }
             .padding(.horizontal, Spacing.gutter)
@@ -66,9 +73,20 @@ struct RecordDetailView: View {
                     occurredAt: record.occurredAt,
                     units: record.units,
                     kind: record.kind,
-                    onSaved: { Task { await onChanged(); dismiss() } },
-                    onDeleted: { Task { await onChanged(); dismiss() } }
+                    onSaved: {
+                        Task { await onChanged(); dismiss() }
+                    },
+                    onDeleted: {
+                        Task { await onChanged(); dismiss() }
+                    }
                 )
+            }
+        }
+        .sheet(isPresented: $showEditFood) {
+            if case .intake(let record) = item {
+                FoodRecordFormView(record: record,
+                                   onSaved: { Task { await onChanged(); dismiss() } },
+                                   onDeleted: { Task { await onChanged(); dismiss() } })
             }
         }
     }

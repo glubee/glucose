@@ -12,12 +12,16 @@ struct RecordRow: View {
 
     var body: some View {
         HStack(spacing: Spacing.s) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .background(fill, in: Circle())
-                .accessibilityHidden(true)
+            if case .intake(let record) = item, let photoID = record.photoId {
+                FoodPhotoThumbnail(photoId: photoID, size: 48).accessibilityHidden(true)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 36, height: 36)
+                    .background(fill, in: Circle())
+                    .accessibilityHidden(true)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -61,7 +65,9 @@ struct RecordRow: View {
 
     private var title: String {
         switch item {
-        case .intake(let record): record.summary.isEmpty ? record.context.displayName : record.summary
+        case .intake(let record): record.items.isEmpty ? record.context.displayName : record.items.map {
+            $0.name + ($0.displayQuantity.map { " " + $0 } ?? "")
+        }.joined(separator: ", ")
         case .insulin(let record): "인슐린 \(record.units.formattedUnits)단위"
         }
     }

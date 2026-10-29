@@ -59,7 +59,7 @@ struct WeeklyOverlayChart: View {
             Chart {
                 ForEach(lines) { line in
                     LineMark(x: .value("시각", line.time), y: .value("혈당", line.value), series: .value("날", line.series))
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.linear)
                         .lineStyle(StrokeStyle(lineWidth: width(for: line.dayIndex), lineCap: .round, lineJoin: .round))
                         .foregroundStyle(color(for: line.dayIndex))
                 }

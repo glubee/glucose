@@ -8,7 +8,7 @@ import Foundation
 struct EditableFoodItem: Identifiable {
     let id = UUID()
     var name: String
-    var count: Int
+    var count: Int?
     var unit: String
     var categoryHint: String?
     var tags: [String]
@@ -18,12 +18,14 @@ struct EditableFoodItem: Identifiable {
     }
 
     func toRequest() -> IntakeItemRequest {
-        IntakeItemRequest(name: name, count: count, unit: unit, categoryHint: categoryHint, tags: tags)
+        let cleanedUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        return IntakeItemRequest(name: name.trimmingCharacters(in: .whitespacesAndNewlines), count: count,
+                                 unit: cleanedUnit.isEmpty ? nil : cleanedUnit, categoryHint: categoryHint, tags: tags)
     }
 }
 
 extension RecognizedFoodItem {
     var asEditableItem: EditableFoodItem {
-        EditableFoodItem(name: name, count: count ?? 1, unit: unit ?? "개", categoryHint: categoryHint, tags: tags)
+        EditableFoodItem(name: name, count: count, unit: unit ?? "", categoryHint: categoryHint, tags: tags)
     }
 }

@@ -12,23 +12,26 @@ import Foundation
 @Observable
 final class HomeViewModel {
 
-    let today: Date
-    let report: DailyReportViewModel
+    private(set) var today: Date
+    private(set) var report: DailyReportViewModel
+    let timeline: TodayTimelineViewModel
 
     private let store: DayCloseStore
-    private let photos: PendingPhotoStore
+    let photos: PendingPhotoStore
     private let preferences: UserPreferences
     /// 앱을 연 시점의 마지막 기록 시각(며칠째 안 왔는지)
     private let lastRecordAt: Date?
 
-    init(now: Date = .now, store: DayCloseStore = .shared, photos: PendingPhotoStore = .shared,
-         preferences: UserPreferences = .shared) {
-        today = ReportDay.calendar.startOfDay(for: now)
-        report = DailyReportViewModel(day: today)
-        self.store = store
-        self.photos = photos
-        self.preferences = preferences
-        lastRecordAt = WidgetSnapshot.load().lastRecordAt
+    init(now: Date = .now, store: DayCloseStore? = nil, photos: PendingPhotoStore? = nil,
+         preferences: UserPreferences? = nil, repository: RecordRepository? = nil) {
+        let day = ReportDay.calendar.startOfDay(for: now)
+        today = day
+        report = DailyReportViewModel(day: day)
+        timeline = TodayTimelineViewModel(repository: repository)
+        self.store = store ?? RecordDataSource.dayClose
+        self.photos = photos ?? RecordDataSource.photos
+        self.preferences = preferences ?? RecordDataSource.preferences
+        lastRecordAt = RecordDataSource.isPreview ? nil : WidgetSnapshot.load().lastRecordAt
     }
 
     var nickname: String { preferences.nickname }
@@ -41,12 +44,8 @@ final class HomeViewModel {
     /// 위젯으로 찍고 아직 확인하지 않은 사진 수(날짜 상관없이)
     var pendingPhotoCount: Int { photos.photos.count }
 
-    /// 오늘 남긴 기록 수(저장된 식사 묶음 + 인슐린 + 확인 대기 사진)
-    var todayRecordCount: Int {
-        let pending = photos.photos.filter { ReportDay.calendar.isDate($0.capturedAt, inSameDayAs: today) }.count
-        guard case .loaded(let dailyReport, _) = report.state else { return pending }
-        return dailyReport.episodes.count + dailyReport.insulinEventsCount + pending
-    }
+    var todayEntries: [TimelineEntry] { timeline.entries(photos: photos.photos) }
+    var todayRecordCount: Int { todayEntries.count }
 
     var restEndText: String? {
         guard let rest else { return nil }
@@ -97,19 +96,24 @@ final class HomeViewModel {
         func position(_ date: Date) -> Double {
             Double(calendar.dateComponents([.minute], from: today, to: date).minute ?? 0) / 1440
         }
-        var dots = photos.photos
-            .filter { calendar.isDate($0.capturedAt, inSameDayAs: today) }
-            .map { (position($0.capturedAt), false) }
-        if case .loaded(let dailyReport, _) = report.state {
-            dots += dailyReport.episodes.map { (position($0.startAt), false) }
-            dots += (dailyReport.insulinEvents ?? []).map { (position($0.occurredAt), true) }
+        return todayEntries.map { entry in
+            let isInsulin: Bool
+            if case .record(.insulin) = entry { isInsulin = true }
+            else { isInsulin = false }
+            return (position(entry.occurredAt), isInsulin)
         }
-        return dots.filter { $0.0 >= 0 && $0.0 <= 1 }
     }
 
-    func refresh() async {
-        await report.load()
-        WidgetSnapshot.refresh()
+    func refresh(now: Date = .now) async {
+        let day = ReportDay.calendar.startOfDay(for: now)
+        if day != today { today = day; report = DailyReportViewModel(day: day) }
+        let daily = report
+        async let reportLoad: Void = daily.load()
+        await timeline.load(day: day)
+        await reportLoad
+        guard !Task.isCancelled else { return }
+        timeline.prepareFocus(changes: .shared, photos: photos.photos)
+        if !RecordDataSource.isPreview { WidgetSnapshot.refresh() }
     }
 
     func startRest(_ reason: RestPeriod.Reason, days: Int) async {
