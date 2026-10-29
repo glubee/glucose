@@ -36,7 +36,13 @@ struct GlucoseApp: App {
     private var content: some View {
         #if DEBUG
         // 실행 인자 -designCatalog 로 켜면 디자인 카탈로그를 바로 띄운다(시뮬레이터 확인용)
-        if ProcessInfo.processInfo.arguments.contains("-designCatalog") {
+        if ProcessInfo.processInfo.arguments.contains("-pendingPhotosSample") {
+            DebugPhotoFlow(mode: .pending)
+        } else if ProcessInfo.processInfo.arguments.contains("-dayClosePhotosSample") {
+            DebugPhotoFlow(mode: .dayClose)
+        } else if ProcessInfo.processInfo.arguments.contains("-quickCaptureSample") {
+            DebugPhotoFlow(mode: .quick)
+        } else if ProcessInfo.processInfo.arguments.contains("-designCatalog") {
             DesignCatalogView()
         } else if ProcessInfo.processInfo.arguments.contains("-tabs") {
             // 로그인 없이 탭 화면 보기
@@ -112,8 +118,8 @@ struct GlucoseApp: App {
             // 로그인 없이 음식 사진 기록 화면 보기
             PhotoCaptureView()
         } else if ProcessInfo.processInfo.arguments.contains("-recognition") {
-            // 로그인 없이 음식 확인 화면 보기(예시 음식 2개)
-            NavigationStack { RecognitionResultView(photoId: UUID(), context: .meal) {} }
+            // 홈 위에서 열어 개발 모드에서도 취소·저장 후 돌아갈 곳이 있게 한다.
+            DebugRecognitionFlow()
         } else if ProcessInfo.processInfo.arguments.contains("-insulinConfirm") {
             // 로그인 없이 투여 확인 화면만 보기(평소 인슐린 2개 예시)
             InsulinConfirmView(preferences: .debugSample)

@@ -20,10 +20,26 @@ final class PhotoCaptureViewModel {
     private(set) var processedData: Data?
     private(set) var processedSizeDescription: String?
     private(set) var errorMessage: String?
+    private var selectionID = UUID()
+
+    func beginSelection() -> UUID {
+        selectionID = UUID()
+        return selectionID
+    }
+
+    func invalidateSelection() { selectionID = UUID() }
+
+    @discardableResult
+    func process(_ image: UIImage, selectionID: UUID) -> Bool {
+        guard selectionID == self.selectionID else { return false }
+        process(image)
+        return true
+    }
 
     var isReadyForUpload: Bool { processedData != nil }
 
     func process(_ image: UIImage) {
+        invalidateSelection()
         errorMessage = nil
         previewImage = image
 

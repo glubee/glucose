@@ -27,6 +27,13 @@
 			remoteGlobalIDString = B1F927183074EBCC008B72CB;
 			remoteInfo = glucose;
 		};
+		CE2000000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B1F927113074EBCC008B72CB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B1F927183074EBCC008B72CB;
+			remoteInfo = glucose;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -51,6 +58,7 @@
 		B13F48EE3090657100582C80 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		B1F927193074EBCC008B72CB /* glucose.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = glucose.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE1000000000000000000002 /* glucoseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = glucoseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE2000000000000000000002 /* glucoseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = glucoseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -82,6 +90,11 @@
 			path = glucoseTests;
 			sourceTree = "<group>";
 		};
+		CE2000000000000000000003 /* glucoseUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = glucoseUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +115,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CE1000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE2000000000000000000005 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -134,6 +154,7 @@
 			children = (
 				1A466DFD3A084B04B710753D /* Config */,
 				B1F9271B3074EBCC008B72CB /* glucose */,
+				CE2000000000000000000003 /* glucoseUITests */,
 				CE1000000000000000000003 /* glucoseTests */,
 				B13F48F03090657100582C80 /* GlubeeWidgets */,
 				B13F48EB3090657100582C80 /* Frameworks */,
@@ -145,6 +166,7 @@
 			isa = PBXGroup;
 			children = (
 				B1F927193074EBCC008B72CB /* glucose.app */,
+				CE2000000000000000000002 /* glucoseUITests.xctest */,
 				CE1000000000000000000002 /* glucoseTests.xctest */,
 				B13F48EA3090657100582C80 /* GlubeeWidgetsExtension.appex */,
 			);
@@ -221,6 +243,27 @@
 			productReference = CE1000000000000000000002 /* glucoseTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		CE2000000000000000000001 /* glucoseUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE200000000000000000000B /* Build configuration list for PBXNativeTarget "glucoseUITests" */;
+			buildPhases = (
+				CE2000000000000000000004 /* Sources */,
+				CE2000000000000000000005 /* Frameworks */,
+				CE2000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CE2000000000000000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CE2000000000000000000003 /* glucoseUITests */,
+			);
+			name = glucoseUITests;
+			productName = glucoseUITests;
+			productReference = CE2000000000000000000002 /* glucoseUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -253,6 +296,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				CE2000000000000000000001 /* glucoseUITests */,
 				CE1000000000000000000001 /* glucoseTests */,
 				B1F927183074EBCC008B72CB /* glucose */,
 				B13F48E93090657100582C80 /* GlubeeWidgetsExtension */,
@@ -276,6 +320,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CE1000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE2000000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -306,6 +357,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CE2000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -318,6 +376,11 @@
 			isa = PBXTargetDependency;
 			target = B1F927183074EBCC008B72CB /* glucose */;
 			targetProxy = CE1000000000000000000007 /* PBXContainerItemProxy */;
+		};
+		CE2000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B1F927183074EBCC008B72CB /* glucose */;
+			targetProxy = CE2000000000000000000007 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -617,6 +680,34 @@
 			};
 			name = Release;
 		};
+		CE2000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glubee.glubee.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = glucose;
+			};
+			name = Debug;
+		};
+		CE200000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.glubee.glubee.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = glucose;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -652,6 +743,15 @@
 			buildConfigurations = (
 				CE1000000000000000000009 /* Debug */,
 				CE100000000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE200000000000000000000B /* Build configuration list for PBXNativeTarget "glucoseUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE2000000000000000000009 /* Debug */,
+				CE200000000000000000000A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

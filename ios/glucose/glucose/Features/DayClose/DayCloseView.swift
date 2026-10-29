@@ -16,10 +16,13 @@ struct DayCloseView: View {
     @State private var showHowTo = false
     @State private var showFoodRecord = false
     @State private var showInsulinRecord = false
-    @State private var path: [PendingPhoto] = []
+    @State private var path: [UUID] = []
+    @State private var deletionCandidate: UUID?
+    @State private var showsDeleteConfirm = false
+    @State private var showsDeleteError = false
 
-    init(day: Date? = nil) {
-        _viewModel = State(initialValue: DayCloseViewModel(day: day))
+    init(day: Date? = nil, photoStore: PendingPhotoStore? = nil) {
+        _viewModel = State(initialValue: DayCloseViewModel(day: day, photoStore: photoStore ?? .shared))
     }
 
     var body: some View {
@@ -51,12 +54,10 @@ struct DayCloseView: View {
                     }
                 }
             }
-            .navigationDestination(for: PendingPhoto.self) { photo in
-                if let photoId = photo.photoId {
-                    RecognitionResultView(photoId: photoId, context: photo.context, occurredAt: photo.capturedAt) {
-                        path.removeAll()
-                        Task { await viewModel.confirmed(photo) }
-                    }
+            .navigationDestination(for: UUID.self) { id in
+                PendingPhotoDetailView(photoID: id, store: viewModel.photoStore) {
+                    path.removeAll()
+                    Task { await viewModel.refresh() }
                 }
             }
         }
@@ -70,6 +71,15 @@ struct DayCloseView: View {
         .sheet(isPresented: $showHowTo) { CaptureHowToSheet() }
         .sheet(isPresented: $showFoodRecord, onDismiss: { Task { await viewModel.refresh() } }) { PhotoCaptureView() }
         .sheet(isPresented: $showInsulinRecord, onDismiss: { Task { await viewModel.refresh() } }) { InsulinConfirmView() }
+        .alert("이 사진을 지울까요?", isPresented: $showsDeleteConfirm,
+                            presenting: deletionCandidate) { id in
+            Button("사진 지우기", role: .destructive) { showsDeleteError = !viewModel.photoStore.remove(id) }
+            Button("취소", role: .cancel) {}
+        } message: { _ in Text(PendingPhotoDeletion.message) }
+        .alert(viewModel.photoStore.errorMessage ?? "사진을 지우지 못했어요.", isPresented: $showsDeleteError) {
+            Button("확인", role: .cancel) {}
+        }
+        .onChange(of: viewModel.photoStore.photos.map(\.id)) { _, ids in path.removeAll { !ids.contains($0) } }
         .animation(.spring(duration: 0.35), value: viewModel.step)
     }
 
@@ -195,31 +205,48 @@ struct DayCloseView: View {
 
     private var photosStep: some View {
         let pending = viewModel.pendingPhotos
-        return stepPage(pose: nil, title: "낮에 찍은 사진을\n확인해 주세요") {
-            Text(pending.isEmpty ? "확인할 사진이 없어요." : "\(pending.count)개 남았어요. 누르면 음식 확인 화면이 열려요.")
-                .font(.body2).foregroundStyle(Color.textSecondary)
-
-            if case .loaded(let report, let points) = viewModel.report.state, !points.isEmpty {
-                GlucoseDayChart(day: viewModel.day, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [], height: 170)
-            }
-
-            VStack(spacing: 0) {
+        return VStack(spacing: 0) {
+            List {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    Text("낮에 찍은 사진을\n확인해 주세요")
+                        .font(.headline1).foregroundStyle(Color.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(pending.isEmpty ? "확인할 사진이 없어요." : "\(pending.count)개 남았어요. 눌러서 확인하거나 옆 버튼으로 지울 수 있어요.")
+                        .font(.body2).foregroundStyle(Color.textSecondary)
+                    if case .loaded(let report, let points) = viewModel.report.state, !points.isEmpty {
+                        GlucoseDayChart(day: viewModel.day, points: points, episodes: report.episodes,
+                                        insulinEvents: report.insulinEvents ?? [], height: 170)
+                    }
+                }
+                .listRowSeparator(.hidden).listRowBackground(Color.clear)
                 ForEach(timeline) { row in
-                    TimelineRow(row: row,
-                                isUploading: viewModel.isUploadingPhotos,
-                                onOpen: { if case .photo(let photo) = row.kind { path.append(photo) } },
-                                onRetry: { Task { await viewModel.retryUploads() } },
-                                onDiscard: { if case .photo(let photo) = row.kind { viewModel.discard(photo) } })
-                    Divider()
+                    if case .photo(let photo) = row.kind {
+                        PendingPhotoRow(photo: photo, store: viewModel.photoStore,
+                            onOpen: { path.append(photo.id) }, onDelete: { askToDelete(photo.id) })
+                            .listRowSeparator(.hidden).listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 6, leading: Spacing.gutter, bottom: 6, trailing: Spacing.gutter))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button { askToDelete(photo.id) } label: { Label("지우기", systemImage: "trash") }
+                                    .tint(Color.alert).accessibilityLabel("밀어서 사진 지우기")
+                            }
+                    } else {
+                        TimelineRow(row: row, isUploading: false, onOpen: {}, onRetry: {}, onDiscard: {})
+                            .listRowBackground(Color.clear)
+                    }
                 }
             }
-        } actions: {
+            .listStyle(.plain).scrollContentBackground(.hidden)
+            .refreshable { await viewModel.refresh(); await viewModel.retryUploads() }
             Button("다음 · 인슐린 확인") { viewModel.goToInsulin() }
                 .buttonStyle(pending.isEmpty ? .glubeePrimary : .glubeeMuted)
                 .disabled(!pending.isEmpty)
+                .padding(.horizontal, Spacing.gutter).padding(.bottom, Spacing.s)
         }
-        .refreshable { await viewModel.refresh() }
+    }
+
+    private func askToDelete(_ id: UUID) {
+        deletionCandidate = id
+        showsDeleteConfirm = true
     }
 
     /// 그날 기록을 시간순으로: 확인 대기 사진, 이미 저장된 식사·인슐린

@@ -30,6 +30,13 @@ final class RecognitionResultViewModel {
 
     var items: [EditableFoodItem] { draft.items }
     var isSaveEnabled: Bool { draft.isValid }
+    var isPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-recognition")
+        #else
+        false
+        #endif
+    }
 
     /// 화면을 닫으면 SwiftUI task와 함께 결과 조회도 취소된다.
     func loadRecognition() async {
@@ -77,6 +84,7 @@ final class RecognitionResultViewModel {
     }
 
     func confirm() async -> Bool {
+        guard !isPreview else { return false }
         guard isSaveEnabled, state != .polling, state != .saving, state != .saved else { return false }
         state = .saving
         saveErrorMessage = nil

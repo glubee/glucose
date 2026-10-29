@@ -1,12 +1,20 @@
 import SwiftUI
+import UIKit
 
 struct RecognitionResultView: View {
     @State private var viewModel: RecognitionResultViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showsDeleteConfirm = false
+    @State private var showsDeleteError = false
+    private let previewImage: UIImage?
+    private let onDeletePhoto: (() -> Bool)?
     let onSaved: () -> Void
 
-    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now, onSaved: @escaping () -> Void) {
+    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now, previewImage: UIImage? = nil,
+         onDeletePhoto: (() -> Bool)? = nil, onSaved: @escaping () -> Void) {
         _viewModel = State(initialValue: RecognitionResultViewModel(photoId: photoId, context: context, occurredAt: occurredAt))
+        self.previewImage = previewImage
+        self.onDeletePhoto = onDeletePhoto
         self.onSaved = onSaved
     }
 
@@ -14,6 +22,17 @@ struct RecognitionResultView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.l) {
+                    if viewModel.isPreview {
+                        Label("미리보기 화면이에요. 실제 기록은 저장하지 않아요.", systemImage: "eye")
+                            .font(.caption1).foregroundStyle(Color.textSecondary)
+                            .accessibilityIdentifier("recognitionPreviewNotice")
+                    }
+                    if let previewImage {
+                        Image(uiImage: previewImage).resizable().scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                            .accessibilityLabel("확인 대기 사진")
+                    }
                     switch viewModel.state {
                     case .polling:
                         VStack(spacing: Spacing.m) {
@@ -33,6 +52,14 @@ struct RecognitionResultView: View {
                     if viewModel.state != .polling {
                         FoodRecordFields(draft: $viewModel.draft)
                             .disabled(isBusy || viewModel.state == .saved)
+                    }
+                    if onDeletePhoto != nil {
+                        Button("사진 지우기", role: .destructive) { showsDeleteConfirm = true }
+                            .font(.body2.weight(.semibold))
+                            .foregroundStyle(Color.alert)
+                            .frame(maxWidth: .infinity, minHeight: Metrics.minTapTarget)
+                            .disabled(isBusy || viewModel.state == .saved)
+                            .accessibilityIdentifier("deletePendingPhoto")
                     }
                 }
                 .padding(.horizontal, Spacing.gutter)
@@ -70,12 +97,23 @@ struct RecognitionResultView: View {
             }
         }
         .interactiveDismissDisabled(isBusy)
+        .alert("이 사진을 지울까요?", isPresented: $showsDeleteConfirm) {
+            Button("사진 지우기", role: .destructive) {
+                guard !isBusy else { return }
+                showsDeleteError = onDeletePhoto?() == false
+            }
+            Button("취소", role: .cancel) {}
+        } message: { Text(PendingPhotoDeletion.message) }
+        .alert("사진을 지우지 못했어요. 다시 시도해 주세요.", isPresented: $showsDeleteError) {
+            Button("확인", role: .cancel) {}
+        }
         .task { await viewModel.loadRecognition() }
     }
 
     private var isBusy: Bool { viewModel.state == .saving }
     private var canSave: Bool {
-        switch viewModel.state {
+        guard !viewModel.isPreview else { return false }
+        return switch viewModel.state {
         case .ready, .notFoodPhoto, .failed: viewModel.isSaveEnabled
         default: false
         }

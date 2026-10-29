@@ -36,7 +36,7 @@ struct PhotoCaptureView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Spacing.l) {
                         contextSection
-                        photoSection
+                        photoSection.disabled(isUploadInFlight)
                         if let errorMessage = viewModel.errorMessage {
                             Label(errorMessage, systemImage: "exclamationmark.circle")
                                 .font(.body2)
@@ -63,6 +63,8 @@ struct PhotoCaptureView: View {
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView { image in
                     showCamera = false
+                    guard !isUploadInFlight else { return }
+                    uploadViewModel.reset()
                     viewModel.process(image)
                 }
                 .ignoresSafeArea()
@@ -214,14 +216,16 @@ struct PhotoCaptureView: View {
     }
 
     private func loadPickedImage(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
+        guard let item, !isUploadInFlight else { return }
         photosPickerItem = nil
+        let selectionID = viewModel.beginSelection()
         do {
             guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
                 viewModel.setError("사진을 불러오지 못했어요.")
                 return
             }
-            viewModel.process(image)
+            guard !isUploadInFlight else { return }
+            if viewModel.process(image, selectionID: selectionID) { uploadViewModel.reset() }
         } catch {
             viewModel.setError("사진을 불러오지 못했어요.")
         }
@@ -229,6 +233,7 @@ struct PhotoCaptureView: View {
 
     private func startUpload() {
         guard let data = viewModel.processedData else { return }
+        viewModel.invalidateSelection()
         let context = viewModel.context
         Task { await uploadViewModel.upload(imageData: data, context: context) }
     }
