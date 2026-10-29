@@ -73,6 +73,10 @@ struct GlucoseDayChart: View {
     var onSelectPhoto: ((ChartPhotoGroup) -> Void)? = nil
     var eventSelection: Binding<String?>? = nil
     var onSelectEventCluster: ((ChartEventCluster) -> Void)? = nil
+    /// 선택한 값을 그래프 안 말풍선으로 보여줄지. 그래프 밖 띠로 보여주는 화면(DayChartExplorer)은 끈다(사진에 가리지 않게)
+    var showsSelectionCallout = true
+    /// 끌기 대신 눌러서 시각을 고른다. 리포트 안에서 그래프 위를 세로로 끌어도 화면이 스크롤되게 한다
+    var selectsByTap = false
 
     private var dayRange: ClosedRange<Date> {
         let start = ReportDay.calendar.startOfDay(for: day)
@@ -145,14 +149,29 @@ struct GlucoseDayChart: View {
             ForEach(Array(marks.enumerated()), id: \.offset) { index, mark in
                 RuleMark(x: .value("기록", mark.occurredAt))
                     .lineStyle(StrokeStyle(lineWidth: eventWidth("intake-\(index)"), dash: [3, 3]))
-                    .foregroundStyle((mark.context == .hypoTreatment ? Color.mintStrong : Color.brand).opacity(eventOpacity("intake-\(index)")))
+                    .foregroundStyle(mark.context.tint.opacity(eventOpacity("intake-\(index)")))
                     .annotation(position: .top, spacing: 2) {
                         if eventSelection == nil && (!showsPhotos || mark.photoId == nil) {
                             Image(systemName: mark.context.systemImage)
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(mark.context == .hypoTreatment ? Color.mintStrong : Color.onBrandSoft)
+                                .foregroundStyle(mark.context.tint)
                         }
                     }
+            }
+
+            // 사진은 그 시각 곡선 값에 붙인다. 그래프 안의 점에 달려 있어서 옆으로 넘기거나 확대해도 곡선과 함께 움직인다
+            if showsPhotos && eventSelection == nil {
+                ForEach(photoGroups) { group in
+                    PointMark(x: .value("사진", group.time),
+                              y: .value("혈당", group.anchorValue ?? Double(yDomain.lowerBound + 10)))
+                        .symbolSize(36)
+                        .foregroundStyle(group.members[0].mark.context.tint)
+                        .annotation(position: .top, spacing: 4,
+                                    overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))) {
+                            ChartPhotoBadge(group: group, size: 34)
+                                .opacity(selection?.wrappedValue == nil ? 1 : 0.3)
+                        }
+                }
             }
 
             ForEach(Array(insulinEvents.enumerated()), id: \.offset) { index, event in
@@ -171,21 +190,23 @@ struct GlucoseDayChart: View {
                     .lineStyle(StrokeStyle(lineWidth: 2))
                     .foregroundStyle(Color.brand)
                 PointMark(x: .value("선택", point.time), y: .value("혈당", point.value))
-                    .symbolSize(70)
+                    .symbolSize(90)
                     .foregroundStyle(Color.textPrimary)
                     .annotation(position: .top, spacing: 6,
                                 overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
-                        VStack(spacing: 2) {
-                            Text("\(point.value)")
-                                .font(.pretendard(17, relativeTo: .headline, weight: .bold))
-                            Text(ReportDay.timeString(from: point.time))
-                                .font(.caption1)
-                                .foregroundStyle(Color.textSecondary)
+                        if showsSelectionCallout {
+                            VStack(spacing: 2) {
+                                Text("\(point.value)")
+                                    .font(.pretendard(17, relativeTo: .headline, weight: .bold))
+                                Text(ReportDay.timeString(from: point.time))
+                                    .font(.caption1)
+                                    .foregroundStyle(Color.textSecondary)
+                            }
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, Spacing.xxs)
+                            .background(Color.canvas, in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.line))
                         }
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, Spacing.xxs)
-                        .background(Color.canvas, in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.line))
                     }
             }
         }
@@ -220,44 +241,6 @@ struct GlucoseDayChart: View {
                             .offset(x: frame.minX, y: frame.minY)
                     }
                 }
-            } else if showsPhotos {
-                GeometryReader { geometry in
-                    if let container = proxy.plotContainerFrame {
-                        let frame = geometry[container]
-                        let start = (visibleHours ?? 24) < 24
-                            ? (scrollPosition?.wrappedValue ?? dayRange.lowerBound) : dayRange.lowerBound
-                        let span = TimeInterval((visibleHours ?? 24) * 3600)
-                        let groups = photoGroups
-                        let anchors = groups.compactMap { group -> PhotoMarkerLayout.Anchor? in
-                            guard let value = group.anchorValue, let y = proxy.position(forY: value) else { return nil }
-                            let x = group.time.timeIntervalSince(start) / span * frame.width
-                            return .init(id: group.id, point: CGPoint(x: x, y: y))
-                        }
-                        let placements = PhotoMarkerLayout.place(anchors: anchors, bounds: frame.size)
-                        ZStack(alignment: .topLeading) {
-                            ForEach(placements) { placement in
-                                Path { path in
-                                    path.move(to: placement.anchor)
-                                    path.addLine(to: CGPoint(x: placement.frame.midX, y: placement.frame.midY))
-                                }
-                                .stroke(Color.brand, lineWidth: 1)
-                                .allowsHitTesting(false)
-                                if let group = groups.first(where: { $0.id == placement.id }) {
-                                    Button { onSelectPhoto?(group) } label: {
-                                        ChartPhotoBadge(group: group, size: 34)
-                                            .frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("\(ReportDay.timeString(from: group.time)) 음식 사진 \(group.members.count)장")
-                                    .accessibilityIdentifier("chartPhoto-\(ReportDay.timeString(from: group.time))")
-                                    .position(x: placement.frame.midX, y: placement.frame.midY)
-                                }
-                            }
-                        }
-                        .frame(width: frame.width, height: frame.height, alignment: .topLeading)
-                        .offset(x: frame.minX, y: frame.minY)
-                    }
-                }
             }
         }
 
@@ -275,6 +258,15 @@ struct GlucoseDayChart: View {
                                 proxy.selectXValue(at: value.location.x)
                             }
                         }
+                } else if selectsByTap {
+                    chart
+                        .chartScrollableAxes(.horizontal)
+                        .chartXVisibleDomain(length: displayDuration)
+                        .chartScrollPosition(x: scrollPosition)
+                        .chartXSelection(value: selection)
+                        .chartGesture { proxy in
+                            SpatialTapGesture().onEnded { proxy.selectXValue(at: $0.location.x) }
+                        }
                 } else {
                     chart
                         .chartScrollableAxes(.horizontal)
@@ -282,6 +274,12 @@ struct GlucoseDayChart: View {
                         .chartScrollPosition(x: scrollPosition)
                         .chartXSelection(value: selection)
                 }
+            } else if let selection, selectsByTap {
+                chart
+                    .chartXSelection(value: selection)
+                    .chartGesture { proxy in
+                        SpatialTapGesture().onEnded { proxy.selectXValue(at: $0.location.x) }
+                    }
             } else if let selection {
                 chart.chartXSelection(value: selection)
             } else {

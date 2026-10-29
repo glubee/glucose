@@ -4,7 +4,7 @@
 //
 //  사실만 보여준다: 혈당이 어땠는지, 무엇을 언제 기록했는지. 인슐린 용량·식사량 조언은 하지 않는다.
 //  판단에 필요한 데이터가 없으면 "아니다"가 아니라 "판단할 수 없다"고 표시한다.
-//  하루 이야기 → 평균·데이터 칩 → 사진이 있는 하루 흐름 → 음식 관찰·기록 묶음·인슐린.
+//  하루 흐름(사진이 붙은 그래프 + 시각순 기록) → 하루 이야기 → 평균·데이터 칩 → 흐름 안내 → 음식 관찰.
 //
 
 import SwiftUI
@@ -39,23 +39,24 @@ struct DailyReportView: View {
                 case .failed(let message):
                     ReportLoadState(message: message) { Task { await viewModel.load() } }
                 case .loaded(let report, let points):
+                    // v5 순서(Dave 2026-10-29): 그래프(시각별 확인) → 하루 이야기 → 숫자 → 흐름 안내.
+                    // "섭취 기록 묶음 n건"·인슐린 목록 카드는 그래프 아래 "이날 기록"(시각순)으로 대신한다.
+                    if viewModel.requiresGraphReprocessing {
+                        reprocessCard
+                    }
+                    chartCard(report: report, points: viewModel.requiresGraphReprocessing ? [] : points)
                     if let story = report.story, !story.isEmpty {
                         DailyStoryCard(story: story, evidence: report.summary ?? [])
                     } else {
                         ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
                     }
-                    if viewModel.requiresGraphReprocessing {
-                        reprocessCard
-                    } else {
+                    if !viewModel.requiresGraphReprocessing {
                         glucoseHero(report: report)
                     }
-                    chartCard(report: report, points: viewModel.requiresGraphReprocessing ? [] : points)
                     if let insights = report.insights, !insights.isEmpty {
                         DailyInsightsCard(insights: insights)
                     }
                     FoodObservationSection(state: viewModel.foodAnalysis)
-                    episodesCard(report.episodes, reboundThreshold: report.reboundGlucoseThreshold)
-                    insulinCard(report: report)
                     educationCards(report.educationCards)
                     if store.isClosed(viewModel.day) {
                         ReportBeeNote(title: "이 날 하루를 완성했어요.")
@@ -170,8 +171,19 @@ struct DailyReportView: View {
     private func chartCard(report: DailyReport, points: [GlucosePoint]) -> some View {
         if report.glucose != nil || report.episodes.flatMap(\.marks).contains(where: { $0.photoId != nil }) {
             VStack(alignment: .leading, spacing: Spacing.s) {
-                SectionHeader(title: "하루 흐름",
-                              trailing: "식사 \(report.episodes.count) · 인슐린 \(report.insulinEventsCount)")
+                HStack {
+                    SectionHeader(title: "하루 흐름")
+                    Button {
+                        chartDetail = ChartDetailSnapshot(day: viewModel.day, report: report, points: points)
+                    } label: {
+                        Label("크게 보기", systemImage: "arrow.up.left.and.arrow.down.right")
+                            .font(.caption1.weight(.semibold))
+                    }
+                    .accessibilityIdentifier("openChartDetail")
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(minHeight: Metrics.minTapTarget)
+                    .disabled(points.isEmpty)
+                }
                 if points.isEmpty {
                     Text("읽힌 혈당값이 없어 곡선을 표시할 수 없어요.")
                         .font(.body2).foregroundStyle(Color.textSecondary)
@@ -180,16 +192,9 @@ struct DailyReportView: View {
                         selectedPhoto = $0
                     }
                 } else {
-                    InteractiveGlucoseChart(day: viewModel.day, points: points,
-                                    episodes: report.episodes, insulinEvents: report.insulinEvents ?? [],
-                                    showsPhotos: true, onSelectPhoto: { selectedPhoto = $0 })
-                    ChartLegend()
-                    Button {
-                        chartDetail = ChartDetailSnapshot(day: viewModel.day, report: report, points: points)
-                    } label: {
-                        Label("크게 보고 시각별로 확인하기", systemImage: "arrow.up.left.and.arrow.down.right")
-                    }
-                    .buttonStyle(.glubeeSecondary)
+                    DayChartExplorer(day: viewModel.day, points: points,
+                                     episodes: report.episodes, insulinEvents: report.insulinEvents ?? [],
+                                     chartHeight: 300, onSelectPhoto: { selectedPhoto = $0 })
                 }
             }
             .card()
@@ -199,59 +204,6 @@ struct DailyReportView: View {
     private func closePhotoScreens() {
         selectedPhoto = nil
         chartDetail = nil
-    }
-
-    // MARK: - 기록(에피소드)
-
-    private func episodesCard(_ episodes: [DailyReport.Episode], reboundThreshold: Int?) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            SectionHeader(title: "섭취 기록 묶음", trailing: "\(episodes.count)건")
-            if episodes.isEmpty {
-                Text("이 날 기록이 없어요.")
-                    .font(.body2)
-                    .foregroundStyle(Color.textSecondary)
-            } else {
-                ForEach(Array(episodes.enumerated()), id: \.element.id) { index, episode in
-                    if index > 0 { Divider().overlay(Color.line) }
-                    EpisodeRow(episode: episode, reboundThreshold: reboundThreshold)
-                }
-            }
-        }
-        .card()
-    }
-
-    // MARK: - 인슐린
-
-    private func insulinCard(report: DailyReport) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            SectionHeader(title: "인슐린 기록", trailing: "\(report.insulinEventsCount)건")
-            if let events = report.insulinEvents, !events.isEmpty {
-                ForEach(Array(events.enumerated()), id: \.offset) { _, event in
-                    HStack(spacing: Spacing.s) {
-                        Image(systemName: "syringe")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.insulin)
-                            .frame(width: 32, height: 32)
-                            .background(Color.canvas, in: Circle())
-                            .accessibilityHidden(true)
-                        Text(ReportDay.timeString(from: event.occurredAt))
-                            .font(.pretendard(16, relativeTo: .body, weight: .bold))
-                            .monospacedDigit()
-                        Text("\(event.units.formatted())단위 · \(event.kind)")
-                            .font(.body2)
-                            .foregroundStyle(Color.textSecondary)
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(Color.textPrimary)
-                    .accessibilityElement(children: .combine)
-                }
-            } else if report.insulinEventsCount == 0 {
-                Text("이 날 인슐린 기록이 없어요.")
-                    .font(.body2)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-        .card(.insulin)
     }
 
     // MARK: - 교육 카드(서버 고정 문구)
@@ -274,99 +226,7 @@ struct DailyReportView: View {
 }
 
 /// 곡선 아래 범례: 선 = 읽힌 혈당, 점선 = 기록 시각
-private struct ChartLegend: View {
-    var body: some View {
-        HStack(spacing: Spacing.s) {
-            item(Color.textPrimary, "읽힌 혈당", dashed: false)
-            item(Color.brand, "음식 기록", dashed: true)
-            item(Color.insulin, "인슐린", dashed: true)
-            Spacer(minLength: 0)
-        }
-        .font(.caption1)
-        .foregroundStyle(Color.textSecondary)
-        .accessibilityHidden(true)
-    }
 
-    private func item(_ color: Color, _ title: String, dashed: Bool) -> some View {
-        HStack(spacing: 4) {
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: 1))
-                path.addLine(to: CGPoint(x: 14, y: 1))
-            }
-            .stroke(color, style: StrokeStyle(lineWidth: 2, dash: dashed ? [3, 2] : []))
-            .frame(width: 14, height: 2)
-            Text(title)
-        }
-    }
-}
-
-private struct EpisodeRow: View {
-    let episode: DailyReport.Episode
-    let reboundThreshold: Int?
-
-    private var thresholdText: String {
-        reboundThreshold.map { "\($0) mg/dL" } ?? "반동 기준"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack(spacing: Spacing.s) {
-                Image(systemName: episode.effectiveContext.systemImage)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(episode.effectiveContext == .hypoTreatment ? Color.mintStrong : Color.onBrandSoft)
-                    .frame(width: 32, height: 32)
-                    .background(episode.effectiveContext == .hypoTreatment ? Color.mintSoft : Color.brandSoft,
-                                in: Circle())
-                    .accessibilityHidden(true)
-                Text(ReportDay.timeString(from: episode.startAt))
-                    .font(.pretendard(16, relativeTo: .body, weight: .bold))
-                    .monospacedDigit()
-                Text(episode.effectiveContext.displayName)
-                    .font(.body1)
-                Spacer(minLength: 0)
-                Text("기록 \(episode.intakeCount)건")
-                    .font(.caption1)
-                    .foregroundStyle(Color.textSecondary)
-            }
-            .foregroundStyle(Color.textPrimary)
-
-            if let foods = episode.foods, !foods.isEmpty {
-                Text(foods.joined(separator: ", "))
-                    .font(.body2)
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(.leading, 32 + Spacing.s)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if episode.autoReclassified == true {
-                note("직전 혈당이 낮아서 저혈당 처치로 분류했어요 (기록할 때: \(episode.originalContext.displayName))",
-                     systemImage: "arrow.triangle.2.circlepath")
-            }
-
-            if episode.effectiveContext == .hypoTreatment {
-                switch episode.reboundDetected {
-                case .some(true):
-                    note("처치 후 \(ReportDay.timeString(from: episode.windowEndAt))까지 \(thresholdText)을 넘는 값이 읽혔어요",
-                         systemImage: "arrow.up.right")
-                case .some(false):
-                    note("처치 후 \(ReportDay.timeString(from: episode.windowEndAt))까지 읽힌 구간에서는 \(thresholdText)을 넘는 값이 없었어요",
-                         systemImage: "info.circle")
-                case .none:
-                    note("처치 기록 뒤 구간에 읽힌 값이 없어 확인할 수 없어요", systemImage: "questionmark.circle")
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func note(_ text: String, systemImage: String) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption1)
-            .foregroundStyle(Color.textSecondary)
-            .padding(.leading, 44)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-}
 
 #Preview {
     NavigationStack {

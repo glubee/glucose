@@ -20,6 +20,7 @@ struct HomeView: View {
     @State private var selectedPendingPhoto: PendingPhoto?
     @State private var showAllRecords = false
     @State private var highlightedID: String?
+    @State private var showTodayChart = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -141,11 +142,6 @@ struct HomeView: View {
 
                         todayFlowCard
                             .padding(.top, 14)
-                        HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
-                            openPending: { selectedPendingPhoto = $0 },
-                            takePhoto: { showFoodSheet = true }, writeFood: { showManualFood = true },
-                            showAll: { showAllRecords = true })
-                            .padding(.top, Spacing.l)
                             .padding(.bottom, Spacing.l)
                     }
                     .padding(.horizontal, Spacing.l)
@@ -212,15 +208,28 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// 오늘의 흐름: 그래프가 있으면 곡선, 없으면 목표 범위 띠 + 오늘 기록 점.
+    /// 오늘의 흐름: 그래프(있으면 곡선, 없으면 기록 점) + 아래로 이어지는 오늘 기록 시간줄과 바로 더하기.
     /// 이 옆에는 글루비를 두지 않는다(평온 규칙)
     private var todayFlowCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("오늘의 흐름").font(.pretendard(17, relativeTo: .headline, weight: .bold)).foregroundStyle(Color.textPrimary)
             switch viewModel.report.state {
             case .loaded(let report, let points) where !points.isEmpty:
-                InteractiveGlucoseChart(day: viewModel.today, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [], height: 220)
+                // 홈은 한눈에 보는 그래프만(옆으로 넘기기 없음). 누르면 크게 보기에서 시각별로 확인한다
+                GlucoseDayChart(day: viewModel.today, points: points, episodes: report.episodes,
+                                insulinEvents: report.insulinEvents ?? [], height: 200)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showTodayChart = true }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("눌러서 크게 보기")
+                    .accessibilityIdentifier("homeTodayChart")
+                    .fullScreenCover(isPresented: $showTodayChart) {
+                        GlucoseDayDetailView(day: viewModel.today, points: points, episodes: report.episodes,
+                                             insulinEvents: report.insulinEvents ?? [])
+                    }
+                Text("그래프를 누르면 크게 보고 시각별로 확인할 수 있어요.")
+                    .font(.caption1)
+                    .foregroundStyle(Color.textSecondary)
             default:
                 GeometryReader { geometry in
                     ZStack(alignment: .topLeading) {
@@ -229,7 +238,7 @@ struct HomeView: View {
                         Rectangle().fill(Color.line).frame(height: 1).offset(y: 95)
                         ForEach(Array(viewModel.todayDots.enumerated()), id: \.offset) { _, dot in
                             Circle()
-                                .fill(dot.isInsulin ? Color(red: 0xC9 / 255, green: 0xA6 / 255, blue: 0xE0 / 255) : Color.brand)
+                                .fill(dot.isInsulin ? Color.insulin : IntakeContext.meal.tint)
                                 .frame(width: 12, height: 12)
                                 .position(x: max(6, min(geometry.size.width - 6, geometry.size.width * dot.position)), y: 80)
                         }
@@ -243,6 +252,13 @@ struct HomeView: View {
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Divider().overlay(Color.line).padding(.vertical, Spacing.xxs)
+            HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
+                openPending: { selectedPendingPhoto = $0 },
+                takePhoto: { showFoodSheet = true }, writeFood: { showManualFood = true },
+                addInsulin: { showInsulin = true },
+                showAll: { showAllRecords = true })
         }
         .padding(.horizontal, 18)
         .padding(.vertical, Spacing.m)

@@ -20,7 +20,7 @@ struct ChartEvent: Identifiable {
     }
     var color: Color {
         switch kind {
-        case .intake(let mark): mark.context == .hypoTreatment ? .mintStrong : .onBrandSoft
+        case .intake(let mark): mark.context.tint
         case .insulin: .insulin
         }
     }

@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        NudgeScheduler.registerCategories()
         return true
     }
 
@@ -22,6 +23,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        // 알림 버튼(사진 찍기 / 투여 확인)을 눌렀으면 그 화면, 아니면 알림에 담긴 주소
+        if let url = NudgeScheduler.url(forAction: response.actionIdentifier) {
+            await MainActor.run { _ = DeepLinkRouter.shared.handle(url) }
+            return
+        }
         guard let string = response.notification.request.content.userInfo["url"] as? String,
               let url = URL(string: string) else { return }
         await MainActor.run { _ = DeepLinkRouter.shared.handle(url) }

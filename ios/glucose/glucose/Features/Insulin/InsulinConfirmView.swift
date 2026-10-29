@@ -4,6 +4,7 @@
 //
 //  위젯·홈에서 여는 인슐린 투여 확인. 제품·단위는 사용자가 직접 넣은 "평소 인슐린"으로만
 //  미리 채우고, 시각은 지금. "투여 확인" 한 번이면 저장된다(docs/ios-design-v4.md 0장).
+//  저장한 뒤 "인슐린 하나 더 기록하기"로 같은 화면에서 이어서 남길 수 있다(식사 + 기저 등).
 //  앱은 용량을 계산하거나 추천하지 않는다.
 //
 
@@ -18,6 +19,8 @@ struct InsulinConfirmView: View {
     /// 평소 인슐린이 없을 때, 입력한 값을 다음에도 채울지
     @State private var rememberAsUsual: Bool
     @State private var saved = false
+    /// 이 화면에서 연달아 남긴 기록(예: 식사 인슐린 + 기저 인슐린)
+    @State private var savedEntries: [String] = []
     @FocusState private var unitsFocused: Bool
 
     private let preferences: UserPreferences
@@ -232,22 +235,44 @@ struct InsulinConfirmView: View {
     private var savedView: some View {
         VStack(spacing: Spacing.s) {
             Spacer()
-            MascotView(pose: .thumbsup, size: 160, motion: .jump)
+            MascotView(pose: .thumbsup, size: 140, motion: .jump)
             Text("기록했어요")
                 .font(.pretendard(24, relativeTo: .title, weight: .bold))
                 .foregroundStyle(Color.textPrimary)
-            Text("잠시 뒤 자동으로 닫혀요")
-                .font(.body2)
-                .foregroundStyle(Color.textSecondary)
+            VStack(spacing: Spacing.xxs) {
+                ForEach(Array(savedEntries.enumerated()), id: \.offset) { _, entry in
+                    Label(entry, systemImage: "syringe")
+                        .font(.body2)
+                        .foregroundStyle(Color.insulin)
+                }
+            }
             Spacer()
+            Button {
+                addAnother()
+            } label: {
+                Label("인슐린 하나 더 기록하기", systemImage: "plus")
+            }
+            .buttonStyle(.glubeeSoft)
+            .accessibilityIdentifier("insulinAddAnother")
+            Button("다 했어요") { dismiss() }
+                .buttonStyle(.glubeePrimary)
         }
+        .padding(.horizontal, Spacing.l)
+        .padding(.bottom, Spacing.s)
         .frame(maxWidth: .infinity)
         .background(Color.canvas)
-        .sensoryFeedback(.success, trigger: saved)
-        .task {
-            try? await Task.sleep(for: .seconds(1.2))
-            dismiss()
-        }
+        .sensoryFeedback(.success, trigger: savedEntries.count)
+    }
+
+    /// 저장한 화면을 닫지 않고 새 기록을 이어서 받는다. 한 번 저장한 입력 상태는 다시 저장되지 않으므로 새로 만든다
+    private func addAnother() {
+        let first = usualInsulins.first
+        viewModel = InsulinRecordFormViewModel(units: first?.units, kind: first?.name ?? "")
+        selectedInsulinId = first?.id
+        unitsText = first?.units.map(Self.format) ?? ""
+        editsTime = false
+        editing = false
+        withAnimation(.spring(duration: 0.3)) { saved = false }
     }
 
     // MARK: - 동작
@@ -268,6 +293,8 @@ struct InsulinConfirmView: View {
         }
         if !RecordDataSource.isPreview { WidgetSnapshot.refresh(noteRecord: true) }
         onSaved()
+        let units = viewModel.units.map(Self.format) ?? ""
+        savedEntries.append("\(ReportDay.timeString(from: viewModel.occurredAt)) · \(viewModel.kind) \(units)단위")
         withAnimation(.spring(duration: 0.35)) { saved = true }
     }
 

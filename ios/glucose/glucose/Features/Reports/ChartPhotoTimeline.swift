@@ -6,6 +6,7 @@ struct ChartPhotoBadge: View {
 
     var body: some View {
         FoodPhotoThumbnail(photoId: group.photoId, size: size)
+            .overlay(RoundedRectangle(cornerRadius: size * 0.25).strokeBorder(group.members[0].mark.context.tint, lineWidth: 2.5))
             .overlay(alignment: .topTrailing) {
                 if group.members.count > 1 {
                     Text("+\(group.members.count - 1)")

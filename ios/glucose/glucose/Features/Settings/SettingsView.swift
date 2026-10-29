@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  glucose
 //
-//  설정(v5): 나(이름) · 기록 관리(평소 인슐린, 혈당 가져오기) · 알림(하루 마무리 시각, 권한) ·
+//  설정(v5): 나(이름) · 기록 관리(평소 인슐린, 혈당 가져오기) · 알림(하루 마무리 시각, 권한, 끼니·사진 알림) ·
 //  쉬어가기 · 도움말 · 계정. 온보딩에서 정한 값은 모두 여기서 바꾼다.
 //
 
@@ -64,8 +64,30 @@ struct SettingsView: View {
                     Text("알림")
                 } footer: {
                     Text(notificationStatus == .authorized
-                         ? "하루 최대 2번, 밤 11시부터 아침 8시까지는 보내지 않아요. 혈당이나 음식 내용은 쓰지 않아요."
+                         ? "하루 최대 4번, 밤 11시부터 아침 8시까지는 보내지 않아요. 혈당이나 음식 내용은 쓰지 않아요."
                          : "기기에서 알림을 허용해야 받을 수 있어요.")
+                }
+
+                Section {
+                    ForEach(preferences.mealReminders) { reminder in
+                        HStack {
+                            Toggle(reminder.name, isOn: mealBinding(reminder.meal).isOn)
+                                .tint(Color.mintStrong)
+                            if reminder.isOn {
+                                DatePicker(reminder.name + " 시각", selection: mealTimeBinding(reminder.meal),
+                                           displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                        }
+                    }
+                    Toggle("확인 안 한 사진 알림", isOn: Binding(
+                        get: { preferences.pendingPhotoReminder },
+                        set: { preferences.pendingPhotoReminder = $0; Task { await NudgeScheduler.refresh() } }))
+                        .tint(Color.mintStrong)
+                } header: {
+                    Text("끼니 알림")
+                } footer: {
+                    Text("그 시각 앞뒤 2시간 안에 이미 기록했다면 보내지 않아요. 알림에서 바로 사진 찍기·투여 확인을 열 수 있어요.")
                 }
 
                 Section("쉬어가기") {
@@ -86,6 +108,8 @@ struct SettingsView: View {
 
                 Section("도움말") {
                     NavigationLink("안내 모아보기") { EducationCardsView() }
+                        .foregroundStyle(Color.textPrimary)
+                    NavigationLink("위젯 안내") { WidgetGuideView() }
                         .foregroundStyle(Color.textPrimary)
                     Button { showHelp = true } label: { row("앱 사용 도움말", "기록하고 돌아보는 방법") }
                         .tint(Color.textPrimary)
@@ -169,6 +193,32 @@ struct SettingsView: View {
             Text(title).font(.body1).foregroundStyle(Color.textPrimary)
             Text(detail).font(.caption1).foregroundStyle(Color.textSecondary)
         }
+    }
+
+    private func mealBinding(_ meal: MealReminder.Meal) -> Binding<MealReminder> {
+        Binding(
+            get: { preferences.mealReminders.first { $0.meal == meal } ?? MealReminder.defaults[0] },
+            set: { updated in
+                preferences.mealReminders = preferences.mealReminders.map { $0.meal == meal ? updated : $0 }
+                Task { await NudgeScheduler.refresh() }
+            }
+        )
+    }
+
+    private func mealTimeBinding(_ meal: MealReminder.Meal) -> Binding<Date> {
+        Binding(
+            get: {
+                let reminder = mealBinding(meal).wrappedValue
+                return ReportDay.calendar.date(bySettingHour: reminder.hour, minute: reminder.minute, second: 0, of: .now) ?? .now
+            },
+            set: { date in
+                var reminder = mealBinding(meal).wrappedValue
+                let parts = ReportDay.calendar.dateComponents([.hour, .minute], from: date)
+                reminder.hour = parts.hour ?? reminder.hour
+                reminder.minute = parts.minute ?? reminder.minute
+                mealBinding(meal).wrappedValue = reminder
+            }
+        )
     }
 
     private var dayCloseBinding: Binding<Date> {
