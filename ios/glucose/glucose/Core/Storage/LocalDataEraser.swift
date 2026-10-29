@@ -13,6 +13,9 @@ import UserNotifications
 @MainActor
 enum LocalDataEraser {
     static func eraseAll() async {
+        AuthSession.shared.invalidatePendingRequests()
+        DataSyncCoordinator.shared.invalidate()
+        PhotoViewURLCache.shared.clearAll()
         PendingPhotoStore.shared.removeAll()
         DayCloseStore.shared.reset()
         WidgetSnapshot.erase()

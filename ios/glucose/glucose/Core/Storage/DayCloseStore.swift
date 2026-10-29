@@ -75,11 +75,21 @@ final class DayCloseStore {
 
     @discardableResult func claimLegacyForActiveAccount() -> Bool {
         guard let accountID, hasUnclaimedLegacy, let legacy = legacyState() else { return false }
-        var imported = legacy
-        for operation in envelope.operations { operation.apply(to: &imported) }
-        imported.closedDays.formUnion(state.closedDays)
-        imported.recordOnlyDays.formUnion(state.recordOnlyDays.subtracting(state.closedDays.subtracting(state.recordOnlyDays)))
-        imported.honeypotSavedDays.formUnion(state.honeypotSavedDays)
+        let hasCurrentHistory = !state.closedDays.isEmpty || !state.honeypotSavedDays.isEmpty || state.honeypots > 0 || state.rest != nil
+        var imported: DayCloseState
+        if envelope.synced && hasCurrentHistory {
+            imported = state
+        } else {
+            imported = legacy
+            for operation in envelope.operations { operation.apply(to: &imported) }
+        }
+        let fullDays = imported.closedDays.subtracting(imported.recordOnlyDays)
+            .union(state.closedDays.subtracting(state.recordOnlyDays))
+            .union(legacy.closedDays.subtracting(legacy.recordOnlyDays))
+        imported.closedDays.formUnion(state.closedDays.union(legacy.closedDays))
+        imported.recordOnlyDays.formUnion(state.recordOnlyDays.union(legacy.recordOnlyDays))
+        imported.recordOnlyDays.subtract(fullDays)
+        imported.honeypotSavedDays.formUnion(state.honeypotSavedDays.union(legacy.honeypotSavedDays))
         imported.honeypotSavedDays.subtract(imported.closedDays)
         envelope.state = imported
         envelope.legacy = RemoteProgressState(legacy) // frozen BEFORE queued edits

@@ -10,6 +10,8 @@ import Foundation
 struct StartPhotoUploadRequest: Encodable {
     let contentType: String
     let context: String
+    var capturedAt: Date? = nil
+    var clientId: UUID? = nil
 }
 
 struct PhotoUploadStartResponse: Decodable {
@@ -17,4 +19,5 @@ struct PhotoUploadStartResponse: Decodable {
     let uploadUrl: URL
     let objectKey: String
     let expiresIn: Int
+    var uploaded: Bool? = nil
 }

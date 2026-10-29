@@ -24,7 +24,7 @@ struct GlucoseApp: App {
         .onChange(of: scenePhase) { _, phase in
             // 업로드하지 못한 빠른 촬영 사진은 앱이 다시 열릴 때 재시도한다
             if phase == .active, !RecordDataSource.isPreview {
-                Task { await PendingPhotoStore.shared.uploadPending() }
+                Task { await DataSyncCoordinator.shared.refresh() }
                 DayCloseStore.shared.applyHoneypots()
                 WidgetSnapshot.refresh()
                 Task { await NudgeScheduler.refresh() }
@@ -34,6 +34,7 @@ struct GlucoseApp: App {
             guard !RecordDataSource.isPreview else { return }
             WidgetSnapshot.refresh(noteRecord: RecordChanges.shared.lastMutation == .created)
             Task { await NudgeScheduler.refresh() }
+            DataSyncCoordinator.shared.schedule()
         }
     }
 

@@ -110,4 +110,16 @@ final class DataPreservationTests: XCTestCase {
         XCTAssertEqual(AccountIdentity.userID(in: "header.\(payload).signature"), id)
         XCTAssertNil(AccountIdentity.userID(in: "malformed"))
     }
+
+    func testLegacyImportCannotDowngradeAnAlreadyFullCompletion() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        DayCloseStore(defaults: defaults).markClosed(day(1), recordOnly: true)
+        let store = DayCloseStore(defaults: defaults, accountScoped: true)
+        store.activateAccount(UUID()); store.markClosed(day(1))
+        let request = store.makeSyncRequest()
+        var canonical = DayCloseState(); canonical.markClosed(day(1))
+        try store.applyServer(ProgressSyncResponse(revision: 1, state: RemoteProgressState(canonical), acknowledgedOperations: request.operations.map(\.id)), for: request)
+        XCTAssertTrue(store.claimLegacyForActiveAccount())
+        XCTAssertFalse(store.recordOnlyDays.contains("2026-10-01"))
+    }
 }

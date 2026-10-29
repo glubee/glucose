@@ -14,6 +14,8 @@ final class PhotoUploadViewModel {
     private(set) var photoId: UUID?
     private var checkpoint: PhotoUploadCheckpoint?
     private var operationID = UUID()
+    private var clientID = UUID()
+    private var capturedAt = Date.now
     private let uploader: PhotoUploader
 
     init(uploader: PhotoUploader? = nil) { self.uploader = uploader ?? PhotoUploader() }
@@ -29,6 +31,7 @@ final class PhotoUploadViewModel {
         guard !isInFlight else { return }
         operationID = UUID()
         checkpoint = nil
+        clientID = UUID(); capturedAt = .now
         photoId = nil
         state = .idle
     }
@@ -47,7 +50,7 @@ final class PhotoUploadViewModel {
             state = .completing
         }
         do {
-            let id = try await uploader.upload(imageData: imageData, context: context, checkpoint: checkpoint) { [self] value in
+            let id = try await uploader.upload(imageData: imageData, context: context, capturedAt: capturedAt, clientID: clientID, checkpoint: checkpoint) { [self] value in
                 checkpoint = value
             }
             guard operationID == activeID else { return }

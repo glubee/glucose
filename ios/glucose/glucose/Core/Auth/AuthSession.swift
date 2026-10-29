@@ -31,9 +31,12 @@ final class AuthSession {
     }
 
     func credential(for expected: UUID?) throws -> String {
-        guard expected == generation, let accessToken else { throw CancellationError() }
+        guard expected == generation else { throw CancellationError() }
+        guard let accessToken else { throw APIError.notAuthenticated }
         return accessToken
     }
+
+    func invalidatePendingRequests() { generation = UUID() }
 
     func bootstrap() {
         guard !didBootstrap else { return }
@@ -64,7 +67,7 @@ final class AuthSession {
                 path: "/v1/auth/refresh",
                 method: .post,
                 body: RefreshRequest(refreshToken: refreshToken),
-                authenticated: false
+                authenticated: false, expectedSession: started
             )
             guard generation == started,
                   AccountIdentity.userID(in: tokens.accessToken) == accountID else { return false }

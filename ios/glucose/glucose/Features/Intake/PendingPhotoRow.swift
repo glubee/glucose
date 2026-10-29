@@ -57,6 +57,8 @@ struct PendingPhotoThumbnail: View {
         Group {
             if let image = UIImage(contentsOfFile: store.imageURL(for: photo).path) {
                 Image(uiImage: image).resizable().scaledToFill()
+            } else if let id = photo.photoId {
+                FoodPhotoThumbnail(photoId: id, size: 56)
             } else {
                 Image(systemName: "photo").foregroundStyle(Color.onBrandSoft)
             }

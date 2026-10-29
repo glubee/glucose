@@ -18,17 +18,23 @@ enum AccountIdentity {
 @MainActor
 enum AccountDataCoordinator {
     static func activate(_ id: UUID?, allowLegacy: Bool = false) {
+        DataSyncCoordinator.shared.invalidate()
+        PhotoViewURLCache.shared.clearAll()
+        PendingPhotoStore.shared.activateAccount(id, allowLegacy: allowLegacy)
         DayCloseStore.shared.activateAccount(id, allowLegacy: allowLegacy)
         UserPreferences.shared.activateAccount(id, allowLegacy: allowLegacy)
+        DataSyncCoordinator.shared.bind()
         WidgetSnapshot.erase()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
     static var hasUnclaimedLegacy: Bool {
-        DayCloseStore.shared.hasUnclaimedLegacy || UserPreferences.shared.hasUnclaimedLegacy
+        DayCloseStore.shared.hasUnclaimedLegacy || UserPreferences.shared.hasUnclaimedLegacy || PendingPhotoStore.shared.hasUnclaimedLegacy
     }
     static func claimLegacy() {
         DayCloseStore.shared.claimLegacyForActiveAccount()
         UserPreferences.shared.claimLegacyForActiveAccount()
+        PendingPhotoStore.shared.claimLegacyForActiveAccount()
+        DataSyncCoordinator.shared.schedule()
     }
 }
