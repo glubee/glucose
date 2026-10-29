@@ -43,6 +43,11 @@ public class IntakePhoto {
     @Column(name = "recognition_job_id")
     private UUID recognitionJobId;
 
+    @Column(name = "captured_at") private Instant capturedAt;
+    @Column(name = "client_id") private UUID clientId;
+    @Column(name = "confirmed_at") private Instant confirmedAt;
+    @Column(name = "dismissed_at") private Instant dismissedAt;
+
     protected IntakePhoto() {
     }
 
@@ -99,5 +104,17 @@ public class IntakePhoto {
 
     public UUID getRecognitionJobId() {
         return recognitionJobId;
+    }
+
+    public Instant getCapturedAt() { return capturedAt == null ? createdAt : capturedAt; }
+    public UUID getClientId() { return clientId; }
+    public boolean isConfirmed() { return confirmedAt != null; }
+    public boolean isDismissed() { return dismissedAt != null; }
+    public void confirm() { if (confirmedAt == null) confirmedAt = Instant.now(); }
+    public void dismiss() { if (dismissedAt == null) dismissedAt = Instant.now(); }
+    public void restoreMetadata(Instant capture, UUID client, PhotoContext context) {
+        if (capturedAt == null && capture != null) capturedAt = capture;
+        if (clientId == null && client != null) clientId = client;
+        if (context != null && !isConfirmed() && !isDismissed()) this.context = context;
     }
 }

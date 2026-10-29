@@ -9,6 +9,26 @@ struct RootTabView: View {
     @State private var router = DeepLinkRouter.shared
 
     var body: some View {
+        #if DEBUG
+        if LocalDemoSession.shared.isActive {
+            VStack(spacing: 0) {
+                Text("기기 데모 · 예시 데이터 · 서버에 저장되지 않아요")
+                    .font(.caption1).foregroundStyle(Color.textSecondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, Spacing.xs)
+                    .background(Color.brandSoft)
+                    .accessibilityIdentifier("localDemoNotice")
+                tabs
+            }
+            .id(LocalDemoSession.shared.generation)
+        } else {
+            tabs.id(LocalDemoSession.shared.generation)
+        }
+        #else
+        tabs
+        #endif
+    }
+
+    private var tabs: some View {
         // 홈 · 리포트 · 기록 · 설정. 리포트의 전체 기록 시트도 같은 목록을 쓴다.
         TabView {
             HomeView()
@@ -36,7 +56,7 @@ struct RootTabView: View {
         .task {
             guard !RecordDataSource.isPreview else { return }
             // 로그인 직후에도 대기 중인 사진을 올린다
-            await PendingPhotoStore.shared.uploadPending()
+            await DataSyncCoordinator.shared.refresh()
             #if DEBUG
             if DemoScenarioSeed.isEnabled { await DemoScenarioSeed.run() }
             if DemoDayCloseSync.isEnabled { await DemoDayCloseSync.run() }

@@ -144,6 +144,12 @@ struct OnboardingView: View {
             .clipShape(Capsule())
             .disabled(authViewModel.isLoading)
             .overlay { if authViewModel.isLoading { ProgressView() } }
+            #if DEBUG
+            Button("로그인 없이 데모 보기") { LocalDemoSession.shared.activate() }
+                .buttonStyle(.glubeeSecondary)
+                .accessibilityIdentifier("startLocalDemo")
+                    .disabled(authViewModel.isLoading)
+            #endif
             if let message = authViewModel.errorMessage {
                 Text(message).font(.caption1).foregroundStyle(Color.alert)
             }

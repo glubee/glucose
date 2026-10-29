@@ -40,13 +40,15 @@ final class AuthViewModel {
         errorMessage = nil
         defer { isLoading = false }
 
+        let started = AuthSession.shared.generation
         do {
             let tokens: AuthTokens = try await APIClient.shared.send(
                 path: "/v1/auth/apple",
                 method: .post,
                 body: AppleLoginRequest(identityToken: identityToken, nonce: nonce),
-                authenticated: false
+                authenticated: false, expectedSession: started
             )
+            guard AuthSession.shared.generation == started else { return }
             AuthSession.shared.signIn(with: tokens)
             currentNonce = AuthViewModel.randomNonceString()
         } catch {

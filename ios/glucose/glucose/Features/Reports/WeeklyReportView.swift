@@ -10,7 +10,7 @@ import SwiftUI
 
 struct WeeklyReportView: View {
     let viewModel: WeeklyReportViewModel
-    private let store = DayCloseStore.shared
+    private var store: DayCloseStore { RecordDataSource.dayClose }
     @State private var selectedDay: Date?
 
     private var weekStates: [HoneyCellState] { store.weekStates(containing: viewModel.weekStart) }

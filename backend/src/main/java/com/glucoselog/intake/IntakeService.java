@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.glucoselog.common.ApiException;
+import com.glucoselog.photo.PhotoUploadService;
 import com.glucoselog.common.Cursor;
 import com.glucoselog.common.CursorCodec;
 import com.glucoselog.common.PageResponse;
@@ -21,14 +22,22 @@ public class IntakeService {
 
     private final IntakeRepository intakeRepository;
     private final FoodCatalogRepository foodCatalogRepository;
+    private final PhotoUploadService photoUploads;
 
-    public IntakeService(IntakeRepository intakeRepository, FoodCatalogRepository foodCatalogRepository) {
+    public IntakeService(IntakeRepository intakeRepository, FoodCatalogRepository foodCatalogRepository, PhotoUploadService photoUploads) {
         this.intakeRepository = intakeRepository;
         this.foodCatalogRepository = foodCatalogRepository;
+        this.photoUploads = photoUploads;
     }
 
     @Transactional
     public IntakeResponse create(UUID userId, IntakeRequest request) {
+        if (request.photoId() != null && !photoUploads.confirmForIntake(userId, request.photoId())) {
+            // Photo confirmation is a one-time action across devices and response-loss retries.
+            return intakeRepository.findFirstByUserIdAndPhotoIdOrderByCreatedAtAscIdAsc(userId, request.photoId())
+                    .map(IntakeResponse::from)
+                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PHOTO_ALREADY_CONFIRMED", "이미 확인한 사진입니다. 기록 목록을 확인해 주세요"));
+        }
         Intake intake = new Intake(userId, request.photoId(), request.context(), request.occurredAt());
         intake.replaceItems(buildItems(request.items()));
         return IntakeResponse.from(intakeRepository.save(intake));

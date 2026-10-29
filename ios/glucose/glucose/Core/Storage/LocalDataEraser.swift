@@ -13,10 +13,14 @@ import UserNotifications
 @MainActor
 enum LocalDataEraser {
     static func eraseAll() async {
-        PendingPhotoStore.shared.removeAll()
-        DayCloseStore.shared.reset()
+        AuthSession.shared.invalidatePendingRequests()
+        DataSyncCoordinator.shared.invalidate()
+        NudgeScheduler.invalidate()
+        PhotoViewURLCache.shared.clearAll()
+        PendingPhotoStore.shared.eraseActiveAccount()
+        DayCloseStore.shared.eraseActiveAccount()
         WidgetSnapshot.erase()
-        UserPreferences.shared.reset()
+        UserPreferences.shared.eraseActiveAccount()
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()

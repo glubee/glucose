@@ -17,7 +17,7 @@ struct PendingPhotoDetailView: View {
                 confirmed(photo)
             } else if let photo, let serverID = photo.photoId {
                 RecognitionResultView(photoId: serverID, context: photo.context, occurredAt: photo.capturedAt,
-                    previewImage: UIImage(contentsOfFile: store.imageURL(for: photo).path),
+                    previewImage: UIImage(contentsOfFile: store.imageURL(for: photo).path), remotePreviewID: serverID,
                     onDeletePhoto: { remove() }) {
                         if store.finishConfirmation(photoID) { onFinished() }
                         else { showsError = true }

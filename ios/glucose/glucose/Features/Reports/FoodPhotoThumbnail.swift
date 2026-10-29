@@ -85,22 +85,33 @@ final class PhotoViewURLCache {
         let expiresIn: Int
     }
 
+    private var generation = UUID()
     private var entries: [UUID: Entry] = [:]
     private var inFlight: [UUID: Task<URL?, Never>] = [:]
+
+    func clearAll() {
+        generation = UUID()
+        for task in inFlight.values { task.cancel() }
+        inFlight = [:]; entries = [:]
+    }
 
     func invalidate(_ photoId: UUID) { entries[photoId] = nil }
 
     func url(for photoId: UUID) async -> URL? {
         if let entry = entries[photoId], entry.expiresAt > .now.addingTimeInterval(30) { return entry.url }
         if let task = inFlight[photoId] { return await task.value }
+        let scope = generation
+        let session = AuthSession.shared.generation
         let task = Task<URL?, Never> {
-            guard let response: ViewResponse = try? await APIClient.shared.send(path: "/v1/photos/\(photoId.uuidString)/view")
+            guard let response: ViewResponse = try? await APIClient.shared.send(path: "/v1/photos/\(photoId.uuidString)/view", expectedSession: session)
             else { return nil }
+            guard generation == scope, !Task.isCancelled else { return nil }
             entries[photoId] = Entry(url: response.url, expiresAt: .now.addingTimeInterval(TimeInterval(response.expiresIn)))
             return response.url
         }
         inFlight[photoId] = task
         let result = await task.value
+        guard generation == scope else { return nil }
         inFlight[photoId] = nil
         return result
     }

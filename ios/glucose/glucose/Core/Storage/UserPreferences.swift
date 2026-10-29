@@ -19,7 +19,7 @@ struct UsualInsulin: Codable, Identifiable, Hashable {
 @Observable
 final class UserPreferences {
 
-    static let shared = UserPreferences()
+    static let shared = UserPreferences(accountScoped: true)
 
     private struct Stored: Codable {
         var nickname = ""
@@ -30,13 +30,17 @@ final class UserPreferences {
     }
 
     private let defaults: UserDefaults
-    private let key = "user_preferences_v1"
-    private var stored: Stored {
+    private var key = "user_preferences_v1"
+    private let accountScoped: Bool
+    private var accountID: UUID?
+    private var stored = Stored() {
         didSet { save() }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, accountScoped: Bool = false) {
+        self.accountScoped = accountScoped
         self.defaults = defaults
+        if accountScoped { key = "user_preferences_v2.onboarding" }
         if let data = defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode(Stored.self, from: data) {
             stored = decoded
@@ -64,13 +68,63 @@ final class UserPreferences {
     }
 
     var onboardingCompleted: Bool {
-        get { stored.onboardingCompleted }
-        set { stored.onboardingCompleted = newValue }
+        get {
+            if !accountScoped { return stored.onboardingCompleted }
+            if defaults.object(forKey: "onboarding_completed_v2") != nil { return defaults.bool(forKey: "onboarding_completed_v2") }
+            guard let data = defaults.data(forKey: "user_preferences_v1"),
+                  let legacy = try? JSONDecoder().decode(Stored.self, from: data) else { return false }
+            return legacy.onboardingCompleted
+        }
+        set {
+            if accountScoped { defaults.set(newValue, forKey: "onboarding_completed_v2") }
+            else { stored.onboardingCompleted = newValue }
+        }
     }
 
-    /// 계정을 지웠을 때: 처음 설치한 상태로(온보딩부터 다시)
+    var hasUnclaimedLegacy: Bool {
+        defaults.data(forKey: "user_preferences_v1") != nil && defaults.string(forKey: "preferences_legacy_owner") == nil
+    }
+
+    func activateAccount(_ id: UUID?, allowLegacy: Bool = false) {
+        guard accountScoped else { return }
+        accountID = id
+        let onboardingData = defaults.data(forKey: "user_preferences_v2.onboarding")
+        key = "user_preferences_v2.\(id?.uuidString ?? "onboarding")"
+        let data = defaults.data(forKey: key)
+        stored = data.flatMap { try? JSONDecoder().decode(Stored.self, from: $0) } ?? Stored()
+        if id != nil, data == nil, let onboardingData,
+           let staged = try? JSONDecoder().decode(Stored.self, from: onboardingData) {
+            stored = staged
+            defaults.removeObject(forKey: "user_preferences_v2.onboarding")
+        }
+        if allowLegacy { claimLegacyForActiveAccount() }
+        save()
+    }
+
+    @discardableResult func claimLegacyForActiveAccount() -> Bool {
+        guard let accountID, hasUnclaimedLegacy,
+              let data = defaults.data(forKey: "user_preferences_v1"),
+              let legacy = try? JSONDecoder().decode(Stored.self, from: data) else { return false }
+        if stored.nickname.isEmpty { stored.nickname = legacy.nickname }
+        if stored.usualInsulins.isEmpty { stored.usualInsulins = legacy.usualInsulins }
+        stored.dayCloseHour = legacy.dayCloseHour; stored.dayCloseMinute = legacy.dayCloseMinute
+        defaults.set(accountID.uuidString, forKey: "preferences_legacy_owner")
+        return true
+    }
+
     func reset() {
         stored = Stored()
+        if accountScoped { defaults.set(false, forKey: "onboarding_completed_v2") }
+    }
+
+    func eraseActiveAccount() {
+        reset()
+        guard accountScoped, let accountID else { return }
+        defaults.removeObject(forKey: key)
+        if defaults.string(forKey: "preferences_legacy_owner") == accountID.uuidString {
+            defaults.removeObject(forKey: "user_preferences_v1")
+            defaults.removeObject(forKey: "preferences_legacy_owner")
+        }
     }
 
     private func save() {

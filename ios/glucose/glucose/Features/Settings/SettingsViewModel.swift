@@ -22,8 +22,8 @@ final class SettingsViewModel {
 
         do {
             try await APIClient.shared.sendVoid(path: "/v1/me", method: .delete)
-            AuthSession.shared.signOut()
             await LocalDataEraser.eraseAll()
+            AuthSession.shared.signOut()
             return true
         } catch {
             errorMessage = "계정을 지우지 못했어요. 다시 시도해 주세요."

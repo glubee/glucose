@@ -118,13 +118,17 @@ final class HomeViewModel {
 
     func startRest(_ reason: RestPeriod.Reason, days: Int) async {
         store.startRest(reason, days: days)
-        WidgetSnapshot.refresh()
-        await NudgeScheduler.refresh()
+        if !RecordDataSource.isPreview {
+            WidgetSnapshot.refresh()
+            await NudgeScheduler.refresh()
+        }
     }
 
     func endRest() async {
         store.endRest()
-        WidgetSnapshot.refresh()
-        await NudgeScheduler.refresh()
+        if !RecordDataSource.isPreview {
+            WidgetSnapshot.refresh()
+            await NudgeScheduler.refresh()
+        }
     }
 }

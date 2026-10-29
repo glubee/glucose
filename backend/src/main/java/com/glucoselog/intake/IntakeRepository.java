@@ -14,6 +14,8 @@ public interface IntakeRepository extends JpaRepository<Intake, UUID> {
 
     Optional<Intake> findByIdAndUserId(UUID id, UUID userId);
 
+    Optional<Intake> findFirstByUserIdAndPhotoIdOrderByCreatedAtAscIdAsc(UUID userId, UUID photoId);
+
     List<Intake> findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(
             UUID userId, Instant from, Instant to);
 

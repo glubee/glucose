@@ -11,7 +11,7 @@ final class QuickCaptureViewModel {
     private var allowsAutoClose = false
     private let store: PendingPhotoStore
 
-    init(store: PendingPhotoStore? = nil) { self.store = store ?? .shared }
+    init(store: PendingPhotoStore? = nil) { self.store = store ?? RecordDataSource.photos }
 
     var failed: Bool { captured != nil && pendingId == nil }
 

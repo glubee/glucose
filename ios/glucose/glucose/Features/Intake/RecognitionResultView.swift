@@ -7,13 +7,15 @@ struct RecognitionResultView: View {
     @State private var showsDeleteConfirm = false
     @State private var showsDeleteError = false
     private let previewImage: UIImage?
+    private let remotePreviewID: UUID?
     private let onDeletePhoto: (() -> Bool)?
     let onSaved: () -> Void
 
-    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now, previewImage: UIImage? = nil,
+    init(photoId: UUID, context: IntakeContext, occurredAt: Date = .now, previewImage: UIImage? = nil, remotePreviewID: UUID? = nil,
          onDeletePhoto: (() -> Bool)? = nil, onSaved: @escaping () -> Void) {
         _viewModel = State(initialValue: RecognitionResultViewModel(photoId: photoId, context: context, occurredAt: occurredAt))
         self.previewImage = previewImage
+        self.remotePreviewID = remotePreviewID
         self.onDeletePhoto = onDeletePhoto
         self.onSaved = onSaved
     }
@@ -31,6 +33,11 @@ struct RecognitionResultView: View {
                         Image(uiImage: previewImage).resizable().scaledToFit()
                             .frame(maxWidth: .infinity, maxHeight: 200)
                             .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                            .accessibilityLabel("확인 대기 사진")
+                    }
+                    if previewImage == nil, let remotePreviewID {
+                        StoredPhotoImage(photoId: remotePreviewID)
+                            .frame(height: 200)
                             .accessibilityLabel("확인 대기 사진")
                     }
                     switch viewModel.state {

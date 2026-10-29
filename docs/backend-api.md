@@ -517,3 +517,24 @@ JWT 사용자 소유 원본만 재분석할 수 있다. 응답은 202 `{"upload_
 - `insights[]`: 그 주에 나온 흐름 안내 `code, title, days, dates`(서버 설정이 켜졌을 때만).
 앱의 "한 주 겹쳐 보기"는 요일별 `GET /v1/glucose-readings/{date}`를 불러 0~24시 한 축에 겹쳐 그린다.
 
+## 18. 하루 마무리·진행 상태 백업
+
+JWT 계정별로 저장한다. 기존 리포트/인슐린/섭취 API는 유지한다.
+
+- `GET /v1/progress`: `{revision, state, acknowledged_operations: []}`.
+- `POST /v1/progress/sync`: `{legacy_state?: state, operations: [...]}` → 같은 형태 응답. 이번 요청에서 처리/이미 확인된 명령 UUID를 `acknowledged_operations`로 돌려준다.
+- state: `closed_days, record_only_days, honeypot_saved_days`(날짜 문자열 목록), `honeypots`(0~2), `rest`(null 또는 `{reason, start, end}`), `last_honeypot_use`(선택).
+- 모든 날짜는 한국 시간 `yyyy-MM-dd`. 완료 날짜는 1900-01-01~오늘, 쉬어가기 종료는 시작 후 365일 이내다. reason은 기존 앱 값 `resting/unwell/noSensor`.
+- 명령은 최대 100개이며 각각 `id(UUID), kind`가 필요하다. `close_day`는 `day, record_only?`, `start_rest`는 `day, end, reason`, `end_rest`는 `day`, `apply_honeypots`는 추가 필드가 없다.
+- 같은 명령/내용은 멱등, 같은 ID의 다른 내용은 409 `OPERATION_ID_REUSED`. 같은 날짜의 중복 완료도 보상을 늘리지 않는다. 기록만 저장 이후 완성은 업그레이드되며 역방향으로 낮아지지 않는다.
+- 최초 legacy_state는 기존 상태/잔여 꿀단지를 보존한다. 기존 서버 상태가 있으면 완료/보호 날짜만 합치며 잔액·현재 쉬어가기는 서버 기준이다. 배치 전체를 한 트랜잭션과 사용자 잠금으로 처리하고 계정 삭제 시 함께 삭제한다.
+
+## 19. 업로드한 확인 대기 사진 복원
+
+- 기존 `POST /v1/photos`에 선택 `captured_at(ISO8601), client_id(UUID)`를 추가한다. 같은 계정/client_id를 재전송하면 같은 photo_id와 새 업로드 주소를 반환한다. 응답의 추가 `uploaded`가 true면 PUT을 반복하지 않고 완료 확인만 할 수 있다. 기존 두 필드만 보내는 앱도 유지된다.
+- `GET /v1/photos?unconfirmed=true&limit=20&cursor=...`: 본인의 UPLOADED·미확인·미숨김 사진만 `{items, next_cursor}`로 반환한다. limit 1~100. 촬영 시각 내림차순/UUID 내림차순이며 cursor는 소수 초를 보존한다.
+- 목록 항목과 `GET /v1/photos/{photoId}` 응답: `{photo_id, client_id, captured_at, context, status, confirmed, dismissed}`. 목록에 객체 키나 서명 URL은 넣지 않는다. 원본 표시는 기존 `GET /v1/photos/{id}/view`를 사용한다.
+- `PATCH /v1/photos/{id}/metadata`: `{captured_at, client_id?, context?}` → 204. 이전 앱이 누락한 촬영 시각/client_id를 한 번 채우고 미확인 사진 분류를 갱신한다. 다른 사진의 client_id를 사용하면 409 `PHOTO_CLIENT_ID_REUSED`.
+- `POST /v1/photos/{id}/dismiss` → 204, 멱등으로 대기 목록에서 숨긴다. R2 파일 삭제는 수행하지 않는다. 이후 늦은 완료 통보/동일 client_id 업로드 시작은 409 `PHOTO_DISMISSED`.
+- 음식 기록 저장 시 본인의 업로드 완료 사진만 연결하고 함께 confirmed를 기록한다. 같은 사진으로 다시 저장하면 첫 음식 기록 결과를 반환한다(동시 기기·응답 유실 재시도 포함). 수정은 기존 기록 PATCH를 사용한다. 이미 확인한 사진의 기록이 삭제된 경우 409 `PHOTO_ALREADY_CONFIRMED`이며 재생성하지 않는다. 해당 음식 기록을 나중에 삭제해도 사진은 대기로 돌아오지 않는다. 다른 계정 사진은 404 `PHOTO_NOT_FOUND`. 기존 연결 사진도 Flyway에서 확인 처리한다.
+

@@ -17,16 +17,16 @@ final class APIClient {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    private init() {
+    init(baseURL suppliedURL: URL? = nil, session suppliedSession: URLSession? = nil) {
         let urlString = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String ?? ""
-        guard let url = URL(string: urlString) else {
+        guard let url = suppliedURL ?? URL(string: urlString) else {
             fatalError("API_BASE_URL을 읽을 수 없습니다. Config/Debug.xcconfig를 만들었는지 확인하세요.")
         }
         baseURL = url
 
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 15
-        session = URLSession(configuration: configuration)
+        session = suppliedSession ?? URLSession(configuration: configuration)
 
         encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -54,9 +54,10 @@ final class APIClient {
         method: HTTPMethod = .get,
         queryItems: [URLQueryItem] = [],
         body: Encodable? = nil,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        expectedSession: UUID? = nil
     ) async throws -> Response {
-        let (data, _) = try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: true)
+        let (data, _) = try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: true, accountGeneration: expectedSession)
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
@@ -70,9 +71,10 @@ final class APIClient {
         method: HTTPMethod,
         queryItems: [URLQueryItem] = [],
         body: Encodable? = nil,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        expectedSession: UUID? = nil
     ) async throws {
-        _ = try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: true)
+        _ = try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: true, accountGeneration: expectedSession)
     }
 
     private func performWithRetry(
@@ -81,15 +83,24 @@ final class APIClient {
         queryItems: [URLQueryItem],
         body: Encodable?,
         authenticated: Bool,
-        allowRetry: Bool
+        allowRetry: Bool,
+        accountGeneration: UUID? = nil
     ) async throws -> (Data, HTTPURLResponse) {
-        let request = try makeRequest(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated)
+        #if DEBUG
+        if await LocalDemoSession.shared.isActive { throw APIError.notAuthenticated }
+        #endif
+        let currentGeneration = await AuthSession.shared.generation
+        let scope = accountGeneration ?? (authenticated ? currentGeneration : nil)
+        try await validateScope(scope)
+        let request = try await makeRequest(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, scope: scope)
         let (data, response) = try await execute(request)
+        try await validateScope(scope)
 
         if response.statusCode == 401, authenticated, allowRetry {
             let refreshed = await AuthSession.shared.refreshAccessToken()
+            try await validateScope(scope)
             if refreshed {
-                return try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: false)
+                return try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: false, accountGeneration: scope)
             }
             await AuthSession.shared.signOut()
             throw APIError.notAuthenticated
@@ -105,7 +116,7 @@ final class APIClient {
         return (data, response)
     }
 
-    private func makeRequest(path: String, method: HTTPMethod, queryItems: [URLQueryItem], body: Encodable?, authenticated: Bool) throws -> URLRequest {
+    private func makeRequest(path: String, method: HTTPMethod, queryItems: [URLQueryItem], body: Encodable?, authenticated: Bool, scope: UUID?) async throws -> URLRequest {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
         if !queryItems.isEmpty {
             components?.queryItems = queryItems
@@ -119,9 +130,7 @@ final class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         if authenticated {
-            guard let token = AuthSession.shared.accessToken else {
-                throw APIError.notAuthenticated
-            }
+            let token = try await AuthSession.shared.credential(for: scope)
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -137,6 +146,10 @@ final class APIClient {
         return request
     }
 
+    private func validateScope(_ generation: UUID?) async throws {
+        if let generation, generation != (await AuthSession.shared.generation) { throw CancellationError() }
+    }
+
     private func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
             let (data, response) = try await session.data(for: request)
@@ -144,6 +157,10 @@ final class APIClient {
                 throw APIError.invalidResponse
             }
             return (data, httpResponse)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as APIError {
             throw error
         } catch {
