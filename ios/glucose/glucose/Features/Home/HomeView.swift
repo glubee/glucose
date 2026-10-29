@@ -142,6 +142,11 @@ struct HomeView: View {
 
                         todayFlowCard
                             .padding(.top, 14)
+
+                        HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
+                            openPending: { selectedPendingPhoto = $0 },
+                            showAll: { showAllRecords = true })
+                            .padding(.top, 14)
                             .padding(.bottom, Spacing.l)
                     }
                     .padding(.horizontal, Spacing.l)
@@ -208,7 +213,7 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// 오늘의 흐름: 그래프(있으면 곡선, 없으면 기록 점) + 아래로 이어지는 오늘 기록 시간줄과 바로 더하기.
+    /// 오늘의 흐름: 그래프(있으면 곡선, 없으면 기록 점). 오늘 기록은 아래 줄노트 시간줄(HomeTimelineSection)에.
     /// 이 옆에는 글루비를 두지 않는다(평온 규칙)
     private var todayFlowCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -252,13 +257,6 @@ struct HomeView: View {
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Divider().overlay(Color.line).padding(.vertical, Spacing.xxs)
-            HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
-                openPending: { selectedPendingPhoto = $0 },
-                takePhoto: { showFoodSheet = true }, writeFood: { showManualFood = true },
-                addInsulin: { showInsulin = true },
-                showAll: { showAllRecords = true })
         }
         .padding(.horizontal, 18)
         .padding(.vertical, Spacing.m)

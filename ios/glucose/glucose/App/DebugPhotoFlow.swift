@@ -36,13 +36,8 @@ struct DebugPhotoFlow: View {
 }
 
 private enum DebugPhotoSamples {
-    static func image() -> UIImage {
-        UIGraphicsImageRenderer(size: CGSize(width: 200, height: 160)).image { context in
-            UIColor.systemYellow.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 200, height: 160))
-            UIColor.white.setFill()
-            context.cgContext.fillEllipse(in: CGRect(x: 50, y: 30, width: 100, height: 100))
-        }
+    static func image(_ foods: [String] = ["현미밥", "계란말이"]) -> UIImage {
+        DemoFoodArt.image(foods: foods)
     }
 
     static func makeStore() -> PendingPhotoStore {
@@ -56,8 +51,12 @@ private enum DebugPhotoSamples {
             PendingPhoto(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
                          capturedAt: .now.addingTimeInterval(-1200), context: .meal)
         ]
-        if let data = image().jpegData(compressionQuality: 0.8) {
-            for photo in photos { try? data.write(to: directory.appendingPathComponent(photo.fileName)) }
+        // 사진마다 상황에 맞는 음식 그림(식사 · 간식 · 식사)
+        let foods = [["김치찌개", "현미밥"], ["바나나"], ["샌드위치", "아메리카노"]]
+        for (photo, names) in zip(photos, foods) {
+            if let data = image(names).jpegData(compressionQuality: 0.8) {
+                try? data.write(to: directory.appendingPathComponent(photo.fileName))
+            }
         }
         if let index = try? JSONEncoder().encode(photos) {
             try? index.write(to: directory.appendingPathComponent("index.json"))

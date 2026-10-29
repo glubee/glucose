@@ -1,28 +1,38 @@
 import SwiftUI
 
-/// 홈 "오늘의 흐름" 아래 시간줄: 오늘 남긴 음식·인슐린·확인 대기 사진을 시간순으로 세로 줄에 꿰어 보여주고,
-/// 맨 끝에서 바로 음식·인슐린을 더할 수 있다. 점 색은 상황별(식사·간식·저혈당 대응·술·인슐린) 색이다.
+/// 홈 "오늘의 다이어리": 오늘 남긴 음식·인슐린·확인 대기 사진을 하루 마무리와 같은 줄노트 시간줄로 보여준다.
+/// 왼쪽은 시각과 때(아침·점심·저녁), 사진은 테이프로 붙인 폴라로이드(아래 띠 색 = 상황). 더하기 버튼은 홈 아래 버튼만 쓴다.
 struct HomeTimelineSection: View {
     let viewModel: HomeViewModel
     let highlightedID: String?
     let openPending: (PendingPhoto) -> Void
-    let takePhoto: () -> Void
-    let writeFood: () -> Void
-    var addInsulin: () -> Void = {}
     let showAll: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            HStack {
-                Text("오늘 남긴 기록 \(viewModel.todayEntries.count)건")
-                    .font(.pretendard(15, relativeTo: .subheadline, weight: .bold))
-                    .foregroundStyle(Color.textPrimary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("오늘의 다이어리")
+                        .font(.pretendard(17, relativeTo: .headline, weight: .bold))
+                        .foregroundStyle(Color.textPrimary)
+                    Text(viewModel.todayEntries.isEmpty ? "남긴 기록이 시간순으로 여기에 붙어요"
+                         : "오늘 남긴 기록 \(viewModel.todayEntries.count)개")
+                        .font(.caption1)
+                        .foregroundStyle(Color.textSecondary)
+                }
                 Spacer()
-                Button("전체 기록", action: showAll).font(.caption1.weight(.semibold))
-                    .foregroundStyle(Color.textSecondary).frame(minHeight: 44)
+                Button(action: showAll) {
+                    Text("전체 기록 ›").font(.body2).underline().foregroundStyle(Diary.ink)
+                }
+                .frame(minHeight: Metrics.minTapTarget)
             }
+            .padding(.horizontal, Spacing.m)
+            .padding(.top, Spacing.s)
+
             if RecordDataSource.isPreview {
-                Text("예시 기록 · 서버에 저장되지 않아요").font(.caption1).foregroundStyle(Color.textSecondary)
+                Text("예시 기록 · 서버에 저장되지 않아요")
+                    .font(.caption1).foregroundStyle(Color.textSecondary)
+                    .padding(.horizontal, Spacing.m)
             }
             if viewModel.timeline.isLoading && viewModel.todayEntries.isEmpty {
                 ProgressView("오늘 기록을 불러오고 있어요").frame(maxWidth: .infinity).padding()
@@ -33,56 +43,44 @@ struct HomeTimelineSection: View {
                     Button("다시 불러오기") { Task { await viewModel.refresh() } }
                         .font(.body2.weight(.semibold)).frame(minHeight: 44)
                 }
+                .padding(.horizontal, Spacing.m)
             } else if !viewModel.timeline.isLoading && viewModel.todayEntries.isEmpty {
-                Text("오늘은 아직 남긴 기록이 없어요. 아래에서 첫 기록을 더해 보세요.")
-                    .font(.body2).foregroundStyle(Color.textSecondary)
+                Text("아래 \"음식 찍기\"나 \"인슐린\"으로 남기면 시간순으로 여기에 붙어요.")
+                    .font(.body2)
+                    .foregroundStyle(Color.textSecondary)
+                    .padding(.horizontal, Spacing.m)
+                    .padding(.vertical, Spacing.l)
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(viewModel.todayEntries.enumerated()), id: \.element.id) { index, entry in
-                    railRow(entry, isLast: index == viewModel.todayEntries.count - 1)
+                ForEach(viewModel.todayEntries) { entry in
+                    row(entry)
                 }
             }
-
-            addRow
+            .padding(.horizontal, Spacing.s)
+            .padding(.bottom, Spacing.s)
         }
+        .background(DiaryPaper(marginX: Spacing.s + Diary.timeColumn / 2))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.line, lineWidth: 1))
     }
 
-    // MARK: - 시간줄 한 칸
+    // MARK: - 한 칸
 
-    private func railRow(_ entry: TimelineEntry, isLast: Bool) -> some View {
-        HStack(alignment: .top, spacing: Spacing.xs) {
-            Text(ReportDay.timeString(from: entry.occurredAt))
-                .font(.caption1.weight(.bold).monospacedDigit())
-                .foregroundStyle(Color.textSecondary)
-                .frame(width: 44, alignment: .trailing)
-                .padding(.top, 14)
-            VStack(spacing: 0) {
-                Circle()
-                    .fill(color(for: entry))
-                    .frame(width: 12, height: 12)
-                    .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
-                    .padding(.top, 16)
-                Rectangle()
-                    .fill(Color.line)
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
-                    .opacity(isLast ? 0 : 1)
-            }
-            .frame(width: 14)
+    private func row(_ entry: TimelineEntry) -> some View {
+        DiaryTimeRow(time: entry.occurredAt, label: label(for: entry)) {
             Group {
                 switch entry {
                 case .record(let item):
-                    NavigationLink(value: item) { RecordRow(item: item) }.buttonStyle(.plain)
+                    NavigationLink(value: item) { recordContent(item) }.buttonStyle(.plain)
                 case .pending(let photo):
-                    Button { openPending(photo) } label: { pendingRow(photo) }.buttonStyle(.plain)
+                    Button { openPending(photo) } label: { pendingContent(photo) }.buttonStyle(.plain)
                 }
             }
-            .padding(.bottom, Spacing.xs)
+            .padding(Spacing.xxs)
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.card)
+                RoundedRectangle(cornerRadius: Radius.field)
                     .strokeBorder(highlightedID == entry.id ? Color.brand : Color.clear, lineWidth: 3)
-                    .padding(.bottom, Spacing.xs)
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -91,56 +89,92 @@ struct HomeTimelineSection: View {
         .accessibilityValue(highlightedID == entry.id ? "새로 추가한 기록" : "")
     }
 
-    private func pendingRow(_ photo: PendingPhoto) -> some View {
-        HStack(spacing: Spacing.s) {
-            PendingPhotoThumbnail(photo: photo, store: viewModel.photos)
-            VStack(alignment: .leading, spacing: 3) {
+    private func label(for entry: TimelineEntry) -> String {
+        switch entry {
+        case .record(.intake(let record)): Diary.label(for: record.occurredAt, context: record.context)
+        case .record(.insulin): "인슐린"
+        case .pending(let photo): Diary.label(for: photo.capturedAt, context: photo.context)
+        }
+    }
+
+    @ViewBuilder
+    private func recordContent(_ item: RecordItem) -> some View {
+        switch item {
+        case .intake(let record):
+            HStack(alignment: .top, spacing: Spacing.s) {
+                if let photoId = record.photoId {
+                    DiaryPolaroid(tint: record.context.tint) {
+                        FoodPhotoThumbnail(photoId: photoId, size: 104, cornerRatio: 0.01)
+                    }
+                    .padding(.top, Spacing.xxs)
+                    .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(record.items.isEmpty ? record.context.displayName : record.items.map(\.name).joined(separator: " · "))
+                        .font(.body1)
+                        .foregroundStyle(Color.textPrimary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    contextTag(record.context)
+                    linkText("기록 보기")
+                }
+                .padding(.top, Spacing.xs)
+                Spacer(minLength: 0)
+            }
+        case .insulin(let record):
+            DiaryNoteCard(tint: .insulin) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("인슐린 기록", systemImage: "syringe.fill")
+                        .font(.caption1.weight(.semibold))
+                        .foregroundStyle(Color.insulin)
+                    Text("\(record.kind) · \(record.units.formattedUnits)U")
+                        .font(.body1)
+                        .foregroundStyle(Color.textPrimary)
+                    linkText("기록 보기")
+                }
+            }
+        }
+    }
+
+    private func pendingContent(_ photo: PendingPhoto) -> some View {
+        HStack(alignment: .top, spacing: Spacing.s) {
+            DiaryPolaroid(tint: photo.context.tint) {
+                PendingPhotoThumbnail(photo: photo, store: viewModel.photos, size: 104, cornerRadius: 1)
+            }
+            .padding(.top, Spacing.xxs)
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text("\(photo.context.chipName) 사진")
-                    .font(.headline2).foregroundStyle(Color.textPrimary)
-                Text("확인 필요").font(.body2.weight(.semibold)).foregroundStyle(photo.context.tint)
+                    .font(.body1)
+                    .foregroundStyle(Color.textPrimary)
+                Text("확인 필요")
+                    .font(.caption1.weight(.semibold))
+                    .foregroundStyle(Color.onBrandSoft)
+                    .padding(.horizontal, Spacing.xs).padding(.vertical, 2)
+                    .background(Color.brandSoft, in: Capsule())
                 Text(viewModel.photos.statusMessage(for: photo))
                     .font(.caption1).foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                linkText("확인하기")
             }
+            .padding(.top, Spacing.xs)
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.textSecondary)
-        }
-        .card(padding: Spacing.s)
-    }
-
-    private func color(for entry: TimelineEntry) -> Color {
-        switch entry {
-        case .record(.intake(let record)): record.context.tint
-        case .record(.insulin): .insulin
-        case .pending(let photo): photo.context.tint.opacity(0.5)
         }
     }
 
-    // MARK: - 바로 더하기
-
-    private var addRow: some View {
-        HStack(spacing: Spacing.xs) {
-            addButton("사진", icon: "camera.fill", tint: IntakeContext.meal.tint, action: takePhoto)
-                .accessibilityIdentifier("timelineTakePhoto")
-            addButton("글로 음식", icon: "square.and.pencil", tint: IntakeContext.snack.tint, action: writeFood)
-                .accessibilityIdentifier("timelineWriteFood")
-            addButton("인슐린", icon: "syringe.fill", tint: .insulin, action: addInsulin)
-                .accessibilityIdentifier("timelineAddInsulin")
-        }
-        .padding(.top, Spacing.xxs)
+    private func contextTag(_ context: IntakeContext) -> some View {
+        Text(context.chipName)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(context.tint)
+            .padding(.horizontal, 6).padding(.vertical, 1)
+            .background(context.softFill, in: Capsule())
     }
 
-    private func addButton(_ title: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.body.weight(.semibold))
-                Text("+ \(title)").font(.caption1.weight(.bold))
-            }
-            .foregroundStyle(tint)
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.field))
-            .overlay(RoundedRectangle(cornerRadius: Radius.field).strokeBorder(tint.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
-        }
-        .buttonStyle(.plain)
+    /// 줄 전체가 버튼이라 링크는 모양만 낸다
+    private func linkText(_ title: String) -> some View {
+        Text("\(title) ›")
+            .font(.body2)
+            .underline()
+            .foregroundStyle(Diary.ink)
+            .padding(.top, 2)
     }
 }

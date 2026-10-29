@@ -38,7 +38,8 @@ final class TimelineSamples: RecordRepository, IntakeServing, InsulinServing {
             insulins[id] = .init(id: id, occurredAt: date, units: units, kind: "직접 기록한 종류",
                                  createdAt: date, updatedAt: date)
         }
-        if let image = ReportSamples.image(for: ReportSamples.photoID(1)), let data = image.jpegData(compressionQuality: 0.7) {
+        // 점심에 찍고 아직 확인하지 않은 사진
+        if let data = DemoFoodArt.jpeg(foods: ["샌드위치", "아메리카노"]) {
             photos.add(imageData: data, context: .meal, capturedAt: Self.at(12, 10))
         }
     }

@@ -51,9 +51,9 @@ final class HomeRecordsUITests: XCTestCase {
 
     func testEmptyHomeCanSaveTextThenRevealTheNewRowAndFindItInRecordTab() {
         let app = launch(empty: true)
-        let write = app.buttons["timelineWriteFood"]
-        for _ in 0..<5 where !write.isHittable { app.swipeUp() }
-        XCTAssertTrue(write.isHittable)
+        app.buttons["음식 찍기"].tap()
+        let write = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "글로 남기기")).firstMatch
+        XCTAssertTrue(write.waitForExistence(timeout: 5))
         write.tap()
         let name = app.textFields["음식 이름"].firstMatch
         XCTAssertTrue(name.waitForExistence(timeout: 5))

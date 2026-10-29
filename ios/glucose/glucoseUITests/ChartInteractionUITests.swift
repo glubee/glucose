@@ -13,6 +13,17 @@ final class ChartInteractionUITests: XCTestCase {
         return app
     }
 
+    /// 평균 카드 아래 그래프가 화면 안에 다 들어오게 조금씩 올린다
+    private func revealPlot(in app: XCUIApplication) -> XCUIElement {
+        let plot = app.descendants(matching: .any)["interactiveChartPlot"].firstMatch
+        let bottom = app.tabBars.firstMatch.frame.minY
+        for _ in 0..<6 where plot.frame.maxY > bottom - 20 {
+            let point = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            point.press(forDuration: 0.05, thenDragTo: point.withOffset(CGVector(dx: 0, dy: -120)))
+        }
+        return plot
+    }
+
     func testReportShowsChartBeforeStory() {
         let app = reports()
         let chart = app.staticTexts["하루 흐름"]
@@ -62,11 +73,10 @@ final class ChartInteractionUITests: XCTestCase {
 
     func testReportScrollsWhenDraggingVerticallyOnChart() {
         let app = reports()
-        let content = app.scrollViews["dailyReportContent"]
-        let zoom = content.buttons["chartZoom-3"]
+        let plot = revealPlot(in: app)
+        let zoom = app.buttons["chartZoom-3"]
         XCTAssertTrue(zoom.isHittable)
         let before = zoom.frame.minY
-        let plot = content.descendants(matching: .any)["interactiveChartPlot"].firstMatch
         let start = plot.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.6))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -180)))
         XCTAssertLessThan(zoom.frame.minY, before - 60)
@@ -74,7 +84,7 @@ final class ChartInteractionUITests: XCTestCase {
 
     func testTappingChartShowsValueAboveIt() {
         let app = reports()
-        let plot = app.descendants(matching: .any)["interactiveChartPlot"].firstMatch
+        let plot = revealPlot(in: app)
         plot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
         XCTAssertTrue(app.buttons["선택 해제"].waitForExistence(timeout: 5))
     }

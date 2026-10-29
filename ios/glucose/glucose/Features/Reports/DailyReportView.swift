@@ -4,7 +4,7 @@
 //
 //  사실만 보여준다: 혈당이 어땠는지, 무엇을 언제 기록했는지. 인슐린 용량·식사량 조언은 하지 않는다.
 //  판단에 필요한 데이터가 없으면 "아니다"가 아니라 "판단할 수 없다"고 표시한다.
-//  하루 흐름(사진이 붙은 그래프 + 시각순 기록) → 하루 이야기 → 평균·데이터 칩 → 흐름 안내 → 음식 관찰.
+//  평균·데이터 칩 → 하루 흐름(사진이 붙은 그래프 + 시각순 기록) → 하루 이야기 → 흐름 안내 → 음식 관찰.
 //
 
 import SwiftUI
@@ -39,19 +39,18 @@ struct DailyReportView: View {
                 case .failed(let message):
                     ReportLoadState(message: message) { Task { await viewModel.load() } }
                 case .loaded(let report, let points):
-                    // v5 순서(Dave 2026-10-29): 그래프(시각별 확인) → 하루 이야기 → 숫자 → 흐름 안내.
+                    // v5 순서(Dave 2026-10-29): 평균 혈당 → 그래프(시각별 확인) → 하루 이야기 → 흐름 안내.
                     // "섭취 기록 묶음 n건"·인슐린 목록 카드는 그래프 아래 "이날 기록"(시각순)으로 대신한다.
                     if viewModel.requiresGraphReprocessing {
                         reprocessCard
+                    } else {
+                        glucoseHero(report: report)
                     }
                     chartCard(report: report, points: viewModel.requiresGraphReprocessing ? [] : points)
                     if let story = report.story, !story.isEmpty {
                         DailyStoryCard(story: story, evidence: report.summary ?? [])
                     } else {
                         ReportNarrativeSection(kind: "DAILY", date: report.date, summary: report.summary ?? [])
-                    }
-                    if !viewModel.requiresGraphReprocessing {
-                        glucoseHero(report: report)
                     }
                     if let insights = report.insights, !insights.isEmpty {
                         DailyInsightsCard(insights: insights)

@@ -64,18 +64,20 @@ final class PhotoWorkflowUITests: XCTestCase {
         app.launch()
         let row = app.buttons["pendingPhotoOpen-\(sampleID)"]
         XCTAssertTrue(row.waitForExistence(timeout: 8))
-        row.swipeLeft()
-        app.buttons["밀어서 사진 지우기"].tap()
+        let delete = app.buttons["pendingPhotoDelete-\(sampleID)"]
+        for _ in 0..<4 where !delete.isHittable { app.swipeUp() }
+        delete.tap()
         let dialog = app.alerts["이 사진을 지울까요?"]
         XCTAssertTrue(dialog.waitForExistence(timeout: 3))
         dialog.buttons["사진 지우기"].tap()
         XCTAssertTrue(row.waitForNonExistence(timeout: 5))
         let failedPhoto = app.buttons["pendingPhotoOpen-00000000-0000-0000-0000-000000000002"]
+        for _ in 0..<4 where !failedPhoto.isHittable { app.swipeUp() }
         failedPhoto.tap()
         XCTAssertTrue(app.buttons["취소"].waitForExistence(timeout: 5))
         app.buttons["취소"].tap()
         XCTAssertTrue(failedPhoto.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["다음 · 인슐린 확인"].isEnabled)
+        XCTAssertFalse(app.buttons["dayCloseFinish"].isEnabled)
     }
 
     func testRecognitionPreviewCannotPersistSampleFood() {

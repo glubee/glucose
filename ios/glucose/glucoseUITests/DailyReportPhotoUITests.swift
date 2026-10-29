@@ -15,10 +15,11 @@ final class DailyReportPhotoUITests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
 
-    func testStoryAppearsBeforeNumbersAndPreviewCanClose() {
+    func testAverageThenChartThenStoryAndPreviewCanClose() {
         let app = launch()
         XCTAssertTrue(app.staticTexts["하루 이야기"].waitForExistence(timeout: 8))
-        XCTAssertLessThan(app.staticTexts["하루 이야기"].frame.minY, app.staticTexts["평균 혈당"].frame.minY)
+        XCTAssertLessThan(app.staticTexts["평균 혈당"].frame.minY, app.staticTexts["하루 흐름"].frame.minY)
+        XCTAssertLessThan(app.staticTexts["하루 흐름"].frame.minY, app.staticTexts["하루 이야기"].frame.minY)
         app.buttons["closeDailyReportPreview"].tap()
         XCTAssertTrue(app.buttons["음식 찍기"].waitForExistence(timeout: 5))
     }

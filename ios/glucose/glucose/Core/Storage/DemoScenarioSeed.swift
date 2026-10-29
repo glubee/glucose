@@ -6,6 +6,7 @@
 //  식사·간식·저혈당 처치·술·인슐린 기록을 서버 API로 남긴다. 리포트 요약·음식별 관찰·주간 리포트를 보여주기 위한 것.
 //  날짜는 "원래 그래프 날짜"로 적고, 서버에 있는 가장 최근 그래프 날짜를 10-10에 맞춰 옮긴다
 //  (infra/demo-shift-dates.sh로 옮긴 뒤에도 맞는다). 이미 식사·인슐린 기록이 있는 날은 건너뛴다.
+//  음식 기록마다 이름에 맞는 그림(DemoFoodArt)을 사진으로 올린다(사진마다 서버 음식 인식이 한 번 돈다).
 //  인슐린 단위는 기록 예시일 뿐 권장값이 아니다. 실제 사용자 계정에는 쓰지 않는다.
 //
 
@@ -205,8 +206,10 @@ enum DemoScenarioSeed {
         switch record {
         case .intake(let time, let context, let foods):
             guard let at = date(day, time) else { return }
+            // 음식 이름에 맞는 그림을 사진으로 올려 둔다(올리지 못하면 사진 없이 기록만)
+            let photoId = await uploadPhoto(foods: foods.map(\.name), context: context)
             let request = CreateIntakeRequest(
-                context: context.rawValue, occurredAt: at, photoId: nil,
+                context: context.rawValue, occurredAt: at, photoId: photoId,
                 items: foods.map { IntakeItemRequest(name: $0.name, count: $0.count, unit: $0.unit, categoryHint: nil, tags: []) })
             let _: IntakeResponse = try await APIClient.shared.send(path: "/v1/intakes", method: .post, body: request)
         case .insulin(let time, let units, let kind):
@@ -214,6 +217,12 @@ enum DemoScenarioSeed {
             let _: InsulinEventResponse = try await APIClient.shared.send(
                 path: "/v1/insulin-events", method: .post, body: InsulinEventRequest(occurredAt: at, units: units, kind: kind))
         }
+    }
+
+    /// 데모 사진 올리기: /v1/photos → R2 PUT → complete. 완료하면 서버가 음식 인식도 한 번 돌린다
+    private static func uploadPhoto(foods: [String], context: IntakeContext) async -> UUID? {
+        guard let data = DemoFoodArt.jpeg(foods: foods) else { return nil }
+        return try? await PhotoUploader().upload(imageData: data, context: context)
     }
 
     /// 오류 종류와 서버 오류 코드만(응답 원문은 남기지 않는다)
