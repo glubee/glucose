@@ -25,6 +25,7 @@ final class DataSyncCoordinator {
     private let isEnabled: () -> Bool
     private var generation = UUID()
     private var activeTask: Task<Void, Never>?
+    private var needsAnotherPass = false
 
     init(progress: DayCloseStore? = nil, photos: PendingPhotoStore? = nil,
          progressService: ProgressSyncServing? = nil, photoService: PhotoSyncServing? = nil,
@@ -38,14 +39,22 @@ final class DataSyncCoordinator {
         progress.onMutation = { [weak self] in self?.schedule() }
         photos.onSyncNeeded = { [weak self] in self?.schedule() }
     }
-    func schedule() { Task { await refresh() } }
-    func invalidate() { generation = UUID(); activeTask?.cancel(); activeTask = nil; status = .idle }
+    func schedule() {
+        if activeTask != nil { needsAnotherPass = true; return }
+        Task { await refresh() }
+    }
+    func invalidate() { generation = UUID(); activeTask?.cancel(); activeTask = nil; needsAnotherPass = false; status = .idle }
     func refresh() async {
         guard let owner = currentAccount(), isEnabled() else { return }
         if let activeTask { await activeTask.value; return }
         let scope = generation
         let task = Task { [self] in
-            await performRefresh(owner: owner, scope: scope)
+            for _ in 0..<64 {
+                needsAnotherPass = false
+                await performRefresh(owner: owner, scope: scope)
+                guard generation == scope else { return }
+                if !needsAnotherPass || Task.isCancelled || currentAccount() != owner || !isEnabled() { break }
+            }
             if generation == scope { activeTask = nil }
         }
         activeTask = task

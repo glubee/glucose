@@ -111,6 +111,29 @@ class PendingPhotoFlowTest {
         assertThat((List<?>) request(user, HttpMethod.GET, "/v1/photos?unconfirmed=true", null).getBody().get("items")).isEmpty();
     }
 
+    @Test
+    void confirmationRetryAndConcurrentDevicesReturnOneIntakeAndNeverRestoreDeletedRecords() throws Exception {
+        Session owner = login();
+        UUID photo = uploaded(owner);
+        var body = Map.of("context", "MEAL", "occurred_at", "2026-10-29T01:00:00Z", "photo_id", photo.toString(),
+                "items", List.of(Map.of("name", "합성 음식")));
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var a = pool.submit(() -> request(owner, HttpMethod.POST, "/v1/intakes", body));
+            var b = pool.submit(() -> request(owner, HttpMethod.POST, "/v1/intakes", body));
+            var first = a.get(); var second = b.get();
+            assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(second.getBody().get("id")).isEqualTo(first.getBody().get("id"));
+            var retry = request(owner, HttpMethod.POST, "/v1/intakes", body);
+            assertThat(retry.getBody().get("id")).isEqualTo(first.getBody().get("id"));
+            assertThat((List<?>) request(owner, HttpMethod.GET, "/v1/intakes", null).getBody().get("items")).hasSize(1);
+            request(owner, HttpMethod.DELETE, "/v1/intakes/" + first.getBody().get("id"), null);
+            assertThat(request(owner, HttpMethod.POST, "/v1/intakes", body).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat((List<?>) request(owner, HttpMethod.GET, "/v1/intakes", null).getBody().get("items")).isEmpty();
+        } finally { pool.shutdownNow(); }
+    }
+
     private UUID uploaded(Session user) {
         IntakePhoto photo = new IntakePhoto(user.userId(), "photos/test-" + UUID.randomUUID() + ".jpg", "image/jpeg", PhotoContext.MEAL);
         photo.markUploaded(Instant.now());

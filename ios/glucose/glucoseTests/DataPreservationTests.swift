@@ -136,4 +136,15 @@ final class DataPreservationTests: XCTestCase {
         XCTAssertNil(defaults.data(forKey: "day_close_v3.\(id.uuidString)"))
         XCTAssertNil(defaults.data(forKey: "user_preferences_v2.\(id.uuidString)"))
     }
+    func testUnknownUpgradeOwnerStaysQuarantinedAcrossLaterLoginAndRestart() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!, laterUser = UUID()
+        XCTAssertNil(LegacyDataOwnership.initialOwner(in: defaults, cachedAccount: nil))
+        XCTAssertNil(LegacyDataOwnership.initialOwner(in: defaults, cachedAccount: laterUser))
+    }
+    func testKnownUpgradeOwnerIsNotReassignedAfterAccountSwitch() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!, original = UUID()
+        XCTAssertEqual(LegacyDataOwnership.initialOwner(in: defaults, cachedAccount: original), original)
+        XCTAssertEqual(LegacyDataOwnership.initialOwner(in: defaults, cachedAccount: UUID()), original)
+    }
+
 }

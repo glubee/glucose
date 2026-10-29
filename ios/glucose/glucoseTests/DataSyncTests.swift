@@ -84,6 +84,43 @@ final class DataSyncTests: XCTestCase {
         XCTAssertEqual(env.coordinator.status, .failed)
     }
 
+    func testProgressMutationDuringPhotoPagingTriggersAnotherPass() async throws {
+        let env = environment(), photoService = PausedPhotoSync()
+        let coordinator = DataSyncCoordinator(progress: env.progress, photos: env.photos, progressService: env.service,
+            photoService: photoService, currentAccount: { env.owner.id }, isEnabled: { true })
+        coordinator.bind()
+        let work = Task { await coordinator.refresh() }
+        while photoService.continuation == nil { await Task.yield() }
+        env.progress.markClosed(day(1))
+        await Task.yield()
+        photoService.continuation?.resume()
+        await work.value
+        XCTAssertFalse(env.progress.hasPendingChanges)
+        XCTAssertEqual(env.service.requests.count, 2)
+        XCTAssertEqual(coordinator.status, .saved)
+    }
+
+    func testPhotoDismissalDuringPagingIsSentWithoutAnotherForeground() async throws {
+        let env = environment(), photoService = PausedPhotoSync()
+        let remote = SyncedPhoto(photoId: UUID(), clientId: UUID(), capturedAt: .now,
+            context: .meal, status: "UPLOADED", confirmed: false, dismissed: false)
+        photoService.items = [remote]; photoService.pauses = false
+        try await env.photos.synchronize(using: photoService)
+        photoService.pauses = true
+        let coordinator = DataSyncCoordinator(progress: env.progress, photos: env.photos, progressService: env.service,
+            photoService: photoService, currentAccount: { env.owner.id }, isEnabled: { true })
+        coordinator.bind()
+        let work = Task { await coordinator.refresh() }
+        while photoService.continuation == nil { await Task.yield() }
+        XCTAssertTrue(env.photos.remove(try XCTUnwrap(env.photos.photos.first).id))
+        await Task.yield()
+        photoService.continuation?.resume()
+        await work.value
+        XCTAssertEqual(photoService.dismissed, [remote.photoId])
+        XCTAssertEqual(env.photos.pendingDismissals, 0)
+        XCTAssertTrue(env.photos.photos.isEmpty)
+    }
+
     func testConcurrentRefreshesShareTheSameRequest() async throws {
         let env = environment(), entered = expectation(description: "request entered")
         env.service.pauseNext = true; env.service.onEntered = { entered.fulfill() }
@@ -125,4 +162,19 @@ private struct EmptyPhotoSync: PhotoSyncServing {
     func metadata(_ id: UUID) async throws -> SyncedPhoto { throw APIError.invalidResponse }
     func updateMetadata(_ id: UUID, value: PhotoMetadataUpdate) async throws {}
     func dismiss(_ id: UUID) async throws {}
+}
+
+@MainActor
+private final class PausedPhotoSync: PhotoSyncServing {
+    var continuation: CheckedContinuation<Void, Never>?
+    var pauses = true
+    var items: [SyncedPhoto] = []
+    var dismissed: [UUID] = []
+    func pendingPage(cursor: String?) async throws -> PhotoSyncPage {
+        if pauses { pauses = false; await withCheckedContinuation { continuation = $0 } }
+        return PhotoSyncPage(items: items, nextCursor: nil)
+    }
+    func metadata(_ id: UUID) async throws -> SyncedPhoto { throw APIError.invalidResponse }
+    func updateMetadata(_ id: UUID, value: PhotoMetadataUpdate) async throws {}
+    func dismiss(_ id: UUID) async throws { dismissed.append(id) }
 }

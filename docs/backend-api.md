@@ -536,5 +536,5 @@ JWT 계정별로 저장한다. 기존 리포트/인슐린/섭취 API는 유지�
 - 목록 항목과 `GET /v1/photos/{photoId}` 응답: `{photo_id, client_id, captured_at, context, status, confirmed, dismissed}`. 목록에 객체 키나 서명 URL은 넣지 않는다. 원본 표시는 기존 `GET /v1/photos/{id}/view`를 사용한다.
 - `PATCH /v1/photos/{id}/metadata`: `{captured_at, client_id?, context?}` → 204. 이전 앱이 누락한 촬영 시각/client_id를 한 번 채우고 미확인 사진 분류를 갱신한다. 다른 사진의 client_id를 사용하면 409 `PHOTO_CLIENT_ID_REUSED`.
 - `POST /v1/photos/{id}/dismiss` → 204, 멱등으로 대기 목록에서 숨긴다. R2 파일 삭제는 수행하지 않는다. 이후 늦은 완료 통보/동일 client_id 업로드 시작은 409 `PHOTO_DISMISSED`.
-- 음식 기록 저장 시 본인의 업로드 완료 사진만 연결하고 함께 confirmed를 기록한다. 해당 음식 기록을 나중에 삭제해도 사진은 대기로 돌아오지 않는다. 다른 계정 사진은 404 `PHOTO_NOT_FOUND`. 기존 연결 사진도 Flyway에서 확인 처리한다.
+- 음식 기록 저장 시 본인의 업로드 완료 사진만 연결하고 함께 confirmed를 기록한다. 같은 사진으로 다시 저장하면 첫 음식 기록 결과를 반환한다(동시 기기·응답 유실 재시도 포함). 수정은 기존 기록 PATCH를 사용한다. 이미 확인한 사진의 기록이 삭제된 경우 409 `PHOTO_ALREADY_CONFIRMED`이며 재생성하지 않는다. 해당 음식 기록을 나중에 삭제해도 사진은 대기로 돌아오지 않는다. 다른 계정 사진은 404 `PHOTO_NOT_FOUND`. 기존 연결 사진도 Flyway에서 확인 처리한다.
 

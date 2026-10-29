@@ -19,6 +19,7 @@ final class AuthSession {
 
     private(set) var accountID: UUID?
     private(set) var generation = UUID()
+    private let legacyOwner: UUID?
     private var didBootstrap = false
     private(set) var accessToken: String?
     private(set) var isAuthenticated: Bool
@@ -26,6 +27,7 @@ final class AuthSession {
     private init() {
         let token = keychain.get(accessTokenKey)
         accountID = token.flatMap(AccountIdentity.userID)
+        legacyOwner = LegacyDataOwnership.initialOwner(in: .standard, cachedAccount: token.flatMap(AccountIdentity.userID))
         accessToken = token
         isAuthenticated = token != nil
     }
@@ -41,7 +43,7 @@ final class AuthSession {
     func bootstrap() {
         guard !didBootstrap else { return }
         didBootstrap = true
-        AccountDataCoordinator.activate(accountID, allowLegacy: accountID != nil)
+        AccountDataCoordinator.activate(accountID, allowLegacy: accountID != nil && accountID == legacyOwner)
     }
 
     func signIn(with tokens: AuthTokens) {

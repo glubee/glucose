@@ -17,7 +17,27 @@
 import Foundation
 import UserNotifications
 
+@MainActor
+protocol NudgeNotificationServing {
+    func pending() async -> [UNNotificationRequest]
+    func isAuthorized() async -> Bool
+    func remove(_ identifiers: [String])
+    func add(_ request: UNNotificationRequest) async throws
+}
+
+@MainActor
+private struct SystemNudgeNotifications: NudgeNotificationServing {
+    private let center = UNUserNotificationCenter.current()
+    func pending() async -> [UNNotificationRequest] { await center.pendingNotificationRequests() }
+    func isAuthorized() async -> Bool { await center.notificationSettings().authorizationStatus == .authorized }
+    func remove(_ identifiers: [String]) { center.removePendingNotificationRequests(withIdentifiers: identifiers) }
+    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
+}
+
 enum NudgeScheduler {
+
+    @MainActor private static var activeGeneration = UUID()
+    @MainActor static func invalidate() { activeGeneration = UUID() }
 
     static let identifierPrefix = "glubee-nudge-"
     static let deepLink = "glubee://day-close"
@@ -38,16 +58,27 @@ enum NudgeScheduler {
     static func refresh(
         preferences: UserPreferences = .shared,
         store: DayCloseStore = .shared,
-        now: Date = .now
+        now: Date = .now,
+        notifications: (any NudgeNotificationServing)? = nil,
+        isCurrent: (() -> Bool)? = nil
     ) async {
-        let center = UNUserNotificationCenter.current()
-        let pending = await center.pendingNotificationRequests()
-        center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter {
+        let center = notifications ?? SystemNudgeNotifications()
+        let job = UUID(), session = AuthSession.shared.generation
+        activeGeneration = job
+        let ownsSession = isCurrent ?? {
+            AuthSession.shared.generation == session && AuthSession.shared.isAuthenticated && !RecordDataSource.isPreview
+        }
+        func valid() -> Bool { !Task.isCancelled && activeGeneration == job && ownsSession() }
+        guard valid() else { return }
+        let pending = await center.pending()
+        guard valid() else { return }
+        center.remove(pending.map(\.identifier).filter {
             $0.hasPrefix(identifierPrefix) || $0.hasPrefix("day-close-") // 예전 이름
         })
-        guard await center.notificationSettings().authorizationStatus == .authorized else { return }
+        guard await center.isAuthorized(), valid() else { return }
 
         for nudge in plan(preferences: preferences, store: store, now: now) where nudge.fire > now {
+            guard valid() else { return }
             let content = UNMutableNotificationContent()
             content.title = nudge.title
             content.body = nudge.body
@@ -55,11 +86,17 @@ enum NudgeScheduler {
             content.userInfo = ["url": nudge.url]
             let components = ReportDay.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nudge.fire)
             let request = UNNotificationRequest(
-                identifier: identifierPrefix + nudge.id,
+                identifier: identifierPrefix + job.uuidString + "-" + nudge.id,
                 content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             )
             try? await center.add(request)
+            guard valid() else {
+                // The system may finish an in-flight add after account deletion cleared the queue.
+                // This job's unique ID cannot erase a newer account's replacement request.
+                center.remove([request.identifier])
+                return
+            }
         }
     }
 

@@ -53,6 +53,32 @@ final class DataPreservationUITests: XCTestCase {
         XCTAssertTrue(row.waitForNonExistence(timeout: 6))
     }
 
+    func testSettingsLocalDemoOpensTheBackupExample() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["-settings"]; app.launch()
+        let load = app.buttons["시나리오 기록 넣기"]
+        for _ in 0..<8 where !load.isHittable { app.swipeUp() }
+        XCTAssertTrue(load.isHittable)
+        load.tap()
+        XCTAssertTrue(app.tabBars.buttons["설정"].waitForExistence(timeout: 6))
+        app.tabBars.buttons["설정"].tap()
+        let example = app.buttons["백업 동작 예시 보기"]
+        for _ in 0..<8 where !example.isHittable { app.swipeDown() }
+        XCTAssertTrue(example.isHittable)
+        example.tap()
+        XCTAssertTrue(app.staticTexts["로컬 검증 예시 · 서버에 연결하지 않아요"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts["백업 연결을 확인하지 못했어요"].waitForExistence(timeout: 6))
+        app.buttons["backupRetry"].tap()
+        XCTAssertTrue(app.staticTexts["로컬 검증을 마쳤어요"].waitForExistence(timeout: 6))
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "phase5-settings-backup-example"; capture.lifetime = .keepAlways; add(capture)
+        app.terminate(); app.launchArguments = ["-tabs"]; app.launch()
+        app.tabBars.buttons["설정"].tap()
+        let end = app.buttons["기기 데모 종료"]
+        for _ in 0..<8 where !end.isHittable { app.swipeUp() }
+        XCTAssertTrue(end.isHittable); end.tap()
+    }
+
     private func launchSample() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["-backupSamples"]; app.launch()

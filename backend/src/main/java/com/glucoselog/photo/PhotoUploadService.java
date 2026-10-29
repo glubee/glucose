@@ -129,13 +129,15 @@ public class PhotoUploadService {
     }
 
     @Transactional
-    public void confirmForIntake(UUID userId, UUID photoId) {
+    public boolean confirmForIntake(UUID userId, UUID photoId) {
         lockUser(userId);
         IntakePhoto photo = ownedLocked(userId, photoId);
         if (photo.getStatus() != PhotoStatus.UPLOADED) {
             throw new ApiException(HttpStatus.CONFLICT, "PHOTO_NOT_UPLOADED", "업로드가 아직 완료되지 않았습니다");
         }
+        boolean firstConfirmation = !photo.isConfirmed();
         photo.confirm();
+        return firstConfirmation;
     }
 
     private IntakePhoto ownedLocked(UUID userId, UUID id) {

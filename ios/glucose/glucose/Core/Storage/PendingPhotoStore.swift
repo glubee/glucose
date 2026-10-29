@@ -77,7 +77,7 @@ final class PendingPhotoStore {
         if allowLegacy { claimLegacyForActiveAccount() }
     }
     @discardableResult func claimLegacyForActiveAccount() -> Bool {
-        guard let accountID, hasUnclaimedLegacy else { return false }
+        guard !storageUnavailable, let accountID, hasUnclaimedLegacy else { return false }
         let sourceIndex = baseDirectory.appendingPathComponent("index.json")
         do {
             let values = try JSONDecoder().decode([PendingPhoto].self, from: Data(contentsOf: sourceIndex))
@@ -107,6 +107,7 @@ final class PendingPhotoStore {
     var hasPendingBackup: Bool { waitingForUpload > 0 || pendingDismissals > 0 }
 
     func synchronize(using service: PhotoSyncServing) async throws {
+        if storageUnavailable { loadCurrentDirectory() }
         guard !storageUnavailable else { throw APIError.invalidResponse }
         let scope = scopeGeneration
         func check() throws {
@@ -165,15 +166,21 @@ final class PendingPhotoStore {
 
     private func loadCurrentDirectory() {
         photos = []; dismissals = [:]; errorMessage = nil; storageUnavailable = false
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        if let data = try? Data(contentsOf: indexURL) {
-            do { photos = try JSONDecoder().decode([PendingPhoto].self, from: data); recoverStoredState() }
-            catch { storageUnavailable = true; errorMessage = "확인 대기 사진 목록을 불러오지 못했어요." }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let storedPhotos = try readMetadata(indexURL).map { try JSONDecoder().decode([PendingPhoto].self, from: $0) } ?? []
+            let storedDismissals = try readMetadata(dismissalsURL).map { try JSONDecoder().decode([UUID: Dismissal].self, from: $0) } ?? [:]
+            photos = storedPhotos; dismissals = storedDismissals
+            recoverStoredState()
+        } catch {
+            storageUnavailable = true
+            errorMessage = "사진 목록을 불러오지 못했어요. 원본은 기기에 남아 있어요."
         }
-        if let data = try? Data(contentsOf: dismissalsURL) {
-            do { dismissals = try JSONDecoder().decode([UUID: Dismissal].self, from: data) }
-            catch { storageUnavailable = true; errorMessage = "사진 정리 목록을 불러오지 못했어요." }
-        }
+    }
+    private func readMetadata(_ url: URL) throws -> Data? {
+        do { return try Data(contentsOf: url) }
+        catch let error as NSError where error.domain == NSCocoaErrorDomain
+            && [NSFileReadNoSuchFileError, NSFileNoSuchFileError].contains(error.code) { return nil }
     }
     private func persistDismissals() throws {
         try JSONEncoder().encode(dismissals).write(to: dismissalsURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
@@ -229,7 +236,7 @@ final class PendingPhotoStore {
     /// 기기 대기 목록과 파일만 지운다. 서버 사진에는 DELETE API가 없다.
     @discardableResult
     func remove(_ id: UUID, remoteDismiss: Bool = true) -> Bool {
-        guard let photo = photos.first(where: { $0.id == id }) else { return false }
+        guard !storageUnavailable, let photo = photos.first(where: { $0.id == id }) else { return false }
         let original = imageURL(for: photo)
         let staged = discardedDirectory.appendingPathComponent(photo.fileName)
         var didStage = false
@@ -265,6 +272,7 @@ final class PendingPhotoStore {
     /// 서버 기록은 이미 저장됐다. 정리가 실패해도 이 사진을 다시 POST하지 않도록 완료를 별도로 남긴다.
     @discardableResult
     func finishConfirmation(_ id: UUID) -> Bool {
+        guard !storageUnavailable else { return false }
         guard let index = photos.firstIndex(where: { $0.id == id }) else { return true }
         photos[index].isConfirmed = true
         do {
@@ -369,6 +377,7 @@ final class PendingPhotoStore {
     }
 
     private func update(_ id: UUID, _ change: (inout PendingPhoto) -> Void) throws {
+        guard !storageUnavailable else { throw APIError.invalidResponse }
         guard let index = photos.firstIndex(where: { $0.id == id }) else { return }
         var updated = photos
         change(&updated[index])

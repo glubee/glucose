@@ -98,6 +98,24 @@ final class PhotoPreservationTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: index), original)
     }
 
+    func testFileReadDenialCannotReplaceIndexOrDismissalOutbox() async throws {
+        for name in ["index.json", "dismissals.json"] {
+            let folder = directory(), file = folder.appendingPathComponent(name)
+            let original = Data((name == "index.json" ? "[]" : "{}").utf8)
+            try original.write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+            defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path) }
+            XCTAssertThrowsError(try Data(contentsOf: file), "test requires a real read denial")
+            let store = make(folder), service = PhotoSyncDouble()
+            service.pages[""] = PhotoSyncPage(items: [remote()], nextCursor: nil)
+            XCTAssertNotNil(store.errorMessage)
+            do { try await store.synchronize(using: service); XCTFail("read denial must stop sync") } catch {}
+            XCTAssertNil(store.add(imageData: Data([1]), context: .meal))
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            XCTAssertEqual(try Data(contentsOf: file), original)
+        }
+    }
+
     func testLegacyPhotoRequiresClaimAndKeepsBytesIfMigrationFails() throws {
         let folder = directory(), legacy = make(folder)
         let original = try XCTUnwrap(legacy.add(imageData: Data([1,2,3]), context: .meal))

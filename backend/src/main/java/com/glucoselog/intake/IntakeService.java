@@ -32,7 +32,12 @@ public class IntakeService {
 
     @Transactional
     public IntakeResponse create(UUID userId, IntakeRequest request) {
-        if (request.photoId() != null) photoUploads.confirmForIntake(userId, request.photoId());
+        if (request.photoId() != null && !photoUploads.confirmForIntake(userId, request.photoId())) {
+            // Photo confirmation is a one-time action across devices and response-loss retries.
+            return intakeRepository.findFirstByUserIdAndPhotoIdOrderByCreatedAtAscIdAsc(userId, request.photoId())
+                    .map(IntakeResponse::from)
+                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PHOTO_ALREADY_CONFIRMED", "이미 확인한 사진입니다. 기록 목록을 확인해 주세요"));
+        }
         Intake intake = new Intake(userId, request.photoId(), request.context(), request.occurredAt());
         intake.replaceItems(buildItems(request.items()));
         return IntakeResponse.from(intakeRepository.save(intake));

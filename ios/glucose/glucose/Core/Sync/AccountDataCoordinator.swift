@@ -19,6 +19,7 @@ enum AccountIdentity {
 enum AccountDataCoordinator {
     static func activate(_ id: UUID?, allowLegacy: Bool = false) {
         DataSyncCoordinator.shared.invalidate()
+        NudgeScheduler.invalidate()
         PhotoViewURLCache.shared.clearAll()
         PendingPhotoStore.shared.activateAccount(id, allowLegacy: allowLegacy)
         DayCloseStore.shared.activateAccount(id, allowLegacy: allowLegacy)
@@ -36,5 +37,15 @@ enum AccountDataCoordinator {
         UserPreferences.shared.claimLegacyForActiveAccount()
         PendingPhotoStore.shared.claimLegacyForActiveAccount()
         DataSyncCoordinator.shared.schedule()
+    }
+}
+
+/// The first upgrade launch decides whether old unscoped data has a known owner.
+enum LegacyDataOwnership {
+    static func initialOwner(in defaults: UserDefaults, cachedAccount: UUID?) -> UUID? {
+        let key = "legacy_upgrade_owner_v1"
+        if let recorded = defaults.string(forKey: key) { return UUID(uuidString: recorded) }
+        defaults.set(cachedAccount?.uuidString ?? "unattributed", forKey: key)
+        return cachedAccount
     }
 }

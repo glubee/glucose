@@ -15,6 +15,7 @@ enum LocalDataEraser {
     static func eraseAll() async {
         AuthSession.shared.invalidatePendingRequests()
         DataSyncCoordinator.shared.invalidate()
+        NudgeScheduler.invalidate()
         PhotoViewURLCache.shared.clearAll()
         PendingPhotoStore.shared.eraseActiveAccount()
         DayCloseStore.shared.eraseActiveAccount()
