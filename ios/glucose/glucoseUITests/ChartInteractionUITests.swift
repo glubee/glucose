@@ -91,11 +91,19 @@ final class ChartInteractionUITests: XCTestCase {
 
     func testReportScrollsWhenDraggingVerticallyOnChart() {
         let app = reports()
-        let zoom = app.buttons["chartZoom-3"]
-        for _ in 0..<4 where !zoom.isHittable { app.swipeUp() }
+        let content = app.scrollViews["dailyReportContent"]
+        let zoom = content.buttons["chartZoom-3"]
+        // 빠른 flick은 버튼을 고정 헤더 뒤까지 건너뛸 수 있다. 위치를 맞춘 후 차트 위 드래그를 검사한다.
+        let targetY = content.frame.minY + 80
+        for _ in 0..<8 {
+            if zoom.isHittable && abs(zoom.frame.minY - targetY) < 50 { break }
+            let shift = max(-180, min(180, targetY - zoom.frame.minY))
+            let point = content.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+            point.press(forDuration: 0.05, thenDragTo: point.withOffset(CGVector(dx: 0, dy: shift)))
+        }
         XCTAssertTrue(zoom.isHittable)
         let before = zoom.frame.minY
-        let plot = app.otherElements["interactiveChartPlot"].firstMatch
+        let plot = content.otherElements["interactiveChartPlot"].firstMatch
         let start = plot.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.3))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -180)))
         XCTAssertLessThan(zoom.frame.minY, before - 60)

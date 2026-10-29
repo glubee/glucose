@@ -6,11 +6,7 @@ enum TimelineEntry: Identifiable {
 
     var id: String {
         switch self {
-        case .record(let item):
-            switch item {
-            case .intake: "intake-\(item.id)"
-            case .insulin: "insulin-\(item.id)"
-            }
+        case .record(let item): item.timelineID
         case .pending(let photo): "pending-\(photo.id)"
         }
     }

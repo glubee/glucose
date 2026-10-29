@@ -40,8 +40,8 @@ final class RecordsViewModel {
     private var insulinExhausted = false
     private var loadID = UUID()
 
-    init(repository: RecordRepository = LiveRecordRepository()) {
-        self.repository = repository
+    init(repository: RecordRepository? = nil) {
+        self.repository = repository ?? RecordDataSource.repository
     }
 
     var isInitialLoading: Bool {
@@ -77,7 +77,7 @@ final class RecordsViewModel {
 
     func loadMoreIfNeeded(currentItem: RecordItem) async {
         guard hasMore, !isLoadingMore else { return }
-        guard let index = items.firstIndex(where: { $0.id == currentItem.id }) else { return }
+        guard let index = items.firstIndex(where: { $0.timelineID == currentItem.timelineID }) else { return }
         if index >= items.count - 5 {
             await fetchMore()
         }

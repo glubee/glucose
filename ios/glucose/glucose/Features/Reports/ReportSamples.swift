@@ -12,7 +12,7 @@ import UIKit
 
 enum ReportSamples {
     static var isEnabled: Bool {
-        ["-reportSample", "-dailyReportPreview", "-chartDetail"].contains { ProcessInfo.processInfo.arguments.contains($0) }
+        ["-reportSample", "-dailyReportPreview", "-chartDetail", "-timelineSample", "-timelineEmptySample"].contains { ProcessInfo.processInfo.arguments.contains($0) }
     }
 
     static func photoID(_ index: Int) -> UUID {

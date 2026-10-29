@@ -3,7 +3,7 @@
 //  glucose
 //
 //  홈(디자이너 v5 프로토타입): "민지님, / 연속 N일"(숫자가 올라가며 나타남) + 노란 말풍선(한 글자씩) + 큰 글루비,
-//  이번 주 벌집, 꿀단지, 오늘의 흐름 카드(기록 점), 아래에 음식 찍기·인슐린과 하루 마무리하기.
+//  이번 주 벌집, 꿀단지, 오늘의 흐름과 오늘 기록 타임라인. 아래에 기록·마무리 버튼.
 //  쉬어가는 중이면 쉬는 화면.
 //
 
@@ -17,14 +17,24 @@ struct HomeView: View {
     @State private var showInsulin = false
     @State private var showPendingPhotos = false
     @State private var shownStreak = 0
+    @State private var selectedPendingPhoto: PendingPhoto?
+    @State private var showAllRecords = false
+    @State private var highlightedID: String?
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
-            if viewModel.rest != nil {
-                restingContent
-            } else {
-                content
+        NavigationStack {
+            Group {
+                if viewModel.rest != nil {
+                    restingContent
+                } else {
+                    content
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: RecordItem.self) { item in
+                RecordDetailView(item: item).toolbar(.visible, for: .navigationBar)
             }
         }
         .background(Color.canvas)
@@ -35,15 +45,35 @@ struct HomeView: View {
         .sheet(isPresented: $showFoodSheet) {
             FoodRecordSheet(onWrite: { showManualFood = true }) { request in photoCapture = request }
         }
-        .sheet(isPresented: $showManualFood) { FoodRecordFormView() }
+        .sheet(isPresented: $showManualFood, onDismiss: refresh) { FoodRecordFormView() }
         .sheet(item: $photoCapture, onDismiss: refresh) { request in
             PhotoCaptureView(context: request.context, opensCamera: request.opensCamera)
         }
         .sheet(isPresented: $showInsulin, onDismiss: refresh) { InsulinConfirmView() }
-        .sheet(isPresented: $showPendingPhotos, onDismiss: refresh) { PendingPhotosView() }
+        .sheet(isPresented: $showPendingPhotos, onDismiss: refresh) { PendingPhotosView(store: viewModel.photos) }
+        .sheet(isPresented: $showAllRecords) { RecordsView() }
+        .sheet(item: $selectedPendingPhoto, onDismiss: refresh) { photo in
+            NavigationStack {
+                PendingPhotoDetailView(photoID: photo.id, store: viewModel.photos) { selectedPendingPhoto = nil }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refresh() } }
+        .onChange(of: viewModel.photos.photos.map(\.id)) { previous, current in
+            if let id = current.last(where: { !previous.contains($0) }) {
+                viewModel.timeline.requestPhotoFocus(id, photos: viewModel.photos.photos)
+            }
+        }
     }
 
     private func refresh() { Task { await viewModel.refresh() } }
+
+    private var focusTriggerID: String? {
+        let router = DeepLinkRouter.shared
+        let presented = showFoodSheet || showManualFood || photoCapture != nil || showInsulin || showPendingPhotos
+            || selectedPendingPhoto != nil || showAllRecords || router.showsQuickCapture
+            || router.showsInsulinRecord || router.showsDayClose
+        return presented ? nil : viewModel.timeline.focusID
+    }
 
     private func openDayClose() {
         DeepLinkRouter.shared.handle(URL(string: "glubee://day-close")!)
@@ -62,57 +92,79 @@ struct HomeView: View {
     private var content: some View {
         let mood = viewModel.mood()
         return VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center, spacing: Spacing.xs) {
-                        VStack(alignment: .leading, spacing: Spacing.xxs) {
-                            Text(viewModel.nickname.isEmpty ? "오늘의 흐름을 함께 볼까요?" : "\(viewModel.nickname)님,")
-                                .font(.pretendard(17, relativeTo: .headline, weight: .medium))
-                                .foregroundStyle(Color.textSecondary)
-                            StreakNumber(value: shownStreak)
-                            TypingText(text: mood.line)
-                                .font(.pretendard(14, relativeTo: .subheadline, weight: .semibold))
-                                .foregroundStyle(Color.textPrimary)
-                                .padding(.horizontal, Spacing.s)
-                                .padding(.vertical, Spacing.xs)
-                                .background(Color.brandSoft, in: RoundedRectangle(cornerRadius: 14))
-                                .frame(maxWidth: 220, alignment: .leading)
-                                .padding(.top, Spacing.xxs)
-                                .accessibilityLabel("글루비: \(mood.line)")
-                        }
-                        Spacer(minLength: 0)
-                        MascotView(pose: mood.pose, size: 132, motion: mood.motion, floats: true)
-                    }
-
-                    WeekHoneycomb(states: viewModel.weekStates)
-                        .padding(.top, 14)
-
-                    if viewModel.honeypots > 0 {
-                        HStack(spacing: 6) {
-                            HStack(spacing: 2) {
-                                ForEach(0..<viewModel.honeypots, id: \.self) { _ in HoneypotIcon() }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .center, spacing: Spacing.xs) {
+                            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                                Text(viewModel.nickname.isEmpty ? "오늘의 흐름을 함께 볼까요?" : "\(viewModel.nickname)님,")
+                                    .font(.pretendard(17, relativeTo: .headline, weight: .medium))
+                                    .foregroundStyle(Color.textSecondary)
+                                StreakNumber(value: shownStreak)
+                                TypingText(text: mood.line)
+                                    .font(.pretendard(14, relativeTo: .subheadline, weight: .semibold))
+                                    .foregroundStyle(Color.textPrimary)
+                                    .padding(.horizontal, Spacing.s)
+                                    .padding(.vertical, Spacing.xs)
+                                    .background(Color.brandSoft, in: RoundedRectangle(cornerRadius: 14))
+                                    .frame(maxWidth: 220, alignment: .leading)
+                                    .padding(.top, Spacing.xxs)
+                                    .accessibilityLabel("글루비: \(mood.line)")
                             }
-                            Text("꿀단지 \(viewModel.honeypots)개 · 하루를 놓쳐도 연속을 지켜줘요")
-                                .font(.pretendard(13, relativeTo: .footnote, weight: .semibold))
-                                .foregroundStyle(Color.textPrimary)
+                            Spacer(minLength: 0)
+                            MascotView(pose: mood.pose, size: 132, motion: mood.motion, floats: true)
                         }
-                        .padding(.horizontal, Spacing.s)
-                        .padding(.vertical, 7)
-                        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
-                        .padding(.top, Spacing.s)
-                        .accessibilityElement(children: .combine)
-                    }
 
-                    if viewModel.pendingPhotoCount > 0 {
-                        pendingPhotosBanner
+                        WeekHoneycomb(states: viewModel.weekStates)
                             .padding(.top, 14)
-                    }
 
-                    todayFlowCard
-                        .padding(.top, 14)
+                        if viewModel.honeypots > 0 {
+                            HStack(spacing: 6) {
+                                HStack(spacing: 2) {
+                                    ForEach(0..<viewModel.honeypots, id: \.self) { _ in HoneypotIcon() }
+                                }
+                                Text("꿀단지 \(viewModel.honeypots)개 · 하루를 놓쳐도 연속을 지켜줘요")
+                                    .font(.pretendard(13, relativeTo: .footnote, weight: .semibold))
+                                    .foregroundStyle(Color.textPrimary)
+                            }
+                            .padding(.horizontal, Spacing.s)
+                            .padding(.vertical, 7)
+                            .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
+                            .padding(.top, Spacing.s)
+                            .accessibilityElement(children: .combine)
+                        }
+
+                        if viewModel.pendingPhotoCount > 0 {
+                            pendingPhotosBanner
+                                .padding(.top, 14)
+                        }
+
+                        todayFlowCard
+                            .padding(.top, 14)
+                        HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
+                            openPending: { selectedPendingPhoto = $0 },
+                            takePhoto: { showFoodSheet = true }, writeFood: { showManualFood = true },
+                            showAll: { showAllRecords = true })
+                            .padding(.top, Spacing.l)
+                            .padding(.bottom, Spacing.l)
+                    }
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.top, Spacing.m)
                 }
-                .padding(.horizontal, Spacing.l)
-                .padding(.top, Spacing.m)
+
+                .accessibilityIdentifier("homeTimelineScroll")
+                .refreshable { await viewModel.refresh() }
+                .task(id: focusTriggerID) {
+                    guard let id = focusTriggerID else { highlightedID = nil; return }
+                    guard viewModel.todayEntries.contains(where: { $0.id == id }) else {
+                        viewModel.timeline.finishFocus(id); return
+                    }
+                    highlightedID = id
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                    highlightedID = nil
+                    viewModel.timeline.finishFocus(id)
+                }
             }
 
             VStack(spacing: 10) {

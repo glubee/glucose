@@ -24,7 +24,7 @@ final class RecognitionResultViewModel {
          service: IntakeServing? = nil, changes: RecordChanges? = nil) {
         self.photoId = photoId
         draft = FoodRecordDraft(context: context, occurredAt: occurredAt, photoId: photoId, items: [])
-        self.service = service ?? IntakeService()
+        self.service = service ?? RecordDataSource.intakeService
         self.changes = changes ?? .shared
     }
 

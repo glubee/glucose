@@ -30,7 +30,7 @@ final class InsulinRecordFormViewModel {
 
     init(mode: Mode = .create, occurredAt: Date = .now, units: Double? = nil, kind: String = "",
          service: InsulinServing? = nil, changes: RecordChanges? = nil) {
-        self.service = service ?? InsulinService()
+        self.service = service ?? RecordDataSource.insulinService
         self.changes = changes ?? .shared
         self.mode = mode
         self.occurredAt = occurredAt

@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class RecordMutationTests: XCTestCase {
+    func testFocusWaitsUntilCurrentLoadFinishes() async {
+        let day = ReportDay.date(fromAPIString: "2026-10-29")!
+        let item = RecordItem.intake(IntakeRecord(id: UUID(), occurredAt: day, context: .meal, items: []))
+        let repo = FocusDelayRepository()
+        let model = TodayTimelineViewModel(repository: repo)
+        let changes = RecordChanges()
+        changes.publish(.created, recordID: item.id)
+        let load = Task { await model.load(day: day) }
+        while repo.continuation == nil { await Task.yield() }
+        model.prepareFocus(changes: changes, photos: [])
+        repo.continuation?.resume(returning: .init(items: [item], nextCursor: nil))
+        await load.value
+        model.prepareFocus(changes: changes, photos: [])
+        XCTAssertEqual(model.focusID, "intake-\(item.id)")
+    }
+
     func testInsulinCreatedIDRefreshesConsumersOnlyOnce() async {
         let service = InsulinMutationDouble()
         let changes = RecordChanges()
@@ -72,6 +88,15 @@ final class RecordMutationTests: XCTestCase {
         model.prepareFocus(changes: changes, photos: [])
         XCTAssertNil(model.focusID)
     }
+}
+
+@MainActor
+private final class FocusDelayRepository: RecordRepository {
+    var continuation: CheckedContinuation<RecordPage, Error>?
+    func fetchIntakePage(cursor: String?, limit: Int) async throws -> RecordPage {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+    func fetchInsulinPage(cursor: String?, limit: Int) async throws -> RecordPage { .init(items: [], nextCursor: nil) }
 }
 
 @MainActor

@@ -19,7 +19,7 @@ struct GlucoseApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             // 업로드하지 못한 빠른 촬영 사진은 앱이 다시 열릴 때 재시도한다
-            if phase == .active {
+            if phase == .active, !RecordDataSource.isPreview {
                 Task { await PendingPhotoStore.shared.uploadPending() }
                 DayCloseStore.shared.applyHoneypots()
                 WidgetSnapshot.refresh()
@@ -27,6 +27,7 @@ struct GlucoseApp: App {
             }
         }
         .onChange(of: RecordChanges.shared.revision) { _, _ in
+            guard !RecordDataSource.isPreview else { return }
             WidgetSnapshot.refresh(noteRecord: RecordChanges.shared.lastMutation == .created)
             Task { await NudgeScheduler.refresh() }
         }
@@ -82,7 +83,7 @@ struct GlucoseApp: App {
         } else if ProcessInfo.processInfo.arguments.contains("-insulinForm") {
             InsulinRecordFormView(mode: .edit(id: UUID()), units: 6, kind: "식사", onSaved: {})
         } else if ProcessInfo.processInfo.arguments.contains("-review") {
-            ReviewView()
+            RecordsView(showsCloseButton: false)
         } else if ProcessInfo.processInfo.arguments.contains("-home") {
             // 로그인 없이 홈만 보기. -homeSeed: 최근 6일 완성 + 꿀단지, -homeRest: 쉬어가는 중
             HomeView()

@@ -15,7 +15,7 @@ final class TodayTimelineViewModel {
     private var handledRevision = 0
 
     func prepareFocus(changes: RecordChanges, photos: [PendingPhoto]) {
-        guard changes.revision > handledRevision else { return }
+        guard !isLoading, changes.revision > handledRevision else { return }
         let rows = entries(photos: photos)
         if changes.lastMutation == .created, let id = changes.lastRecordID {
             focusID = rows.first { row in
@@ -33,7 +33,7 @@ final class TodayTimelineViewModel {
         if entries(photos: photos).contains(where: { $0.id == target }) { focusID = target }
     }
 
-    init(repository: RecordRepository = LiveRecordRepository()) {
+    init(repository: RecordRepository? = nil) {
         records = RecordsViewModel(repository: repository)
     }
 

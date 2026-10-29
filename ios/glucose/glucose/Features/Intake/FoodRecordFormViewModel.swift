@@ -21,7 +21,7 @@ final class FoodRecordFormViewModel {
         mode = record.map { .edit(id: $0.id) } ?? .create
         draft = record.map(FoodRecordDraft.init(record:)) ?? FoodRecordDraft()
         hasLoadedDetail = record == nil
-        self.service = service ?? IntakeService()
+        self.service = service ?? RecordDataSource.intakeService
         self.changes = changes ?? .shared
     }
 

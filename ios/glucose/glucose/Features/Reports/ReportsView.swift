@@ -17,7 +17,7 @@ struct ReportsView: View {
     @State private var mode: Mode = Self.initialMode
     @State private var dailyViewModel = DailyReportViewModel()
     @State private var weeklyViewModel = WeeklyReportViewModel()
-    /// 기록 탭이 없어져서(v5 탭: 홈·리포트·리뷰·설정) 지난 기록 목록은 여기서 연다
+    /// 기록 탭과 같은 전체 목록을 시트에서도 연다
     @State private var showRecords = false
     @State private var showClinician = false
 
