@@ -5,6 +5,31 @@ import XCTest
 final class HomeTimelineTests: XCTestCase {
     private let day = ReportDay.date(fromAPIString: "2026-10-29")!
 
+    func testFallbackDotsMatchRawTimelineIncludingInsulinAndExcludeCleanupDuplicates() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let photoID = id(50)
+        let pending = [
+            PendingPhoto(id: id(10), capturedAt: day.addingTimeInterval(14400), context: .snack),
+            PendingPhoto(id: id(11), capturedAt: day.addingTimeInterval(3600), context: .meal, photoId: photoID),
+            PendingPhoto(id: id(12), capturedAt: day.addingTimeInterval(10800), context: .meal, isConfirmed: true)
+        ]
+        try JSONEncoder().encode(pending).write(to: directory.appendingPathComponent("index.json"))
+        let photos = PendingPhotoStore(directory: directory, isAuthenticated: { false }, onActivity: { _ in })
+        let first = RecordItem.intake(IntakeRecord(id: id(1), occurredAt: day.addingTimeInterval(3600),
+                                                  context: .meal, items: [], photoId: photoID))
+        let second = food(2, at: 7200)
+        let insulin = RecordItem.insulin(InsulinRecord(id: id(3), occurredAt: day.addingTimeInterval(10800), units: 2, kind: "입력"))
+        let repo = TimelineRepositoryDouble(intakes: ["start": .init(items: [second, first], nextCursor: nil)],
+                                            insulins: ["start": .init(items: [insulin], nextCursor: nil)])
+        let model = HomeViewModel(now: day, photos: photos, repository: repo)
+        await model.timeline.load(day: day)
+        XCTAssertEqual(model.todayRecordCount, 4)
+        XCTAssertEqual(model.todayDots.map(\.position), [1.0/24, 2.0/24, 3.0/24, 4.0/24])
+        XCTAssertEqual(model.todayDots.map(\.isInsulin), [false, false, true, false])
+    }
+
     // Dropping equal-time items or treating a food page as an analysis episode must fail.
     func testMergedPagesKeepEqualTimesAndRemoveOnlyDuplicateIdentities() async {
         let a = food(1, at: 3600), b = food(2, at: 3600)

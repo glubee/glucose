@@ -96,14 +96,12 @@ final class HomeViewModel {
         func position(_ date: Date) -> Double {
             Double(calendar.dateComponents([.minute], from: today, to: date).minute ?? 0) / 1440
         }
-        var dots = photos.photos
-            .filter { calendar.isDate($0.capturedAt, inSameDayAs: today) }
-            .map { (position($0.capturedAt), false) }
-        if case .loaded(let dailyReport, _) = report.state {
-            dots += dailyReport.episodes.map { (position($0.startAt), false) }
-            dots += (dailyReport.insulinEvents ?? []).map { (position($0.occurredAt), true) }
+        return todayEntries.map { entry in
+            let isInsulin: Bool
+            if case .record(.insulin) = entry { isInsulin = true }
+            else { isInsulin = false }
+            return (position(entry.occurredAt), isInsulin)
         }
-        return dots.filter { $0.0 >= 0 && $0.0 <= 1 }
     }
 
     func refresh(now: Date = .now) async {

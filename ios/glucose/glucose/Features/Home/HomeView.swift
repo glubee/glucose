@@ -153,6 +153,7 @@ struct HomeView: View {
                 }
 
                 .accessibilityIdentifier("homeTimelineScroll")
+                .clipped()
                 .refreshable { await viewModel.refresh() }
                 .task(id: focusTriggerID) {
                     guard let id = focusTriggerID else { highlightedID = nil; return }
