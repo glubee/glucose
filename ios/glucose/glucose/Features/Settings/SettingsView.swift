@@ -254,21 +254,29 @@ private struct UsualInsulinEditor: View {
     @State private var preferences = UserPreferences.shared
     @State private var name = ""
     @State private var unitsText = ""
+    @State private var editing: UsualInsulin?
 
     var body: some View {
         List {
             Section {
                 ForEach(preferences.usualInsulins) { insulin in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(insulin.name).font(.body1)
-                        Text(insulin.units.map { "평소 \($0.formatted(.number.precision(.fractionLength(0...1))))U" }
-                             ?? "단위는 그때그때 입력")
-                            .font(.caption1).foregroundStyle(Color.textSecondary)
+                    Button { editing = insulin } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(insulin.name).font(.body1).foregroundStyle(Color.textPrimary)
+                                Text(insulin.units.map { "평소 \($0.formatted(.number.precision(.fractionLength(0...1))))U" }
+                                     ?? "단위는 그때그때 입력")
+                                    .font(.caption1).foregroundStyle(Color.textSecondary)
+                            }
+                            Spacer()
+                            Text("고치기").font(.caption1).foregroundStyle(Color.textSecondary)
+                        }
                     }
+                    .accessibilityIdentifier("usualInsulin-\(insulin.name)")
                 }
                 .onDelete { offsets in preferences.usualInsulins.remove(atOffsets: offsets) }
             } footer: {
-                Text("내가 입력한 값을 투여 확인 화면에 그대로 채워둘 뿐, 글루비가 용량을 정하거나 추천하지 않아요.")
+                Text("눌러서 이름·단위를 고칠 수 있어요. 내가 입력한 값을 투여 확인 화면에 그대로 채워둘 뿐, 글루비가 용량을 정하거나 추천하지 않아요.")
             }
 
             Section("추가") {
@@ -287,6 +295,58 @@ private struct UsualInsulinEditor: View {
         }
         .navigationTitle("평소 사용하는 인슐린")
         .toolbar { EditButton() }
+        .sheet(item: $editing) { insulin in
+            UsualInsulinEditSheet(insulin: insulin) { updated in
+                if let index = preferences.usualInsulins.firstIndex(where: { $0.id == updated.id }) {
+                    preferences.usualInsulins[index] = updated
+                }
+            }
+        }
+    }
+}
+
+/// 평소 인슐린 하나 고치기(이름·평소 단위)
+private struct UsualInsulinEditSheet: View {
+    let insulin: UsualInsulin
+    let onSave: (UsualInsulin) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var unitsText: String
+
+    init(insulin: UsualInsulin, onSave: @escaping (UsualInsulin) -> Void) {
+        self.insulin = insulin
+        self.onSave = onSave
+        _name = State(initialValue: insulin.name)
+        _unitsText = State(initialValue: insulin.units.map { $0.formatted(.number.precision(.fractionLength(0...1))) } ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("제품 이름", text: $name)
+                    .accessibilityIdentifier("usualInsulinName")
+                TextField("평소 단위 (비우면 그때그때 입력)", text: $unitsText)
+                    .keyboardType(.decimalPad)
+                    .accessibilityIdentifier("usualInsulinUnits")
+            }
+            .navigationTitle("평소 인슐린 고치기")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("저장") {
+                        var updated = insulin
+                        updated.name = name.trimmingCharacters(in: .whitespaces)
+                        updated.units = Double(unitsText.replacingOccurrences(of: ",", with: "."))
+                        onSave(updated)
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("usualInsulinSave")
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

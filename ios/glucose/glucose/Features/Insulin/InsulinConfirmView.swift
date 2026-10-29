@@ -6,6 +6,7 @@
 //  미리 채우고, 시각은 지금. "투여 확인" 한 번이면 저장된다(docs/ios-design-v4.md 0장).
 //  저장한 뒤 "인슐린 하나 더 기록하기"로 같은 화면에서 이어서 남길 수 있다(식사 + 기저 등).
 //  등록한 인슐린 칩 끝의 "+ 다른 인슐린"으로 처음 설정에 없던 인슐린도 넣고 평소 인슐린에 더할 수 있다.
+//  실제 투여 시각은 확인 카드에서 바로 바꿀 수 있고, 평소 값과 다르게 넣으면 "평소 값도 이렇게 바꾸기"를 고를 수 있다.
 //  앱은 용량을 계산하거나 추천하지 않는다.
 //
 
@@ -21,6 +22,8 @@ struct InsulinConfirmView: View {
     @State private var rememberAsUsual: Bool
     /// 처음에 등록한 것 말고 다른 인슐린을 넣는 중
     @State private var addingNew = false
+    /// 등록한 평소 인슐린 값을 이번에 넣은 값으로 바꿀지
+    @State private var updateUsual = false
     @State private var saved = false
     /// 이 화면에서 연달아 남긴 기록(예: 식사 인슐린 + 기저 인슐린)
     @State private var savedEntries: [String] = []
@@ -92,7 +95,7 @@ struct InsulinConfirmView: View {
                             .monospacedDigit()
                         Text("단위").font(.pretendard(17, relativeTo: .headline, weight: .bold))
                     }
-                    Text("지금 · \(viewModel.occurredAt.formatted(date: .omitted, time: .shortened))")
+                    Text(timeLabel)
                         .font(.pretendard(15, relativeTo: .subheadline, weight: .semibold))
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -107,6 +110,16 @@ struct InsulinConfirmView: View {
             Text("내가 입력한 평소 값이에요. 다르면 눌러서 고쳐주세요.")
                 .font(.caption1)
                 .foregroundStyle(Color.textSecondary)
+
+            // 지금 맞은 게 아니면 실제 투여 시각으로 바꾼다
+            HStack {
+                Text("실제 투여 시각").font(.body2).foregroundStyle(Color.textSecondary)
+                Spacer()
+                DatePicker("실제 투여 시각", selection: $viewModel.occurredAt, in: ...Date.now,
+                           displayedComponents: [.date, .hourAndMinute])
+                    .labelsHidden()
+                    .accessibilityIdentifier("insulinTimePicker")
+            }
 
             if let message = viewModel.errorMessage {
                 Text(message).font(.caption1).foregroundStyle(Color.alert)
@@ -176,6 +189,13 @@ struct InsulinConfirmView: View {
 
                     timeSection
 
+                    if canUpdateUsual {
+                        Toggle("평소 값도 이렇게 바꾸기", isOn: $updateUsual)
+                            .font(.body2)
+                            .tint(Color.mintStrong)
+                            .accessibilityIdentifier("insulinUpdateUsual")
+                    }
+
                     if usualInsulins.isEmpty || addingNew {
                         Toggle(addingNew ? "평소 인슐린에 추가하기" : "다음에도 이 값으로 채우기", isOn: $rememberAsUsual)
                             .font(.body2)
@@ -215,7 +235,7 @@ struct InsulinConfirmView: View {
                     .labelsHidden()
             } else {
                 HStack {
-                    Text("지금 · \(viewModel.occurredAt.formatted(date: .omitted, time: .shortened))")
+                    Text(timeLabel)
                         .font(.body1)
                     Spacer()
                     Button("시간 변경") { editsTime = true }
@@ -285,6 +305,7 @@ struct InsulinConfirmView: View {
         editsTime = false
         editing = false
         addingNew = false
+        updateUsual = false
         rememberAsUsual = usualInsulins.isEmpty
         withAnimation(.spring(duration: 0.3)) { saved = false }
     }
@@ -314,6 +335,10 @@ struct InsulinConfirmView: View {
     private func save() async {
         guard await viewModel.save() else { return }
         let name = viewModel.kind.trimmingCharacters(in: .whitespaces)
+        if updateUsual, canUpdateUsual, let index = usualInsulins.firstIndex(where: { $0.id == selectedInsulinId }) {
+            preferences.usualInsulins[index].name = name
+            preferences.usualInsulins[index].units = viewModel.units
+        }
         if (usualInsulins.isEmpty || addingNew) && rememberAsUsual && !usualInsulins.contains(where: { $0.name == name }) {
             preferences.usualInsulins.append(UsualInsulin(name: name, units: viewModel.units))
         }
@@ -322,6 +347,21 @@ struct InsulinConfirmView: View {
         let units = viewModel.units.map(Self.format) ?? ""
         savedEntries.append("\(ReportDay.timeString(from: viewModel.occurredAt)) · \(viewModel.kind) \(units)단위")
         withAnimation(.spring(duration: 0.35)) { saved = true }
+    }
+
+    /// 고른 평소 인슐린과 이름·단위가 달라졌을 때만 "평소 값도 바꾸기"를 보여준다
+    private var canUpdateUsual: Bool {
+        guard !addingNew, let selected = usualInsulins.first(where: { $0.id == selectedInsulinId }) else { return false }
+        let name = viewModel.kind.trimmingCharacters(in: .whitespaces)
+        return !name.isEmpty && (selected.name != name || selected.units != viewModel.units)
+    }
+
+    /// "지금 · 18:50" 또는 "10월 29일 18:50"
+    private var timeLabel: String {
+        let time = viewModel.occurredAt.formatted(date: .omitted, time: .shortened)
+        if abs(viewModel.occurredAt.timeIntervalSinceNow) < 120 { return "지금 · \(time)" }
+        if ReportDay.calendar.isDateInToday(viewModel.occurredAt) { return "오늘 \(time)" }
+        return viewModel.occurredAt.formatted(.dateTime.month().day().hour().minute())
     }
 
     private static func format(_ units: Double) -> String {
