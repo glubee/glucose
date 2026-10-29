@@ -2,8 +2,8 @@
 //  DailyStoryCard.swift
 //  glucose
 //
-//  하루 이야기(서버 DailyStoryBuilder): 그날 기록과 읽힌 값을 시간순 한 문단으로 보여준다.
-//  예전 요약 줄(summary)은 "근거 보기"에 둔다. 앱은 문장을 만들거나 고치지 않는다.
+//  서버가 보낸 이야기의 문장 경계를 유지하고, 숫자와 시각만 시각적으로 강조한다.
+//  앱은 문장·수치를 만들거나 고치지 않는다. 근거와 안내는 접어서 확인한다.
 //
 
 import SwiftUI
@@ -16,33 +16,56 @@ struct DailyStoryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             SectionHeader(title: title)
-            Text(story.joined(separator: " "))
-                .font(.body1)
-                .foregroundStyle(Color.textPrimary)
-                .lineSpacing(5)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-            if !evidence.isEmpty {
-                DisclosureGroup("근거 보기") {
-                    VStack(alignment: .leading, spacing: Spacing.xxs) {
-                        ForEach(evidence.indices, id: \.self) { index in
-                            Text("· " + evidence[index])
-                                .font(.caption1)
-                                .foregroundStyle(Color.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                ForEach(story.indices, id: \.self) { index in
+                    HStack(alignment: .top, spacing: Spacing.xs) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 5))
+                            .foregroundStyle(Color.onBrandSoft)
+                            .frame(width: 8)
+                            .padding(.top, 9)
+                            .accessibilityHidden(true)
+                        Text(highlighted(story[index]))
+                            .font(.body1)
+                            .foregroundStyle(Color.textPrimary)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, Spacing.xs)
+                }
+            }
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    ForEach(evidence.indices, id: \.self) { index in
+                        Text("· " + evidence[index])
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("그래프 이미지에서 읽은 값과 남긴 기록을 시간순으로 적었어요. 수치가 바뀐 이유는 판단하지 않아요.")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.caption1)
-                .tint(Color.textPrimary)
-            }
-            Text("그래프 이미지에서 읽은 값과 남긴 기록을 시간순으로 적었어요. 수치가 바뀐 이유는 판단하지 않아요.")
-                .font(.caption1)
                 .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Spacing.xs)
+            } label: {
+                Text(evidence.isEmpty ? "안내" : "근거 및 안내")
+                    .font(.caption1.weight(.semibold))
+                    .frame(minHeight: 44)
+            }
+            .tint(Color.textSecondary)
         }
         .card(.brand)
+    }
+
+    private func highlighted(_ source: String) -> AttributedString {
+        var result = AttributedString(source)
+        guard let numbers = try? NSRegularExpression(pattern: #"\d+(?:[.:]\d+)*"#) else { return result }
+        for match in numbers.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
+            guard let textRange = Range(match.range, in: source),
+                  let range = Range(textRange, in: result) else { continue }
+            result[range].font = .pretendard(16, relativeTo: .body, weight: .bold)
+        }
+        return result
     }
 }
 
