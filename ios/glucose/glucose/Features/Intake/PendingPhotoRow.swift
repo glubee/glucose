@@ -54,6 +54,7 @@ struct PendingPhotoThumbnail: View {
     let store: PendingPhotoStore
     var size: CGFloat = 56
     var cornerRadius: CGFloat = Radius.field
+    var height: CGFloat? = nil
 
     var body: some View {
         Group {
@@ -63,7 +64,7 @@ struct PendingPhotoThumbnail: View {
                 Image(systemName: "photo").foregroundStyle(Color.onBrandSoft)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size, height: height ?? size)
         .background(Color.brandSoft)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .accessibilityHidden(true)

@@ -1,38 +1,26 @@
 import SwiftUI
 
-/// 홈 "오늘의 다이어리": 오늘 남긴 음식·인슐린·확인 대기 사진을 하루 마무리와 같은 줄노트 시간줄로 보여준다.
-/// 왼쪽은 시각과 때(아침·점심·저녁), 사진은 테이프로 붙인 폴라로이드(아래 띠 색 = 상황). 더하기 버튼은 홈 아래 버튼만 쓴다.
+/// 홈 "오늘의 다이어리": 하루 마무리와 같은 줄노트가 화면 끝까지 이어지고, 오늘 남긴 음식·인슐린·확인 대기 사진이
+/// 시간순으로 바로 붙는다. 사진은 테이프로 붙인 폴라로이드(아래 띠 색 = 상황), 누르면 그 자리에서 보고 고친다.
+/// 하루 마무리는 이 시간줄을 마지막으로 한 번 확인하는 단계다. 더하기 버튼은 홈 아래 버튼만 쓴다.
 struct HomeTimelineSection: View {
     let viewModel: HomeViewModel
     let highlightedID: String?
     let openPending: (PendingPhoto) -> Void
     let showAll: () -> Void
 
+    private static let photoWidth: CGFloat = 136
+    private static let photoHeight: CGFloat = 100
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("오늘의 다이어리")
-                        .font(.pretendard(17, relativeTo: .headline, weight: .bold))
-                        .foregroundStyle(Color.textPrimary)
-                    Text(viewModel.todayEntries.isEmpty ? "남긴 기록이 시간순으로 여기에 붙어요"
-                         : "오늘 남긴 기록 \(viewModel.todayEntries.count)개")
-                        .font(.caption1)
-                        .foregroundStyle(Color.textSecondary)
-                }
-                Spacer()
-                Button(action: showAll) {
-                    Text("전체 기록 ›").font(.body2).underline().foregroundStyle(Diary.ink)
-                }
-                .frame(minHeight: Metrics.minTapTarget)
-            }
-            .padding(.horizontal, Spacing.m)
-            .padding(.top, Spacing.s)
+            heading
+                .padding(.bottom, Spacing.s)
 
             if RecordDataSource.isPreview {
                 Text("예시 기록 · 서버에 저장되지 않아요")
                     .font(.caption1).foregroundStyle(Color.textSecondary)
-                    .padding(.horizontal, Spacing.m)
+                    .frame(maxWidth: .infinity)
             }
             if viewModel.timeline.isLoading && viewModel.todayEntries.isEmpty {
                 ProgressView("오늘 기록을 불러오고 있어요").frame(maxWidth: .infinity).padding()
@@ -43,26 +31,48 @@ struct HomeTimelineSection: View {
                     Button("다시 불러오기") { Task { await viewModel.refresh() } }
                         .font(.body2.weight(.semibold)).frame(minHeight: 44)
                 }
-                .padding(.horizontal, Spacing.m)
-            } else if !viewModel.timeline.isLoading && viewModel.todayEntries.isEmpty {
-                Text("아래 \"음식 찍기\"나 \"인슐린\"으로 남기면 시간순으로 여기에 붙어요.")
-                    .font(.body2)
-                    .foregroundStyle(Color.textSecondary)
-                    .padding(.horizontal, Spacing.m)
-                    .padding(.vertical, Spacing.l)
             }
 
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(viewModel.todayEntries) { entry in
-                    row(entry)
-                }
+            ForEach(viewModel.todayEntries) { entry in
+                row(entry)
             }
-            .padding(.horizontal, Spacing.s)
-            .padding(.bottom, Spacing.s)
+            nowRow
         }
-        .background(DiaryPaper(marginX: Spacing.s + Diary.timeColumn / 2))
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.line, lineWidth: 1))
+        .padding(.horizontal, Spacing.gutter)
+        .padding(.top, Spacing.m)
+        .padding(.bottom, Spacing.xl)
+        .frame(maxWidth: .infinity, minHeight: 460, alignment: .top)
+        .background(DiaryPaper())
+    }
+
+    // MARK: - 머리
+
+    private var heading: some View {
+        VStack(spacing: Spacing.xxs) {
+            HStack {
+                Text("오늘의 다이어리").font(.body2).foregroundStyle(Color.textSecondary)
+                Spacer()
+                Text(stamp)
+                    .font(.caption1.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Diary.ink)
+                    .padding(.horizontal, Spacing.xs).padding(.vertical, 3)
+                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Diary.ink.opacity(0.5), lineWidth: 1))
+                    .rotationEffect(.degrees(-3))
+            }
+            Text(longDate)
+                .font(.pretendard(24, relativeTo: .title, weight: .bold))
+                .foregroundStyle(Color.textPrimary)
+            HStack(spacing: Spacing.xxs) {
+                Text(viewModel.todayEntries.isEmpty ? "오늘의 조각을 함께 모아봐요."
+                     : "오늘 남긴 조각 \(viewModel.todayEntries.count)개")
+                    .font(.body2).foregroundStyle(Color.textSecondary)
+                Button(action: showAll) {
+                    Text("전체 기록 ›").font(.body2).underline().foregroundStyle(Diary.ink)
+                }
+                .frame(minHeight: Metrics.minTapTarget)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - 한 칸
@@ -104,7 +114,8 @@ struct HomeTimelineSection: View {
             HStack(alignment: .top, spacing: Spacing.s) {
                 if let photoId = record.photoId {
                     DiaryPolaroid(tint: record.context.tint) {
-                        FoodPhotoThumbnail(photoId: photoId, size: 104, cornerRatio: 0.01)
+                        FoodPhotoThumbnail(photoId: photoId, size: Self.photoWidth, cornerRatio: 0.01,
+                                           height: Self.photoHeight)
                     }
                     .padding(.top, Spacing.xxs)
                     .accessibilityHidden(true)
@@ -116,7 +127,7 @@ struct HomeTimelineSection: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     contextTag(record.context)
-                    linkText("기록 보기")
+                    linkText("기록 보기 · 수정")
                 }
                 .padding(.top, Spacing.xs)
                 Spacer(minLength: 0)
@@ -130,7 +141,7 @@ struct HomeTimelineSection: View {
                     Text("\(record.kind) · \(record.units.formattedUnits)U")
                         .font(.body1)
                         .foregroundStyle(Color.textPrimary)
-                    linkText("기록 보기")
+                    linkText("기록 보기 · 수정")
                 }
             }
         }
@@ -139,7 +150,8 @@ struct HomeTimelineSection: View {
     private func pendingContent(_ photo: PendingPhoto) -> some View {
         HStack(alignment: .top, spacing: Spacing.s) {
             DiaryPolaroid(tint: photo.context.tint) {
-                PendingPhotoThumbnail(photo: photo, store: viewModel.photos, size: 104, cornerRadius: 1)
+                PendingPhotoThumbnail(photo: photo, store: viewModel.photos, size: Self.photoWidth,
+                                      cornerRadius: 1, height: Self.photoHeight)
             }
             .padding(.top, Spacing.xxs)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -161,6 +173,22 @@ struct HomeTimelineSection: View {
         }
     }
 
+    /// 시간줄 끝 "지금": 다음 기록이 붙을 자리
+    private var nowRow: some View {
+        DiaryTimeRow(time: .now, label: "지금", dashed: false) {
+            Text(viewModel.todayEntries.isEmpty
+                 ? "아래 \"음식 찍기\"나 \"인슐린\"으로 남기면 시간순으로 여기에 붙어요."
+                 : "다음 기록도 여기에 이어서 붙어요.")
+                .font(.body2)
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Spacing.s)
+                .overlay(RoundedRectangle(cornerRadius: Radius.field)
+                    .strokeBorder(Diary.ink.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private func contextTag(_ context: IntakeContext) -> some View {
         Text(context.chipName)
             .font(.caption2.weight(.bold))
@@ -176,5 +204,21 @@ struct HomeTimelineSection: View {
             .underline()
             .foregroundStyle(Diary.ink)
             .padding(.top, 2)
+    }
+
+    private var longDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "M월 d일 EEEE"
+        return formatter.string(from: viewModel.today)
+    }
+
+    private var stamp: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "MM.dd · EEE"
+        return formatter.string(from: viewModel.today).uppercased()
     }
 }

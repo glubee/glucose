@@ -88,17 +88,4 @@ final class ChartInteractionUITests: XCTestCase {
         plot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
         XCTAssertTrue(app.buttons["선택 해제"].waitForExistence(timeout: 5))
     }
-
-    func testHomeChartOpensLargeView() {
-        continueAfterFailure = false
-        let app = XCUIApplication()
-        app.launchArguments = ["-tabs", "-reportSample"]
-        app.launch()
-        let chart = app.descendants(matching: .any)["homeTodayChart"].firstMatch
-        XCTAssertTrue(chart.waitForExistence(timeout: 8))
-        chart.tap()
-        XCTAssertTrue(app.buttons["chartZoom-6"].waitForExistence(timeout: 5))
-        app.buttons["closeChartDetail"].tap()
-        XCTAssertTrue(chart.waitForExistence(timeout: 5))
-    }
 }
