@@ -1,219 +1,130 @@
-//
-//  DayCloseStore.swift
-//  glucose
-//
-//  하루 마무리와 연속 완성일(docs/ios-design-v4.md 0-1장).
-//  - 완성한 날: 하루 마무리를 끝낸 날(그래프가 짧아 "기록만 저장"한 날도 포함, 2026-10-27 Dave 결정)
-//  - 꿀단지: 7일 연속마다 1개(최대 2개). 유예가 지난 빠진 날에 자동으로 써서 연속을 지킨다(숫자는 늘지 않음)
-//  - 쉬어가기: 그 기간엔 연속이 끊기지도 늘지도 않고, 하루 마무리 알림도 보내지 않는다
-//  지금은 기기에만 두고, 서버 day_close 테이블이 생기면 옮긴다(5장 B단계).
-//
-
 import Foundation
-
-struct RestPeriod: Codable, Equatable {
-    enum Reason: String, Codable, CaseIterable {
-        case resting, unwell, noSensor
-
-        var title: String {
-            switch self {
-            case .resting: "쉬는 중"
-            case .unwell: "몸이 안 좋아요"
-            case .noSensor: "센서 없음"
-            }
-        }
-    }
-
-    let reason: Reason
-    /// 쉬기 시작한 날
-    let start: Date
-    /// 쉬는 마지막 날(포함)
-    let end: Date
-}
 
 @Observable
 final class DayCloseStore {
-
-    static let shared = DayCloseStore()
-
-    /// 어제 마무리는 다음 날 이 시각(정오)까지 인정한다. 리브레 하루 그래프는 자정이 지나야 다 차기 때문
+    static let shared = DayCloseStore(accountScoped: true)
     static let graceHour = 12
     static let maxHoneypots = 2
     static let daysPerHoneypot = 7
-
-    private struct Stored: Codable {
-        var closedDays: Set<String> = []
-        var recordOnlyDays: Set<String> = []
-        var honeypotSavedDays: Set<String> = []
-        var honeypots = 0
-        var rest: RestPeriod?
-        /// 가장 최근에 꿀단지로 지킨 날(알림·홈 안내용)
-        var lastHoneypotUse: String?
+    private struct Envelope: Codable {
+        var state = DayCloseState()
+        var operations: [ProgressOperation] = []
+        var revision: Int64 = -1
+        var legacy: RemoteProgressState?
+        var synced = false
     }
-
-    private var stored: Stored {
-        didSet { save() }
-    }
-
+    private var envelope = Envelope()
     private let defaults: UserDefaults
-    private let key = "day_close_v2"
+    private let accountScoped: Bool
+    private var accountID: UUID?
+    private var key: String
+    var onMutation: (() -> Void)?
+    private var state: DayCloseState { envelope.state }
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        if let data = defaults.data(forKey: key), let decoded = try? JSONDecoder().decode(Stored.self, from: data) {
-            stored = decoded
-        } else {
-            stored = Stored()
-        }
+    init(defaults: UserDefaults = .standard, accountScoped: Bool = false) {
+        self.defaults = defaults; self.accountScoped = accountScoped
+        key = accountScoped ? "day_close_v3.signed_out" : "day_close_v2"
+        load()
     }
-
-    var closedDays: Set<String> { stored.closedDays }
-    var recordOnlyDays: Set<String> { stored.recordOnlyDays }
-    var honeypots: Int { stored.honeypots }
-    var rest: RestPeriod? { stored.rest }
-    var lastHoneypotUse: String? { stored.lastHoneypotUse }
-
-    private var calendar: Calendar { ReportDay.calendar }
-    private func key(_ day: Date) -> String { ReportDay.apiString(from: day) }
-
-    // MARK: - 하루 상태
-
-    func isClosed(_ day: Date) -> Bool { stored.closedDays.contains(key(day)) }
-    func isSavedByHoneypot(_ day: Date) -> Bool { stored.honeypotSavedDays.contains(key(day)) }
-
-    func isRest(_ day: Date) -> Bool {
-        guard let rest = stored.rest else { return false }
-        let d = calendar.startOfDay(for: day)
-        return d >= calendar.startOfDay(for: rest.start) && d <= calendar.startOfDay(for: rest.end)
+    var closedDays: Set<String> { state.closedDays }
+    var recordOnlyDays: Set<String> { state.recordOnlyDays }
+    var honeypots: Int { state.honeypots }
+    var rest: RestPeriod? { state.rest }
+    var lastHoneypotUse: String? { state.lastHoneypotUse }
+    var hasPendingChanges: Bool { !envelope.operations.isEmpty || envelope.legacy != nil }
+    var hasSynced: Bool { envelope.synced }
+    var hasUnclaimedLegacy: Bool {
+        defaults.string(forKey: "day_close_legacy_owner") == nil && legacyState() != nil
     }
-
-    func isResting(now: Date = .now) -> Bool { isRest(now) }
-
+    func isClosed(_ day: Date) -> Bool { state.isClosed(day) }
+    func isSavedByHoneypot(_ day: Date) -> Bool { state.isSavedByHoneypot(day) }
+    func isRest(_ day: Date) -> Bool { state.isRest(day) }
+    func isResting(now: Date = .now) -> Bool { state.isResting(now: now) }
+    func streak(endingAt day: Date) -> Int { state.streak(endingAt: day) }
+    func targetDay(now: Date = .now) -> Date { state.targetDay(now: now) }
+    func weekStates(containing day: Date, today: Date = .now) -> [HoneyCellState] { state.weekStates(containing: day, today: today) }
     func markClosed(_ day: Date, recordOnly: Bool = false) {
-        let dayKey = key(day)
-        stored.closedDays.insert(dayKey)
-        stored.honeypotSavedDays.remove(dayKey)
-        if recordOnly { stored.recordOnlyDays.insert(dayKey) }
-        // 7일 연속마다 꿀단지 1개
-        let streak = streak(endingAt: day)
-        if streak > 0, streak % Self.daysPerHoneypot == 0 {
-            stored.honeypots = min(Self.maxHoneypots, stored.honeypots + 1)
-        }
+        mutate(ProgressOperation(kind: "close_day", day: ReportDay.apiString(from: day), recordOnly: recordOnly))
     }
-
-    // MARK: - 연속
-
-    /// day까지 이어진 연속 완성일 수. day를 아직 안 했으면 그 전날까지 센다.
-    /// 꿀단지로 지킨 날·쉬어간 날은 연속을 잇되 숫자를 늘리지 않는다
-    func streak(endingAt day: Date) -> Int {
-        var cursor = calendar.startOfDay(for: day)
-        if !isClosed(cursor), let previous = calendar.date(byAdding: .day, value: -1, to: cursor) {
-            cursor = previous
-        }
-        var count = 0
-        // 쉬어가기·꿀단지가 아주 길게 이어져도 끝나도록 1년으로 제한
-        for _ in 0..<366 {
-            if isClosed(cursor) {
-                count += 1
-            } else if !(isSavedByHoneypot(cursor) || isRest(cursor)) {
-                break
-            }
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
-            cursor = previous
-        }
-        return count
-    }
-
-    /// 지금 마무리할 날: 정오 전이고 어제를 아직 안 했으면 어제, 아니면 오늘
-    func targetDay(now: Date = .now) -> Date {
-        let today = calendar.startOfDay(for: now)
-        guard calendar.component(.hour, from: now) < Self.graceHour,
-              let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
-              !isClosed(yesterday), !isRest(yesterday) else {
-            return today
-        }
-        return yesterday
-    }
-
-    /// 유예가 지난 빠진 날에 꿀단지를 쓴다. 앱이 열릴 때마다 부른다. 쓴 날 수를 돌려준다
-    @discardableResult
-    func applyHoneypots(now: Date = .now) -> Int {
-        guard stored.honeypots > 0 else { return 0 }
-        // 이미 마감된 마지막 날: 유예 중이면 그저께, 아니면 어제
-        let today = calendar.startOfDay(for: now)
-        let inGrace = calendar.component(.hour, from: now) < Self.graceHour
-        guard let lastDeadlinePassed = calendar.date(byAdding: .day, value: inGrace ? -2 : -1, to: today) else { return 0 }
-
-        // 마지막으로 완성·보호·쉬어간 날 다음부터 빠진 날을 찾는다(최근 14일만)
-        var missed: [Date] = []
-        var cursor = lastDeadlinePassed
-        for _ in 0..<14 {
-            if isClosed(cursor) || isSavedByHoneypot(cursor) || isRest(cursor) { break }
-            missed.insert(cursor, at: 0)
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
-            cursor = previous
-        }
-        // 지킬 연속이 없으면 쓰지 않는다
-        guard let firstMissed = missed.first,
-              let dayBefore = calendar.date(byAdding: .day, value: -1, to: firstMissed),
-              streak(endingAt: dayBefore) > 0 else { return 0 }
-
-        var used = 0
-        for day in missed where stored.honeypots > 0 {
-            stored.honeypotSavedDays.insert(key(day))
-            stored.honeypots -= 1
-            stored.lastHoneypotUse = key(day)
-            used += 1
-        }
+    @discardableResult func applyHoneypots(now: Date = .now) -> Int {
+        var projected = state
+        let used = projected.applyHoneypots(now: now)
+        if used > 0 { mutate(ProgressOperation(kind: "apply_honeypots"), now: now) }
         return used
     }
-
-    // MARK: - 쉬어가기
-
     func startRest(_ reason: RestPeriod.Reason, days: Int, from now: Date = .now) {
-        let start = calendar.startOfDay(for: now)
-        let end = calendar.date(byAdding: .day, value: max(days, 1) - 1, to: start) ?? start
-        stored.rest = RestPeriod(reason: reason, start: start, end: end)
+        let start = ReportDay.calendar.startOfDay(for: now)
+        let end = ReportDay.calendar.date(byAdding: .day, value: min(max(days, 1), 366) - 1, to: start)!
+        mutate(ProgressOperation(kind: "start_rest", day: ReportDay.apiString(from: start), reason: reason.rawValue, end: ReportDay.apiString(from: end)))
     }
-
     func endRest(now: Date = .now) {
-        guard let rest = stored.rest else { return }
-        // 오늘부터 다시 기록한다: 쉬어간 기간은 어제까지만 남긴다
-        let today = calendar.startOfDay(for: now)
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today), yesterday >= rest.start {
-            stored.rest = RestPeriod(reason: rest.reason, start: rest.start, end: yesterday)
-        } else {
-            stored.rest = nil
+        guard rest != nil else { return }
+        mutate(ProgressOperation(kind: "end_rest", day: ReportDay.apiString(from: now)))
+    }
+    func reset() { envelope = Envelope(); save() }
+
+    func activateAccount(_ id: UUID?, allowLegacy: Bool = false) {
+        guard accountScoped else { return }
+        accountID = id
+        key = "day_close_v3.\(id?.uuidString ?? "signed_out")"
+        load()
+        // Signed-out data is never shown or sent as another account's history.
+        if id == nil { envelope = Envelope() }
+        if allowLegacy { claimLegacyForActiveAccount() }
+    }
+
+    @discardableResult func claimLegacyForActiveAccount() -> Bool {
+        guard let accountID, hasUnclaimedLegacy, let legacy = legacyState() else { return false }
+        var imported = legacy
+        for operation in envelope.operations { operation.apply(to: &imported) }
+        imported.closedDays.formUnion(state.closedDays)
+        imported.recordOnlyDays.formUnion(state.recordOnlyDays.subtracting(state.closedDays.subtracting(state.recordOnlyDays)))
+        imported.honeypotSavedDays.formUnion(state.honeypotSavedDays)
+        imported.honeypotSavedDays.subtract(imported.closedDays)
+        envelope.state = imported
+        envelope.legacy = RemoteProgressState(legacy) // frozen BEFORE queued edits
+        save()
+        defaults.set(accountID.uuidString, forKey: "day_close_legacy_owner")
+        onMutation?()
+        return true
+    }
+    func makeSyncRequest(maxOperations: Int = 100) -> ProgressSyncRequest {
+        ProgressSyncRequest(legacyState: envelope.legacy, operations: Array(envelope.operations.prefix(min(max(maxOperations, 1), 100))))
+    }
+    func applyServer(_ response: ProgressSyncResponse, for request: ProgressSyncRequest) throws {
+        guard response.revision >= envelope.revision else { return }
+        var canonical = try response.state.local()
+        let sent = Set(request.operations.map(\.id))
+        let acknowledged = Set(response.acknowledgedOperations).intersection(sent)
+        let remaining = envelope.operations.filter { !acknowledged.contains($0.id) }
+        for operation in remaining { operation.apply(to: &canonical) }
+        envelope.state = canonical
+        envelope.operations = remaining
+        envelope.revision = response.revision
+        if request.legacyState == envelope.legacy { envelope.legacy = nil }
+        envelope.synced = true
+        save()
+    }
+    private func mutate(_ operation: ProgressOperation, now: Date = .now) {
+        operation.apply(to: &envelope.state, now: now)
+        envelope.operations.append(operation)
+        save()
+        onMutation?()
+    }
+    private func load() {
+        envelope = Envelope()
+        guard let data = defaults.data(forKey: key) else { return }
+        if let value = try? JSONDecoder().decode(Envelope.self, from: data) { envelope = value }
+        else if !accountScoped, let value = try? JSONDecoder().decode(DayCloseState.self, from: data) {
+            envelope.state = value; envelope.legacy = RemoteProgressState(value)
         }
     }
-
-    // MARK: - 이번 주 벌집
-
-    /// day가 있는 주(월~일)의 칸. 오늘이고 아직 안 했으면 .today
-    func weekStates(containing day: Date, today: Date = .now) -> [HoneyCellState] {
-        let weekday = calendar.component(.weekday, from: day) // 1=일 … 7=토
-        let mondayOffset = (weekday + 5) % 7
-        guard let monday = calendar.date(byAdding: .day, value: -mondayOffset, to: calendar.startOfDay(for: day)) else {
-            return Array(repeating: .empty, count: 7)
-        }
-        return (0..<7).map { offset in
-            guard let date = calendar.date(byAdding: .day, value: offset, to: monday) else { return .empty }
-            if stored.recordOnlyDays.contains(key(date)) { return .recordOnly }
-            if isClosed(date) { return .done }
-            if isSavedByHoneypot(date) { return .savedByHoneypot }
-            if isRest(date) { return .rest }
-            if calendar.isDate(date, inSameDayAs: today) { return .today }
-            return .empty
-        }
+    private func legacyState() -> DayCloseState? {
+        guard let data = defaults.data(forKey: "day_close_v2") else { return nil }
+        let state = (try? JSONDecoder().decode(Envelope.self, from: data))?.state
+            ?? (try? JSONDecoder().decode(DayCloseState.self, from: data))
+        guard let state, !state.closedDays.isEmpty || state.rest != nil || state.honeypots > 0 || !state.honeypotSavedDays.isEmpty else { return nil }
+        return state
     }
-
-    /// 계정을 지웠을 때
-    func reset() {
-        stored = Stored()
-    }
-
-    private func save() {
-        guard let data = try? JSONEncoder().encode(stored) else { return }
-        defaults.set(data, forKey: key)
-    }
+    private func save() { defaults.set(try? JSONEncoder().encode(envelope), forKey: key) }
 }

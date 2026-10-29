@@ -81,15 +81,21 @@ final class APIClient {
         queryItems: [URLQueryItem],
         body: Encodable?,
         authenticated: Bool,
-        allowRetry: Bool
+        allowRetry: Bool,
+        accountGeneration: UUID? = nil
     ) async throws -> (Data, HTTPURLResponse) {
-        let request = try makeRequest(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated)
+        let currentGeneration = await AuthSession.shared.generation
+        let scope = authenticated ? (accountGeneration ?? currentGeneration) : nil
+        try await validateScope(scope)
+        let request = try await makeRequest(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, scope: scope)
         let (data, response) = try await execute(request)
+        try await validateScope(scope)
 
         if response.statusCode == 401, authenticated, allowRetry {
             let refreshed = await AuthSession.shared.refreshAccessToken()
+            try await validateScope(scope)
             if refreshed {
-                return try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: false)
+                return try await performWithRetry(path: path, method: method, queryItems: queryItems, body: body, authenticated: authenticated, allowRetry: false, accountGeneration: scope)
             }
             await AuthSession.shared.signOut()
             throw APIError.notAuthenticated
@@ -105,7 +111,7 @@ final class APIClient {
         return (data, response)
     }
 
-    private func makeRequest(path: String, method: HTTPMethod, queryItems: [URLQueryItem], body: Encodable?, authenticated: Bool) throws -> URLRequest {
+    private func makeRequest(path: String, method: HTTPMethod, queryItems: [URLQueryItem], body: Encodable?, authenticated: Bool, scope: UUID?) async throws -> URLRequest {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
         if !queryItems.isEmpty {
             components?.queryItems = queryItems
@@ -119,9 +125,7 @@ final class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         if authenticated {
-            guard let token = AuthSession.shared.accessToken else {
-                throw APIError.notAuthenticated
-            }
+            let token = try await AuthSession.shared.credential(for: scope)
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
@@ -135,6 +139,10 @@ final class APIClient {
         }
 
         return request
+    }
+
+    private func validateScope(_ generation: UUID?) async throws {
+        if let generation, generation != (await AuthSession.shared.generation) { throw CancellationError() }
     }
 
     private func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {

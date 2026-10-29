@@ -12,6 +12,10 @@ struct GlucoseApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        if !RecordDataSource.isPreview { AuthSession.shared.bootstrap() }
+    }
+
     var body: some Scene {
         WindowGroup {
             content
