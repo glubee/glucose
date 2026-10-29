@@ -49,6 +49,8 @@ final class DayCloseStore {
         var rest: RestPeriod?
         /// 가장 최근에 꿀단지로 지킨 날(알림·홈 안내용)
         var lastHoneypotUse: String?
+        /// 하루 마무리 "오늘에 남길 한마디"(날짜 → 글). 기기에만 둔다. 예전 저장값엔 없다
+        var notes: [String: String]?
     }
 
     private var stored: Stored {
@@ -79,6 +81,16 @@ final class DayCloseStore {
     // MARK: - 하루 상태
 
     func isClosed(_ day: Date) -> Bool { stored.closedDays.contains(key(day)) }
+
+    /// 하루 마무리 한마디(선택). 서버로 보내지 않는다
+    func note(for day: Date) -> String { stored.notes?[key(day)] ?? "" }
+
+    func setNote(_ text: String, for day: Date) {
+        var notes = stored.notes ?? [:]
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        notes[key(day)] = trimmed.isEmpty ? nil : trimmed
+        stored.notes = notes
+    }
     func isSavedByHoneypot(_ day: Date) -> Bool { stored.honeypotSavedDays.contains(key(day)) }
 
     func isRest(_ day: Date) -> Bool {

@@ -202,6 +202,7 @@ private struct DayCloseWheel: View {
 /// 위젯 붙이는 법 3칸 + 위젯 미리보기
 private struct WidgetGuide: View {
     private let steps = [("1", "홈 화면\n길게 누르기"), ("2", "왼쪽 위\n+ 누르기"), ("3", "\"글루비\"\n고르기")]
+    @State private var showGuide = false
 
     var body: some View {
         VStack(spacing: Spacing.s) {
@@ -234,6 +235,16 @@ private struct WidgetGuide: View {
             .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.line, lineWidth: 1))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("위젯 미리보기: 연속일과 찍기, 인슐린 버튼")
+            Button("위젯 자세히 보기") { showGuide = true }
+                .font(.caption1.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
+                .frame(minHeight: Metrics.minTapTarget)
+        }
+        .sheet(isPresented: $showGuide) {
+            NavigationStack {
+                WidgetGuideView()
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { showGuide = false } } }
+            }
         }
     }
 

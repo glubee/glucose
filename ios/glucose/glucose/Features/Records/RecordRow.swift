@@ -51,14 +51,14 @@ struct RecordRow: View {
 
     private var tint: Color {
         switch item {
-        case .intake(let record): record.context == .hypoTreatment ? .mintStrong : .onBrandSoft
+        case .intake(let record): record.context.tint
         case .insulin: .insulin
         }
     }
 
     private var fill: Color {
         switch item {
-        case .intake(let record): record.context == .hypoTreatment ? .mintSoft : .brandSoft
+        case .intake(let record): record.context.softFill
         case .insulin: .insulinSoft
         }
     }

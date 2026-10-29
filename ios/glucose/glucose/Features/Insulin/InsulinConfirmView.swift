@@ -4,6 +4,8 @@
 //
 //  위젯·홈에서 여는 인슐린 투여 확인. 제품·단위는 사용자가 직접 넣은 "평소 인슐린"으로만
 //  미리 채우고, 시각은 지금. "투여 확인" 한 번이면 저장된다(docs/ios-design-v4.md 0장).
+//  저장한 뒤 "인슐린 하나 더 기록하기"로 같은 화면에서 이어서 남길 수 있다(식사 + 기저 등).
+//  등록한 인슐린 칩 끝의 "+ 다른 인슐린"으로 처음 설정에 없던 인슐린도 넣고 평소 인슐린에 더할 수 있다.
 //  앱은 용량을 계산하거나 추천하지 않는다.
 //
 
@@ -15,9 +17,13 @@ struct InsulinConfirmView: View {
     @State private var selectedInsulinId: UUID?
     @State private var unitsText: String
     @State private var editsTime = false
-    /// 평소 인슐린이 없을 때, 입력한 값을 다음에도 채울지
+    /// 평소 인슐린이 없거나 다른 인슐린을 새로 넣을 때, 입력한 값을 평소 인슐린에 더할지
     @State private var rememberAsUsual: Bool
+    /// 처음에 등록한 것 말고 다른 인슐린을 넣는 중
+    @State private var addingNew = false
     @State private var saved = false
+    /// 이 화면에서 연달아 남긴 기록(예: 식사 인슐린 + 기저 인슐린)
+    @State private var savedEntries: [String] = []
     @FocusState private var unitsFocused: Bool
 
     private let preferences: UserPreferences
@@ -35,6 +41,13 @@ struct InsulinConfirmView: View {
     }
 
     private var usualInsulins: [UsualInsulin] { preferences.usualInsulins }
+
+    /// 칩 맨 끝 "+ 다른 인슐린"
+    private static let newInsulinID = UUID(uuidString: "00000000-0000-0000-0000-00000000A0D0")!
+
+    private var insulinChoices: [(UUID, String)] {
+        usualInsulins.map { ($0.id, $0.name) } + [(Self.newInsulinID, "+ 다른 인슐린")]
+    }
 
     /// 지금 칸의 값이 고른 평소 인슐린 값 그대로인지
     private var isPrefilled: Bool {
@@ -63,9 +76,10 @@ struct InsulinConfirmView: View {
                 .font(.pretendard(15, relativeTo: .subheadline, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
 
-            if usualInsulins.count > 1 {
-                ChipPicker(options: usualInsulins.map { ($0.id, $0.name) },
+            if !usualInsulins.isEmpty {
+                ChipPicker(options: insulinChoices,
                            selection: Binding(get: { selectedInsulinId ?? usualInsulins[0].id }, set: select))
+                    .accessibilityIdentifier("insulinChoices")
             }
 
             Button { withAnimation(.spring(duration: 0.3)) { editing = true } } label: {
@@ -127,9 +141,9 @@ struct InsulinConfirmView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.l) {
-                    if usualInsulins.count > 1 {
+                    if !usualInsulins.isEmpty {
                         ChipPicker(
-                            options: usualInsulins.map { ($0.id, $0.name) },
+                            options: insulinChoices,
                             selection: Binding(
                                 get: { selectedInsulinId ?? usualInsulins[0].id },
                                 set: select
@@ -139,6 +153,7 @@ struct InsulinConfirmView: View {
 
                     field("제품") {
                         TextField("예: 초속효성 인슐린", text: $viewModel.kind)
+                            .accessibilityIdentifier("insulinKindField")
                     }
 
                     field("투여량") {
@@ -161,8 +176,8 @@ struct InsulinConfirmView: View {
 
                     timeSection
 
-                    if usualInsulins.isEmpty {
-                        Toggle("다음에도 이 값으로 채우기", isOn: $rememberAsUsual)
+                    if usualInsulins.isEmpty || addingNew {
+                        Toggle(addingNew ? "평소 인슐린에 추가하기" : "다음에도 이 값으로 채우기", isOn: $rememberAsUsual)
                             .font(.body2)
                             .tint(Color.mintStrong)
                     }
@@ -232,27 +247,63 @@ struct InsulinConfirmView: View {
     private var savedView: some View {
         VStack(spacing: Spacing.s) {
             Spacer()
-            MascotView(pose: .thumbsup, size: 160, motion: .jump)
+            MascotView(pose: .thumbsup, size: 140, motion: .jump)
             Text("기록했어요")
                 .font(.pretendard(24, relativeTo: .title, weight: .bold))
                 .foregroundStyle(Color.textPrimary)
-            Text("잠시 뒤 자동으로 닫혀요")
-                .font(.body2)
-                .foregroundStyle(Color.textSecondary)
+            VStack(spacing: Spacing.xxs) {
+                ForEach(Array(savedEntries.enumerated()), id: \.offset) { _, entry in
+                    Label(entry, systemImage: "syringe")
+                        .font(.body2)
+                        .foregroundStyle(Color.insulin)
+                }
+            }
             Spacer()
+            Button {
+                addAnother()
+            } label: {
+                Label("인슐린 하나 더 기록하기", systemImage: "plus")
+            }
+            .buttonStyle(.glubeeSoft)
+            .accessibilityIdentifier("insulinAddAnother")
+            Button("다 했어요") { dismiss() }
+                .buttonStyle(.glubeePrimary)
         }
+        .padding(.horizontal, Spacing.l)
+        .padding(.bottom, Spacing.s)
         .frame(maxWidth: .infinity)
         .background(Color.canvas)
-        .sensoryFeedback(.success, trigger: saved)
-        .task {
-            try? await Task.sleep(for: .seconds(1.2))
-            dismiss()
-        }
+        .sensoryFeedback(.success, trigger: savedEntries.count)
+    }
+
+    /// 저장한 화면을 닫지 않고 새 기록을 이어서 받는다. 한 번 저장한 입력 상태는 다시 저장되지 않으므로 새로 만든다
+    private func addAnother() {
+        let first = usualInsulins.first
+        viewModel = InsulinRecordFormViewModel(units: first?.units, kind: first?.name ?? "")
+        selectedInsulinId = first?.id
+        unitsText = first?.units.map(Self.format) ?? ""
+        editsTime = false
+        editing = false
+        addingNew = false
+        rememberAsUsual = usualInsulins.isEmpty
+        withAnimation(.spring(duration: 0.3)) { saved = false }
     }
 
     // MARK: - 동작
 
     private func select(_ id: UUID) {
+        if id == Self.newInsulinID {
+            // 등록한 것 말고 다른 인슐린: 빈 칸에서 직접 넣고, 원하면 평소 인슐린에 더한다
+            selectedInsulinId = id
+            addingNew = true
+            rememberAsUsual = true
+            viewModel.kind = ""
+            viewModel.units = nil
+            unitsText = ""
+            withAnimation(.spring(duration: 0.3)) { editing = true }
+            return
+        }
+        addingNew = false
         guard let insulin = usualInsulins.first(where: { $0.id == id }) else { return }
         selectedInsulinId = id
         viewModel.kind = insulin.name
@@ -262,12 +313,14 @@ struct InsulinConfirmView: View {
 
     private func save() async {
         guard await viewModel.save() else { return }
-        if usualInsulins.isEmpty && rememberAsUsual {
-            preferences.usualInsulins = [UsualInsulin(name: viewModel.kind.trimmingCharacters(in: .whitespaces),
-                                                      units: viewModel.units)]
+        let name = viewModel.kind.trimmingCharacters(in: .whitespaces)
+        if (usualInsulins.isEmpty || addingNew) && rememberAsUsual && !usualInsulins.contains(where: { $0.name == name }) {
+            preferences.usualInsulins.append(UsualInsulin(name: name, units: viewModel.units))
         }
         if !RecordDataSource.isPreview { WidgetSnapshot.refresh(noteRecord: true) }
         onSaved()
+        let units = viewModel.units.map(Self.format) ?? ""
+        savedEntries.append("\(ReportDay.timeString(from: viewModel.occurredAt)) · \(viewModel.kind) \(units)단위")
         withAnimation(.spring(duration: 0.35)) { saved = true }
     }
 

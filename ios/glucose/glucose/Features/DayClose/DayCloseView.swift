@@ -2,8 +2,10 @@
 //  DayCloseView.swift
 //  glucose
 //
-//  하루 마무리(v5): 위에 단계 막대(그래프 · 사진 확인 · 인슐린 · 완성), 단계마다 한 화면.
-//  실패 화면의 글루비는 웃지 않는다.
+//  하루 마무리 "글루비와 쓰는 줄노트"(디자이너 시안 01~09).
+//  시작 화면 → 줄 그은 한 장짜리 다이어리(그래프 붙이기 · 음식 시간줄 · 빠진 음식 · 투여 기록 · 한마디) → 벌집 한 칸.
+//  위에는 "오늘의 다이어리" 진행 막대, 아래에는 "오늘 정리 마치기"(다 살펴봐야 켜진다).
+//  글루비는 기록 행동에만 말한다. 실패 화면의 글루비는 웃지 않는다. 혈당 수치를 평가하지 않는다.
 //
 
 import PhotosUI
@@ -20,6 +22,7 @@ struct DayCloseView: View {
     @State private var deletionCandidate: UUID?
     @State private var showsDeleteConfirm = false
     @State private var showsDeleteError = false
+    @FocusState private var noteFocused: Bool
 
     init(day: Date? = nil, photoStore: PendingPhotoStore? = nil) {
         _viewModel = State(initialValue: DayCloseViewModel(day: day, photoStore: photoStore ?? .shared))
@@ -28,15 +31,14 @@ struct DayCloseView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
-                if !viewModel.isFinished {
-                    stepBar
-                }
+                progressHeader
                 Group {
-                    switch viewModel.step {
-                    case .graph: graphStep
-                    case .photos: photosStep
-                    case .insulin: insulinStep
-                    case .done: DayCompleteView(viewModel: viewModel, onClose: { dismiss() })
+                    if viewModel.isFinished {
+                        DayCompleteView(viewModel: viewModel, onClose: { dismiss() })
+                    } else if viewModel.started {
+                        diary
+                    } else {
+                        intro
                     }
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -46,12 +48,15 @@ struct DayCloseView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if viewModel.step == .graph || viewModel.isFinished {
-                        Button("닫기") { dismiss() }
-                    } else {
-                        Button { viewModel.back() } label: { Image(systemName: "chevron.left") }
-                            .accessibilityLabel("이전 단계")
+                    if viewModel.started && !viewModel.isFinished {
+                        Button { withAnimation { viewModel.started = false } } label: { Image(systemName: "chevron.left") }
+                            .accessibilityLabel("처음으로")
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .foregroundStyle(Color.textSecondary)
+                        .accessibilityLabel("닫기")
                 }
             }
             .navigationDestination(for: UUID.self) { id in
@@ -70,9 +75,11 @@ struct DayCloseView: View {
         }
         .sheet(isPresented: $showHowTo) { CaptureHowToSheet() }
         .sheet(isPresented: $showFoodRecord, onDismiss: { Task { await viewModel.refresh() } }) { PhotoCaptureView() }
-        .sheet(isPresented: $showInsulinRecord, onDismiss: { Task { await viewModel.refresh() } }) { InsulinConfirmView() }
-        .alert("이 사진을 지울까요?", isPresented: $showsDeleteConfirm,
-                            presenting: deletionCandidate) { id in
+        .sheet(isPresented: $showInsulinRecord, onDismiss: {
+            viewModel.insulinAnswered = true
+            Task { await viewModel.refresh() }
+        }) { InsulinConfirmView() }
+        .alert("이 사진을 지울까요?", isPresented: $showsDeleteConfirm, presenting: deletionCandidate) { id in
             Button("사진 지우기", role: .destructive) { showsDeleteError = !viewModel.photoStore.remove(id) }
             Button("취소", role: .cancel) {}
         } message: { _ in Text(PendingPhotoDeletion.message) }
@@ -80,117 +87,517 @@ struct DayCloseView: View {
             Button("확인", role: .cancel) {}
         }
         .onChange(of: viewModel.photoStore.photos.map(\.id)) { _, ids in path.removeAll { !ids.contains($0) } }
-        .animation(.spring(duration: 0.35), value: viewModel.step)
+        .animation(.spring(duration: 0.35), value: viewModel.started)
+        .animation(.spring(duration: 0.35), value: viewModel.isFinished)
+        .animation(.spring(duration: 0.35), value: viewModel.foodsAnswered)
+        .animation(.spring(duration: 0.35), value: viewModel.insulinAnswered)
     }
 
-    // MARK: - 단계 막대
+    // MARK: - 진행 막대
 
-    private var stepBar: some View {
-        HStack(spacing: Spacing.xs) {
-            ForEach(DayCloseViewModel.Step.allCases, id: \.self) { step in
-                VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    Capsule()
-                        .fill(step.rawValue <= viewModel.step.rawValue ? Color.textPrimary : Color.line)
-                        .frame(height: 3)
-                    Text(step.title)
-                        .font(.sectionLabel)
-                        .foregroundStyle(step == viewModel.step ? Color.textPrimary : Color.textSecondary)
+    private var progressHeader: some View {
+        VStack(spacing: Spacing.xs) {
+            HStack {
+                Text("오늘의 다이어리").font(.body2).foregroundStyle(Color.textSecondary)
+                Spacer()
+                Text(viewModel.progressLabel).font(.body2.weight(.semibold)).foregroundStyle(Diary.ink)
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.line.opacity(0.6))
+                    Capsule().fill(Diary.ink).frame(width: max(6, geometry.size.width * viewModel.progress))
                 }
             }
+            .frame(height: 4)
         }
         .padding(.horizontal, Spacing.gutter)
-        .padding(.vertical, Spacing.s)
+        .padding(.top, Spacing.xxs)
+        .padding(.bottom, Spacing.s)
+        .animation(.easeInOut(duration: 0.4), value: viewModel.progress)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("하루 마무리 \(viewModel.step.rawValue + 1)단계, \(viewModel.step.title)")
+        .accessibilityLabel("오늘의 다이어리, \(viewModel.progressLabel)")
+        .accessibilityValue("\(Int(viewModel.progress * 100))%")
     }
 
-    // MARK: - ① 그래프
+    // MARK: - 01 시작
+
+    private var intro: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: Spacing.m) {
+                    dateHeading
+                    VStack(spacing: Spacing.xs) {
+                        Text(nickname.isEmpty ? "오늘 하루는 어땠나요?" : "\(nickname)님, 오늘 하루는 어땠나요?")
+                            .font(.headline1)
+                            .foregroundStyle(Color.textPrimary)
+                            .multilineTextAlignment(.center)
+                        Text("오늘 남긴 기록을 보면서 이야기해봐요.")
+                            .font(.body2).foregroundStyle(Color.textSecondary)
+                    }
+                    .padding(.top, Spacing.m)
+                    introPhotos.padding(.vertical, Spacing.s)
+                    MascotView(pose: .wave, size: 110, floats: true)
+                    Text("빠진 기록은 더하고,\n남기고 싶은 이야기도 적어봐요.")
+                        .font(.body1).foregroundStyle(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Spacing.gutter)
+                .padding(.vertical, Spacing.m)
+            }
+            .background(DiaryPaper())
+            VStack(spacing: Spacing.xs) {
+                Button("시작하기") { viewModel.started = true }
+                    .buttonStyle(.glubeePrimary)
+                    .accessibilityIdentifier("dayCloseStart")
+                Text("나중에 이어서 할 수 있어요.").font(.caption1).foregroundStyle(Color.textSecondary)
+            }
+            .padding(.horizontal, Spacing.gutter)
+            .padding(.vertical, Spacing.s)
+        }
+    }
+
+    private var dateHeading: some View {
+        VStack(spacing: Spacing.xxs) {
+            Text(stamp)
+                .font(.caption1.weight(.semibold).monospacedDigit())
+                .foregroundStyle(Diary.ink)
+                .padding(.horizontal, Spacing.xs).padding(.vertical, 3)
+                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Diary.ink.opacity(0.5), lineWidth: 1))
+                .rotationEffect(.degrees(-3))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            Text(longDate)
+                .font(.pretendard(26, relativeTo: .title, weight: .bold))
+                .foregroundStyle(Color.textPrimary)
+            Text("오늘의 조각을 함께 모아봐요.")
+                .font(.body2).foregroundStyle(Color.textSecondary)
+        }
+    }
+
+    /// 시작 화면의 사진 두 장(남긴 음식 사진 → 확인 대기 사진 순)
+    @ViewBuilder
+    private var introPhotos: some View {
+        let saved = marks.compactMap(\.photoId).prefix(2)
+        let pending = viewModel.pendingPhotos.prefix(2 - saved.count)
+        if !saved.isEmpty || !pending.isEmpty {
+            HStack(spacing: Spacing.m) {
+                ForEach(Array(saved.enumerated()), id: \.offset) { index, id in
+                    DiaryPolaroid { FoodPhotoThumbnail(photoId: id, size: 128, cornerRatio: 0.01) }
+                        .rotationEffect(.degrees(index == 0 ? -3 : 2))
+                }
+                ForEach(Array(pending.enumerated()), id: \.element.id) { index, photo in
+                    DiaryPolaroid { PendingPhotoThumbnail(photo: photo, store: viewModel.photoStore, size: 128, cornerRadius: 1) }
+                        .rotationEffect(.degrees((saved.count + index) == 0 ? -3 : 2))
+                }
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    // MARK: - 다이어리 한 장
+
+    private var diary: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    graphSection
+                    if viewModel.hasGraphOrRecordOnly {
+                        foodTimeline
+                        foodQuestion
+                        if viewModel.foodsAnswered {
+                            insulinSection
+                        }
+                        if viewModel.foodsAnswered && viewModel.insulinAnswered {
+                            noteSection
+                            if viewModel.canFinish {
+                                DiaryTimeRow(time: nil) {
+                                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                                        BeeSpeech(pose: .happy, text: "오늘 이야기를 함께 모았네요.")
+                                        Text("남긴 기록은 언제든 다시 볼 수 있어요.")
+                                            .font(.body2).foregroundStyle(Color.textSecondary)
+                                            .padding(.leading, 56)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, Spacing.gutter)
+                .padding(.bottom, Spacing.l)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .refreshable { await viewModel.refresh(); await viewModel.retryUploads() }
+            .background(DiaryPaper())
+            finishBar
+        }
+    }
+
+    private var finishBar: some View {
+        VStack(spacing: Spacing.xs) {
+            Text(finishHint)
+                .font(.caption1)
+                .foregroundStyle(viewModel.canFinish ? Diary.ink : Color.textSecondary)
+            Button("오늘 정리 마치기") { Task { await viewModel.finish() } }
+                .buttonStyle(viewModel.canFinish ? .glubeePrimary : .glubeeMuted)
+                .disabled(!viewModel.canFinish)
+                .accessibilityIdentifier("dayCloseFinish")
+        }
+        .padding(.horizontal, Spacing.gutter)
+        .padding(.top, Spacing.xs)
+        .padding(.bottom, Spacing.s)
+        .background(Color.canvas)
+    }
+
+    private var finishHint: String {
+        if viewModel.canFinish { return "✓ 다 살펴봤어요. 편하게 마무리해요." }
+        if viewModel.hasGraphOrRecordOnly, !viewModel.pendingPhotos.isEmpty {
+            return "확인하지 않은 사진이 \(viewModel.pendingPhotos.count)장 있어요"
+        }
+        return "↓ 아래까지 함께 살펴봐요"
+    }
+
+    // MARK: 그래프 붙이기
 
     @ViewBuilder
-    private var graphStep: some View {
+    private var graphSection: some View {
         switch viewModel.graphPhase {
         case .checking:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            DiaryTimeRow(time: nil) { ProgressView().frame(maxWidth: .infinity).padding() }
         case .needsUpload, .otherDay:
-            stepPage(pose: .photo, title: "\(dayWord) 리브레 그래프를\n올려주세요") {
-                VStack(spacing: Spacing.m) {
-                    PhotosPicker(selection: $pickerItem, matching: .screenshots) {
-                        VStack(spacing: Spacing.xs) {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title2)
-                                .foregroundStyle(Color.onBrandSoft)
-                                .frame(width: 48, height: 48)
-                                .background(Color.brandSoft, in: RoundedRectangle(cornerRadius: Radius.field))
-                            Text("스크린샷 고르기").font(.headline2).foregroundStyle(Color.textPrimary)
-                            Text("리브레 앱 \"오늘\" 그래프 화면을 캡처해서 골라주세요.")
-                                .font(.body2).foregroundStyle(Color.textSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(Spacing.l)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.card)
-                            .strokeBorder(Color.line, style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
-                    }
-                    .buttonStyle(.plain)
+            DiaryTimeRow(time: nil) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    BeeSpeech(pose: .photo, text: "\(dayWord) 리브레 그래프를 붙여볼까요?")
+                    Text("리브레 앱 \"오늘\" 그래프 화면을 캡처해서 골라주세요.")
+                        .font(.body2).foregroundStyle(Color.textSecondary)
                     if case .otherDay(let date) = viewModel.graphPhase {
                         Text("방금 올린 그래프는 \(date) 그래프였어요. \(viewModel.dayTitle) 그래프를 올려주세요.")
                             .font(.body2).foregroundStyle(Color.alert)
                     }
+                    PhotosPicker(selection: $pickerItem, matching: .screenshots) {
+                        Label("그래프 스크린샷 고르기", systemImage: "photo.on.rectangle")
+                    }
+                    .buttonStyle(.glubeePrimary)
+                    HStack {
+                        DiaryLink(title: "캡처하는 법 보기") { showHowTo = true }
+                        Spacer()
+                        DiaryLink(title: "그래프 없이 기록만") { viewModel.saveRecordsOnly() }
+                    }
                 }
-            } actions: {
-                Button("캡처하는 법 보기") { showHowTo = true }
-                    .font(.body2).foregroundStyle(Color.textSecondary)
             }
         case .uploading, .analyzing:
-            stepPage(pose: .magnifier, title: "그래프를 읽고 있어요", centered: true) {
-                Text("10초쯤 걸려요. 화면을 닫아도 계속 읽어요.")
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-                ProgressView().padding(.top, Spacing.s)
-            } actions: { EmptyView() }
+            DiaryTimeRow(time: nil) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    BeeSpeech(pose: .magnifier, text: "그래프를 읽고 있어요")
+                    HStack(spacing: Spacing.xs) {
+                        ProgressView()
+                        Text("10초쯤 걸려요. 화면을 닫아도 계속 읽어요.")
+                            .font(.body2).foregroundStyle(Color.textSecondary)
+                    }
+                }
+            }
         case .ready(let coverage):
-            stepPage(pose: .happy, title: "그래프를 읽었어요") {
-                Text("하루의 \(Int((coverage * 100).rounded()))%를 읽었어요. 아침에 다시 올리면 덮어써요.")
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-            } actions: {
-                Button("다음 · 사진 확인") { viewModel.goToPhotos() }.buttonStyle(.glubeePrimary)
-                PhotosPicker("다시 올리기", selection: $pickerItem, matching: .screenshots)
-                    .font(.body2).foregroundStyle(Color.textSecondary)
+            DiaryTimeRow(time: nil) {
+                DiaryNoteCard(tint: Diary.ink) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        HStack {
+                            Text("리브레 그래프 · 붙임").font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Text("하루의 \(Int((coverage * 100).rounded()))%")
+                                .font(.caption1).foregroundStyle(Color.textSecondary)
+                        }
+                        if case .loaded(let report, let points) = viewModel.report.state, !points.isEmpty {
+                            GlucoseDayChart(day: viewModel.day, points: points, episodes: report.episodes,
+                                            insulinEvents: report.insulinEvents ?? [], height: 150)
+                        }
+                        PhotosPicker(selection: $pickerItem, matching: .screenshots) {
+                            Text("다시 붙이기 ›").font(.body2).underline().foregroundStyle(Diary.ink)
+                        }
+                    }
+                }
             }
         case .notRecognized:
-            stepPage(pose: .think, title: "그래프를 읽지 못했어요") {
-                Text("리브레 앱의 \"오늘\" 그래프가 화면에 다 보이게 다시 캡처해 주세요. 잘리거나 가려지면 읽을 수 없어요.")
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-            } actions: {
-                PhotosPicker(selection: $pickerItem, matching: .screenshots) { Text("다른 스크린샷 고르기") }
-                    .buttonStyle(.glubeePrimary)
-                Button("캡처하는 법 보기") { showHowTo = true }
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-            }
+            graphProblem(pose: .think, title: "그래프를 읽지 못했어요",
+                         message: "리브레 앱의 \"오늘\" 그래프가 화면에 다 보이게 다시 캡처해 주세요. 잘리거나 가려지면 읽을 수 없어요.")
         case .tooLittle:
-            stepPage(pose: .anxious, title: "읽힌 시간이 너무 짧아요") {
-                Text("하루의 10%(약 2시간 반)보다 적게 읽혀서 그래프를 만들 수 없어요. 센서가 끊긴 날이면 기록만 저장해도 오늘 칸은 채워져요.")
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-            } actions: {
-                PhotosPicker(selection: $pickerItem, matching: .screenshots) { Text("다른 스크린샷 고르기") }
-                    .buttonStyle(.glubeePrimary)
-                Button("오늘은 기록만 저장하기") { viewModel.saveRecordsOnly() }
-                    .font(.body2).foregroundStyle(Color.textSecondary)
-            }
+            graphProblem(pose: .anxious, title: "읽힌 시간이 너무 짧아요",
+                         message: "하루의 10%(약 2시간 반)보다 적게 읽혀서 그래프를 만들 수 없어요. 센서가 끊긴 날이면 기록만 남겨도 오늘 칸은 채워져요.")
         case .failed(let message):
-            stepPage(pose: .sulky, title: "그래프 상태를 확인하지 못했어요") {
-                Text(message).font(.body2).foregroundStyle(Color.textSecondary)
-            } actions: {
-                Button("다시 확인하기") {
-                    viewModel.chooseAnotherScreenshot()
-                    Task { await viewModel.refresh() }
+            DiaryTimeRow(time: nil) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    BeeSpeech(pose: .sulky, text: "그래프 상태를 확인하지 못했어요")
+                    Text(message).font(.body2).foregroundStyle(Color.textSecondary)
+                    Button("다시 확인하기") {
+                        viewModel.chooseAnotherScreenshot()
+                        Task { await viewModel.refresh() }
+                    }
+                    .buttonStyle(.glubeeSecondary)
                 }
-                .buttonStyle(.glubeePrimary)
             }
         }
     }
 
+    private func graphProblem(pose: MascotPose, title: String, message: String) -> some View {
+        DiaryTimeRow(time: nil) {
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                BeeSpeech(pose: pose, text: title)
+                Text(message).font(.body2).foregroundStyle(Color.textSecondary)
+                PhotosPicker(selection: $pickerItem, matching: .screenshots) { Text("다른 스크린샷 고르기") }
+                    .buttonStyle(.glubeePrimary)
+                HStack {
+                    DiaryLink(title: "캡처하는 법 보기") { showHowTo = true }
+                    Spacer()
+                    DiaryLink(title: "그래프 없이 기록만") { viewModel.saveRecordsOnly() }
+                }
+            }
+        }
+    }
+
+    // MARK: 음식 시간줄
+
+    private enum FoodRow: Identifiable {
+        case saved(DailyReport.Episode.IntakeMark, index: Int)
+        case pending(PendingPhoto)
+
+        var id: String {
+            switch self {
+            case .saved(_, let index): "saved-\(index)"
+            case .pending(let photo): "pending-\(photo.id)"
+            }
+        }
+        var time: Date {
+            switch self {
+            case .saved(let mark, _): mark.occurredAt
+            case .pending(let photo): photo.capturedAt
+            }
+        }
+    }
+
+    private var marks: [DailyReport.Episode.IntakeMark] {
+        guard case .loaded(let report, _) = viewModel.report.state else { return [] }
+        return report.episodes.flatMap(\.marks).sorted { $0.occurredAt < $1.occurredAt }
+    }
+
+    private var foodRows: [FoodRow] {
+        (marks.enumerated().map { FoodRow.saved($1, index: $0) } + viewModel.pendingPhotos.map(FoodRow.pending))
+            .sorted { $0.time < $1.time }
+    }
+
+    @ViewBuilder
+    private var foodTimeline: some View {
+        if foodRows.isEmpty {
+            DiaryTimeRow(time: nil) {
+                Text("오늘 남긴 음식 기록이 아직 없어요.")
+                    .font(.body2).foregroundStyle(Color.textSecondary)
+                    .padding(.vertical, Spacing.xs)
+            }
+        }
+        ForEach(foodRows) { row in
+            switch row {
+            case .saved(let mark, _):
+                DiaryTimeRow(time: mark.occurredAt, label: Diary.label(for: mark.occurredAt, context: mark.context)) {
+                    savedFood(mark)
+                }
+            case .pending(let photo):
+                DiaryTimeRow(time: photo.capturedAt, label: Diary.label(for: photo.capturedAt, context: photo.context)) {
+                    pendingFood(photo)
+                }
+            }
+        }
+    }
+
+    private func savedFood(_ mark: DailyReport.Episode.IntakeMark) -> some View {
+        HStack(alignment: .top, spacing: Spacing.s) {
+            if let photoId = mark.photoId {
+                DiaryPolaroid(tint: mark.context.tint) {
+                    FoodPhotoThumbnail(photoId: photoId, size: 112, cornerRatio: 0.01)
+                }
+                .padding(.top, Spacing.xxs)
+            }
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text((mark.foods ?? []).isEmpty ? mark.context.displayName : (mark.foods ?? []).joined(separator: " · "))
+                    .font(.body1).foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("저장됨")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Diary.ink)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.mintSoft, in: Capsule())
+            }
+            .padding(.top, Spacing.xs)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func pendingFood(_ photo: PendingPhoto) -> some View {
+        HStack(alignment: .top, spacing: Spacing.s) {
+            Button { path.append(photo.id) } label: {
+                DiaryPolaroid(tint: photo.context.tint) {
+                    PendingPhotoThumbnail(photo: photo, store: viewModel.photoStore, size: 112, cornerRadius: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, Spacing.xxs)
+            .accessibilityLabel("\(photo.context.chipName) 사진 확인하기")
+            .accessibilityIdentifier("pendingPhotoOpen-\(photo.id.uuidString)")
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text("\(photo.context.chipName) 사진").font(.body1).foregroundStyle(Color.textPrimary)
+                Text("확인 필요")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.onBrandSoft)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.brandSoft, in: Capsule())
+                Text(viewModel.photoStore.statusMessage(for: photo))
+                    .font(.caption1).foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if photo.photoId != nil {
+                    DiaryLink(title: "확인하기") { path.append(photo.id) }
+                } else if !viewModel.isUploadingPhotos {
+                    DiaryLink(title: "다시 올리기") { Task { await viewModel.retryUploads() } }
+                }
+                Button("지우기") { askToDelete(photo.id) }
+                    .font(.caption1)
+                    .foregroundStyle(Color.textSecondary)
+                    .accessibilityLabel("이 사진 지우기")
+                    .accessibilityIdentifier("pendingPhotoDelete-\(photo.id.uuidString)")
+            }
+            .padding(.top, Spacing.xs)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func askToDelete(_ id: UUID) {
+        deletionCandidate = id
+        showsDeleteConfirm = true
+    }
+
+    // MARK: 빠진 음식
+
+    @ViewBuilder
+    private var foodQuestion: some View {
+        if viewModel.foodsAnswered {
+            DiaryTimeRow(time: nil) {
+                DiaryNoteCard {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("추가 음식 · 이게 전부예요").font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
+                        DiaryLink(title: "수정") { viewModel.foodsAnswered = false; viewModel.insulinAnswered = false }
+                    }
+                }
+            }
+        } else if viewModel.pendingPhotos.isEmpty {
+            DiaryTimeRow(time: nil) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    BeeSpeech(pose: .curious, text: marks.isEmpty ? "오늘 드신 걸 남겨볼까요?" : "이 밖에 드신 것도 있나요?")
+                    Text("간식이나 음료도 남길 수 있어요.")
+                        .font(.body2).foregroundStyle(Color.textSecondary)
+                    Button { showFoodRecord = true } label: {
+                        Label(marks.isEmpty ? "음식 기록하기" : "음식 더 남기기", systemImage: "camera")
+                    }
+                    .buttonStyle(.glubeePrimary)
+                    Button(marks.isEmpty ? "먹은 게 없어요" : "이게 전부예요") { viewModel.foodsAnswered = true }
+                        .buttonStyle(.glubeeSecondary)
+                        .accessibilityIdentifier("dayCloseFoodsDone")
+                }
+            }
+        } else {
+            DiaryTimeRow(time: nil) {
+                BeeSpeech(pose: .think, text: "위 사진을 먼저 확인해 줄래요?")
+            }
+        }
+    }
+
+    // MARK: 투여 기록
+
+    private var insulinEvents: [DailyReport.InsulinMarker] {
+        guard case .loaded(let report, _) = viewModel.report.state else { return [] }
+        return (report.insulinEvents ?? []).sorted { $0.occurredAt < $1.occurredAt }
+    }
+
+    @ViewBuilder
+    private var insulinSection: some View {
+        ForEach(Array(insulinEvents.enumerated()), id: \.offset) { _, event in
+            DiaryTimeRow(time: event.occurredAt, label: "인슐린") {
+                DiaryNoteCard(tint: .insulin) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("인슐린 기록 · 저장됨").font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
+                        Text("\(event.kind) · \(event.units.formatted(.number.precision(.fractionLength(0...1))))U")
+                            .font(.body2).foregroundStyle(Color.textSecondary)
+                        Text("실제 투여 \(ReportDay.timeString(from: event.occurredAt))")
+                            .font(.caption1).foregroundStyle(Color.textSecondary)
+                    }
+                }
+            }
+        }
+        if viewModel.insulinAnswered {
+            DiaryTimeRow(time: nil) {
+                DiaryNoteCard {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("투여 기록 · 확인했어요").font(.body2.weight(.semibold)).foregroundStyle(Color.textPrimary)
+                        DiaryLink(title: "더 기록하기") { showInsulinRecord = true }
+                    }
+                }
+            }
+        } else {
+            DiaryTimeRow(time: nil) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    BeeSpeech(pose: .note, text: "기록하지 않은 투여가 있었나요?")
+                    Text(insulinEvents.isEmpty ? "오늘 남긴 인슐린 기록은 없네요." : "오늘 남긴 인슐린 기록은 위에 있어요.")
+                        .font(.body2).foregroundStyle(Color.textSecondary)
+                    Button("인슐린 기록하기") { showInsulinRecord = true }
+                        .buttonStyle(.glubeePrimary)
+                    Button(insulinEvents.isEmpty ? "없어요" : "이게 전부예요") { viewModel.insulinAnswered = true }
+                        .buttonStyle(.glubeeSecondary)
+                        .accessibilityIdentifier("dayCloseInsulinDone")
+                }
+            }
+        }
+    }
+
+    // MARK: 한마디
+
+    private var noteSection: some View {
+        DiaryTimeRow(time: nil) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack {
+                    Label("오늘에 남길 한마디", systemImage: "pencil")
+                        .font(.headline2).foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    Text("선택").font(.caption1).foregroundStyle(Color.textSecondary)
+                }
+                TextField("기억해두고 싶은 일이 있나요?", text: $viewModel.note, axis: .vertical)
+                    .lineLimit(3...6)
+                    .focused($noteFocused)
+                    .font(.body1)
+                    .padding(Spacing.s)
+                    .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.field))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.field).strokeBorder(Diary.ink.opacity(0.35), lineWidth: 1))
+                Text("한마디는 이 기기에만 남아요.").font(.caption1).foregroundStyle(Color.textSecondary)
+            }
+        }
+    }
+
+    // MARK: - 공통
+
+    private var nickname: String { UserPreferences.shared.nickname }
+
     private var dayWord: String {
         ReportDay.calendar.isDateInToday(viewModel.day) ? "오늘" : viewModel.dayTitle
+    }
+
+    private var longDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "M월 d일 EEEE"
+        return formatter.string(from: viewModel.day)
+    }
+
+    private var stamp: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "MM.dd · EEE"
+        return formatter.string(from: viewModel.day).uppercased()
     }
 
     private func upload(_ item: PhotosPickerItem?) async {
@@ -200,263 +607,9 @@ struct DayCloseView: View {
               let prepared = ImageResizer.prepareGraphForUpload(originalData: data) else { return }
         viewModel.uploadGraph(data: prepared.data, contentType: prepared.contentType)
     }
-
-    // MARK: - ② 사진 확인
-
-    private var photosStep: some View {
-        let pending = viewModel.pendingPhotos
-        return VStack(spacing: 0) {
-            List {
-                VStack(alignment: .leading, spacing: Spacing.s) {
-                    Text("낮에 찍은 사진을\n확인해 주세요")
-                        .font(.headline1).foregroundStyle(Color.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(pending.isEmpty ? "확인할 사진이 없어요." : "\(pending.count)개 남았어요. 눌러서 확인하거나 옆 버튼으로 지울 수 있어요.")
-                        .font(.body2).foregroundStyle(Color.textSecondary)
-                    if case .loaded(let report, let points) = viewModel.report.state, !points.isEmpty {
-                        GlucoseDayChart(day: viewModel.day, points: points, episodes: report.episodes,
-                                        insulinEvents: report.insulinEvents ?? [], height: 170)
-                    }
-                }
-                .listRowSeparator(.hidden).listRowBackground(Color.clear)
-                ForEach(timeline) { row in
-                    if case .photo(let photo) = row.kind {
-                        PendingPhotoRow(photo: photo, store: viewModel.photoStore,
-                            onOpen: { path.append(photo.id) }, onDelete: { askToDelete(photo.id) })
-                            .listRowSeparator(.hidden).listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 6, leading: Spacing.gutter, bottom: 6, trailing: Spacing.gutter))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button { askToDelete(photo.id) } label: { Label("지우기", systemImage: "trash") }
-                                    .tint(Color.alert).accessibilityLabel("밀어서 사진 지우기")
-                            }
-                    } else {
-                        TimelineRow(row: row, isUploading: false, onOpen: {}, onRetry: {}, onDiscard: {})
-                            .listRowBackground(Color.clear)
-                    }
-                }
-            }
-            .listStyle(.plain).scrollContentBackground(.hidden)
-            .refreshable { await viewModel.refresh(); await viewModel.retryUploads() }
-            Button("다음 · 인슐린 확인") { viewModel.goToInsulin() }
-                .buttonStyle(pending.isEmpty ? .glubeePrimary : .glubeeMuted)
-                .disabled(!pending.isEmpty)
-                .padding(.horizontal, Spacing.gutter).padding(.bottom, Spacing.s)
-        }
-    }
-
-    private func askToDelete(_ id: UUID) {
-        deletionCandidate = id
-        showsDeleteConfirm = true
-    }
-
-    /// 그날 기록을 시간순으로: 확인 대기 사진, 이미 저장된 식사·인슐린
-    private var timeline: [TimelineItem] {
-        var items = viewModel.pendingPhotos.map { TimelineItem(time: $0.capturedAt, kind: .photo($0)) }
-        if case .loaded(let report, _) = viewModel.report.state {
-            items += report.episodes.map {
-                TimelineItem(time: $0.startAt, kind: .meal(context: $0.effectiveContext, count: $0.intakeCount))
-            }
-            items += (report.insulinEvents ?? []).map {
-                TimelineItem(time: $0.occurredAt, kind: .insulin(kind: $0.kind, units: $0.units))
-            }
-        }
-        return items.sorted { $0.time < $1.time }
-    }
-
-    // MARK: - ③ 인슐린
-
-    private var insulinStep: some View {
-        let events: [DailyReport.InsulinMarker] = {
-            if case .loaded(let report, _) = viewModel.report.state { return report.insulinEvents ?? [] }
-            return []
-        }()
-        return stepPage(pose: .note, title: "기록하지 않은 인슐린이\n있었나요?") {
-            Text(events.isEmpty ? "오늘 남긴 인슐린 기록이 없어요." : "오늘 남긴 인슐린 기록이에요.")
-                .font(.body2).foregroundStyle(Color.textSecondary)
-            ForEach(Array(events.enumerated()), id: \.offset) { _, event in
-                HStack {
-                    Text(ReportDay.timeString(from: event.occurredAt)).font(.body2).foregroundStyle(Color.textSecondary)
-                    Text("\(event.kind) · \(event.units.formatted(.number.precision(.fractionLength(0...1))))U")
-                        .font(.body1).foregroundStyle(Color.textPrimary)
-                    Spacer()
-                }
-                .card(.insulin, padding: Spacing.s)
-            }
-            HStack(spacing: Spacing.s) {
-                Button { showInsulinRecord = true } label: { Label("인슐린 추가", systemImage: "syringe") }
-                    .buttonStyle(.glubeeSecondary)
-                Button { showFoodRecord = true } label: { Label("빠진 음식", systemImage: "fork.knife") }
-                    .buttonStyle(.glubeeSecondary)
-            }
-        } actions: {
-            Button("다 확인했어요") { Task { await viewModel.finish() } }
-                .buttonStyle(viewModel.canFinish ? .glubeePrimary : .glubeeMuted)
-                .disabled(!viewModel.canFinish)
-            if !viewModel.pendingPhotos.isEmpty {
-                Text("확인하지 않은 사진이 \(viewModel.pendingPhotos.count)장 있어요.")
-                    .font(.caption1).foregroundStyle(Color.textSecondary)
-            }
-        }
-    }
-
-    // MARK: - 공통 틀
-
-    /// 위에 큰 제목(+ 오른쪽 작은 글루비), 가운데 내용, 아래 버튼
-    private func stepPage(
-        pose: MascotPose?,
-        title: String,
-        centered: Bool = false,
-        @ViewBuilder content: () -> some View,
-        @ViewBuilder actions: () -> some View
-    ) -> some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: centered ? .center : .leading, spacing: Spacing.m) {
-                    if centered, let pose {
-                        MascotView(pose: pose, size: 140, floats: true).padding(.top, Spacing.xl)
-                    }
-                    HStack(alignment: .top) {
-                        Text(title)
-                            .font(.headline1)
-                            .foregroundStyle(Color.textPrimary)
-                            .multilineTextAlignment(centered ? .center : .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
-                        if !centered, let pose {
-                            Spacer(minLength: Spacing.s)
-                            MascotView(pose: pose, size: 72)
-                        }
-                    }
-                    content()
-                }
-                .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
-                .padding(.horizontal, Spacing.gutter)
-                .padding(.vertical, Spacing.m)
-            }
-            VStack(spacing: Spacing.xs) { actions() }
-                .padding(.horizontal, Spacing.gutter)
-                .padding(.bottom, Spacing.s)
-        }
-    }
 }
 
-// MARK: - 타임라인 한 줄
-
-private struct TimelineItem: Identifiable {
-    enum Kind {
-        case photo(PendingPhoto)
-        case meal(context: IntakeContext, count: Int)
-        case insulin(kind: String, units: Double)
-    }
-
-    let time: Date
-    let kind: Kind
-    var id: String {
-        switch kind {
-        case .photo(let photo): "photo-\(photo.id)"
-        case .meal: "meal-\(time.timeIntervalSince1970)"
-        case .insulin: "insulin-\(time.timeIntervalSince1970)"
-        }
-    }
-}
-
-private struct TimelineRow: View {
-    let row: TimelineItem
-    let isUploading: Bool
-    let onOpen: () -> Void
-    let onRetry: () -> Void
-    let onDiscard: () -> Void
-
-    var body: some View {
-        HStack(spacing: Spacing.s) {
-            Text(ReportDay.timeString(from: row.time))
-                .font(.caption1).monospacedDigit()
-                .foregroundStyle(Color.textSecondary)
-                .frame(width: 44, alignment: .leading)
-            icon
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.body1).foregroundStyle(Color.textPrimary)
-                Text(subtitle).font(.caption1).foregroundStyle(Color.textSecondary)
-            }
-            Spacer()
-            trailing
-        }
-        .padding(.vertical, Spacing.s)
-        .contentShape(Rectangle())
-        .onTapGesture { if case .photo(let photo) = row.kind, photo.photoId != nil { onOpen() } }
-        .contextMenu {
-            if case .photo = row.kind {
-                Button("이 사진 지우기", systemImage: "trash", role: .destructive, action: onDiscard)
-            }
-        }
-    }
-
-    private var title: String {
-        switch row.kind {
-        case .photo(let photo): "\(photo.context.displayName) 사진"
-        case .meal(let context, let count): "\(context.displayName) 기록 · \(count)건"
-        case .insulin(let kind, let units): "\(kind) · \(units.formatted(.number.precision(.fractionLength(0...1))))U"
-        }
-    }
-
-    private var subtitle: String {
-        switch row.kind {
-        case .photo(let photo):
-            if photo.photoId != nil { return "무엇인지 아직 몰라요" }
-            if isUploading { return "올리는 중" }
-            return photo.uploadFailed ? "올리지 못했어요" : "아직 올리지 않았어요"
-        case .meal: return "확인함"
-        case .insulin: return "투여 확인함"
-        }
-    }
-
-    @ViewBuilder
-    private var icon: some View {
-        switch row.kind {
-        case .photo(let photo):
-            if let image = UIImage(contentsOfFile: PendingPhotoStore.shared.imageURL(for: photo).path) {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.field))
-                    .accessibilityHidden(true)
-            } else {
-                iconBox("photo", fill: .brandSoft, tint: .onBrandSoft)
-            }
-        case .meal: iconBox("fork.knife", fill: .brandSoft, tint: .onBrandSoft)
-        case .insulin: iconBox("syringe", fill: .insulinSoft, tint: .insulin)
-        }
-    }
-
-    private func iconBox(_ name: String, fill: Color, tint: Color) -> some View {
-        Image(systemName: name)
-            .foregroundStyle(tint)
-            .frame(width: 40, height: 40)
-            .background(fill, in: RoundedRectangle(cornerRadius: Radius.field))
-            .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        switch row.kind {
-        case .photo(let photo):
-            if photo.photoId != nil {
-                Text("확인 필요")
-                    .font(.caption1.weight(.semibold))
-                    .foregroundStyle(Color.onBrandSoft)
-                    .padding(.horizontal, Spacing.xs).padding(.vertical, Spacing.xxs)
-                    .background(Color.brandSoft, in: Capsule())
-            } else if isUploading {
-                ProgressView()
-            } else {
-                Button("다시 시도", action: onRetry).font(.caption1)
-            }
-        case .meal, .insulin:
-            Image(systemName: "checkmark").foregroundStyle(Color.mintStrong).accessibilityLabel("확인함")
-        }
-    }
-}
-
-// MARK: - ④ 완성
+// MARK: - 09 완성 · 벌집 한 칸
 
 private struct DayCompleteView: View {
     let viewModel: DayCloseViewModel
@@ -466,43 +619,54 @@ private struct DayCompleteView: View {
     @State private var fill: CGFloat = 0
     /// 차오르는 연출이 끝나면 실제 칸 상태(기록만 저장한 날 표시 등)로 바꾼다
     @State private var filled = false
-    @State private var streak = 0
-    @State private var pose: MascotPose = .wave
     @State private var milestone: Int?
 
     var body: some View {
-        // v5 프로토타입: 문장 → 큰 연속 숫자(96) → 이번 주 벌집 → "오늘 칸에 꿀이 찼어요" → 글루비 → 좋아요
-        VStack(spacing: 18) {
-            Spacer()
-            Text(viewModel.recordOnly ? "오늘 기록을 저장했어요" : "\(dayWord) 그래프가 완성됐어요")
-                .font(.pretendard(17, relativeTo: .headline, weight: .medium))
-                .foregroundStyle(Color.textSecondary)
-            StreakNumber(value: streak, font: .pretendard(96, relativeTo: .largeTitle, weight: .black))
-            WeekHoneycomb(states: viewModel.weekStates(fillingToday: !filled),
-                          animatingIndex: todayIndex, fillProgress: fill)
-            Text("오늘 칸에 꿀이 찼어요")
-                .font(.caption1)
-                .foregroundStyle(Color.textSecondary)
-                .opacity(filled ? 1 : 0)
-            MascotView(pose: pose, size: 140, motion: pose == .happy ? .jump : .pop)
-            Spacer()
-            Button("좋아요") {
-                // 기념일이면 축하 화면, 아니면 닫는다
-                if MilestoneCelebrationView.milestones.contains(viewModel.streakAfter) {
-                    milestone = viewModel.streakAfter
-                } else {
-                    onClose()
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    BeeSpeech(pose: filled ? .happy : .wave,
+                              text: nickname.isEmpty ? "함께 돌아봐줘서 고마워요." : "함께 돌아봐줘서\n고마워요, \(nickname)님.")
+                    VStack(spacing: Spacing.s) {
+                        Text("오늘의 한 칸을 남겼어요")
+                            .font(.headline1).foregroundStyle(Color.textPrimary)
+                        WeekHoneycomb(states: viewModel.weekStates(fillingToday: !filled),
+                                      animatingIndex: todayIndex, fillProgress: fill)
+                        Text(streakCaption)
+                            .font(.caption1).foregroundStyle(Color.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, Spacing.s)
+
+                    storyCard
+                    Text("기록이 없는 날도 함께 돌아보면 한 칸이 남아요.")
+                        .font(.caption1).foregroundStyle(Color.textSecondary)
+                        .frame(maxWidth: .infinity)
                 }
+                .padding(.horizontal, Spacing.gutter)
+                .padding(.vertical, Spacing.m)
             }
-            .buttonStyle(.glubeePrimary)
-            NavigationLink { DailyReportView(viewModel: viewModel.report) } label: { Text("하루 그래프 보기") }
-                .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
-                .foregroundStyle(Color.textSecondary)
+            .background(DiaryPaper())
+            VStack(spacing: Spacing.xxs) {
+                Button("다이어리 닫기") {
+                    if MilestoneCelebrationView.milestones.contains(viewModel.streakAfter) {
+                        milestone = viewModel.streakAfter
+                    } else {
+                        onClose()
+                    }
+                }
+                .buttonStyle(.glubeeSecondary)
+                .accessibilityIdentifier("dayCloseDone")
+                NavigationLink { DailyReportView(viewModel: viewModel.report) } label: {
+                    Text("하루 그래프 보기 ›").font(.body2).underline().foregroundStyle(Diary.ink)
+                }
+                .frame(minHeight: Metrics.minTapTarget)
+            }
+            .padding(.horizontal, Spacing.gutter)
+            .padding(.vertical, Spacing.s)
         }
-        .padding(.horizontal, Spacing.gutter)
-        .padding(.bottom, Spacing.s)
         .task { await play() }
-        .sensoryFeedback(.success, trigger: streak)
+        .sensoryFeedback(.success, trigger: filled)
         .fullScreenCover(item: Binding(get: { milestone.map(Milestone.init) }, set: { milestone = $0?.days })) { item in
             MilestoneCelebrationView(days: item.days, earnedHoneypot: item.days % DayCloseStore.daysPerHoneypot == 0) {
                 milestone = nil
@@ -511,13 +675,64 @@ private struct DayCompleteView: View {
         }
     }
 
+    /// 오늘 남긴 이야기: 식사 때, 투여 기록(내가 남긴 값 그대로), 한마디
+    private var storyCard: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("오늘 남긴 이야기").font(.headline2).foregroundStyle(Color.textPrimary)
+            storyLine("식사 기록", mealSummary)
+            storyLine("투여 기록", insulinSummary)
+            storyLine("한마디", viewModel.note.isEmpty ? "—" : viewModel.note)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Spacing.m)
+        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Diary.ink.opacity(0.3), lineWidth: 1))
+    }
+
+    private func storyLine(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+            Text(title).font(.body2).foregroundStyle(Color.textSecondary)
+            Text("·").foregroundStyle(Color.textSecondary)
+            Text(value).font(.body2).foregroundStyle(Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var mealSummary: String {
+        guard case .loaded(let report, _) = viewModel.report.state else { return "—" }
+        var labels: [String] = []
+        for mark in report.episodes.flatMap(\.marks).sorted(by: { $0.occurredAt < $1.occurredAt }) {
+            let label = Diary.label(for: mark.occurredAt, context: mark.context)
+            if !labels.contains(label) { labels.append(label) }
+        }
+        return labels.isEmpty ? "—" : labels.joined(separator: ", ")
+    }
+
+    private var insulinSummary: String {
+        guard case .loaded(let report, _) = viewModel.report.state, let events = report.insulinEvents, !events.isEmpty else { return "—" }
+        return events.sorted { $0.occurredAt < $1.occurredAt }.map {
+            "\($0.units.formatted(.number.precision(.fractionLength(0...1))))U \(ReportDay.timeString(from: $0.occurredAt))"
+        }.joined(separator: ", ")
+    }
+
     private struct Milestone: Identifiable {
         let days: Int
         var id: Int { days }
     }
 
-    private var dayWord: String {
-        ReportDay.calendar.isDateInToday(viewModel.day) ? "오늘" : viewModel.dayTitle
+    private var nickname: String { UserPreferences.shared.nickname }
+
+    private var streakCaption: String {
+        let streak = filled ? viewModel.streakAfter : viewModel.streakBefore
+        return streak > 0 ? "\(shortDate) · 하루 마무리 · 연속 \(streak)일" : "\(shortDate) · 하루 마무리"
+    }
+
+    private var shortDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "M월 d일"
+        return formatter.string(from: viewModel.day)
     }
 
     /// 이번 주 칸 중 마무리하는 날의 자리
@@ -525,22 +740,17 @@ private struct DayCompleteView: View {
         (ReportDay.calendar.component(.weekday, from: viewModel.day) + 5) % 7
     }
 
-    /// 오늘 칸 채우기 → 숫자 +1 → 기념일이면 축하 화면
+    /// 오늘 칸 채우기 → 연속 숫자 +1
     private func play() async {
-        streak = viewModel.streakBefore
         guard !reduceMotion else {
             fill = 1
             filled = true
-            streak = viewModel.streakAfter
-            pose = .happy
             return
         }
         try? await Task.sleep(for: .milliseconds(400))
         withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 1.1)) { fill = 1 }
         try? await Task.sleep(for: .milliseconds(1100))
-        filled = true
-        withAnimation(.snappy) { streak = viewModel.streakAfter }
-        pose = .happy
+        withAnimation(.snappy) { filled = true }
     }
 }
 
@@ -554,7 +764,7 @@ private struct CaptureHowToSheet: View {
             ForEach(Array(["리브레 앱을 열고 \"오늘\" 일일 그래프 화면으로 가요.",
                            "그래프 전체(날짜·눈금 포함)가 화면에 다 보이게 해요.",
                            "측면 버튼 + 음량 높이기 버튼을 같이 눌러 화면을 캡처해요.",
-                           "글루비로 돌아와 \"스크린샷 고르기\"에서 방금 찍은 화면을 골라요."].enumerated()), id: \.offset) { index, text in
+                           "글루비로 돌아와 \"그래프 스크린샷 고르기\"에서 방금 찍은 화면을 골라요."].enumerated()), id: \.offset) { index, text in
                 HStack(alignment: .top, spacing: Spacing.s) {
                     Text("\(index + 1)")
                         .font(.headline2)

@@ -16,6 +16,33 @@ struct UsualInsulin: Codable, Identifiable, Hashable {
     var units: Double?
 }
 
+
+/// 끼니 알림 하나. 시각에 앞뒤 2시간 안 기록이 있으면 그날은 보내지 않는다
+struct MealReminder: Codable, Hashable, Identifiable {
+    enum Meal: String, Codable, CaseIterable { case breakfast, lunch, dinner }
+
+    var meal: Meal
+    var hour: Int
+    var minute: Int
+    var isOn: Bool
+
+    var id: Meal { meal }
+
+    var name: String {
+        switch meal {
+        case .breakfast: "아침"
+        case .lunch: "점심"
+        case .dinner: "저녁"
+        }
+    }
+
+    static let defaults: [MealReminder] = [
+        MealReminder(meal: .breakfast, hour: 8, minute: 30, isOn: true),
+        MealReminder(meal: .lunch, hour: 12, minute: 30, isOn: true),
+        MealReminder(meal: .dinner, hour: 18, minute: 30, isOn: true),
+    ]
+}
+
 @Observable
 final class UserPreferences {
 
@@ -27,6 +54,9 @@ final class UserPreferences {
         var dayCloseHour = 21
         var dayCloseMinute = 0
         var onboardingCompleted = false
+        /// 나중에 더한 값은 옵셔널: 예전 저장값을 읽을 때 없어도 전체가 초기화되지 않게
+        var mealReminders: [MealReminder]?
+        var pendingPhotoReminder: Bool?
     }
 
     private let defaults: UserDefaults
@@ -66,6 +96,18 @@ final class UserPreferences {
     var onboardingCompleted: Bool {
         get { stored.onboardingCompleted }
         set { stored.onboardingCompleted = newValue }
+    }
+
+    /// 끼니 알림(아침·점심·저녁). 기본 켜짐 8:30 / 12:30 / 18:30
+    var mealReminders: [MealReminder] {
+        get { stored.mealReminders ?? MealReminder.defaults }
+        set { stored.mealReminders = newValue }
+    }
+
+    /// 마무리 1시간 전, 확인 안 한 사진이 있을 때만. 기본 켜짐
+    var pendingPhotoReminder: Bool {
+        get { stored.pendingPhotoReminder ?? true }
+        set { stored.pendingPhotoReminder = newValue }
     }
 
     /// 계정을 지웠을 때: 처음 설치한 상태로(온보딩부터 다시)

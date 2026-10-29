@@ -3,7 +3,8 @@
 //  glucose
 //
 //  홈(디자이너 v5 프로토타입): "민지님, / 연속 N일"(숫자가 올라가며 나타남) + 노란 말풍선(한 글자씩) + 큰 글루비,
-//  이번 주 벌집, 꿀단지, 오늘의 흐름과 오늘 기록 타임라인. 아래에 기록·마무리 버튼.
+//  이번 주 벌집, 꿀단지, 그 아래로 화면 끝까지 이어지는 "오늘의 다이어리" 줄노트 시간줄. 아래에 기록·마무리 버튼.
+//  확인 대기 사진도 시간줄 안에 바로 보인다(따로 띠를 두지 않음). 오늘 그래프는 리포트에서 본다.
 //  쉬어가는 중이면 쉬는 화면.
 //
 
@@ -94,6 +95,7 @@ struct HomeView: View {
         return VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
+                  VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(alignment: .center, spacing: Spacing.xs) {
                             VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -134,22 +136,16 @@ struct HomeView: View {
                             .accessibilityElement(children: .combine)
                         }
 
-                        if viewModel.pendingPhotoCount > 0 {
-                            pendingPhotosBanner
-                                .padding(.top, 14)
-                        }
-
-                        todayFlowCard
-                            .padding(.top, 14)
-                        HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
-                            openPending: { selectedPendingPhoto = $0 },
-                            takePhoto: { showFoodSheet = true }, writeFood: { showManualFood = true },
-                            showAll: { showAllRecords = true })
-                            .padding(.top, Spacing.l)
-                            .padding(.bottom, Spacing.l)
                     }
                     .padding(.horizontal, Spacing.l)
                     .padding(.top, Spacing.m)
+                    .padding(.bottom, Spacing.m)
+
+                    // 오늘의 다이어리: 하루 마무리와 같은 줄노트가 화면 끝까지 이어진다(Dave 2026-10-29)
+                    HomeTimelineSection(viewModel: viewModel, highlightedID: highlightedID,
+                        openPending: { selectedPendingPhoto = $0 },
+                        showAll: { showAllRecords = true })
+                  }
                 }
 
                 .accessibilityIdentifier("homeTimelineScroll")
@@ -182,72 +178,6 @@ struct HomeView: View {
             .padding(.horizontal, Spacing.l)
             .padding(.vertical, Spacing.s)
         }
-    }
-
-    /// 위젯으로 찍은 사진을 하루 마무리 전에도 바로 확인할 수 있게 한다
-    private var pendingPhotosBanner: some View {
-        Button { showPendingPhotos = true } label: {
-            HStack(spacing: Spacing.s) {
-                Image(systemName: "photo.on.rectangle")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.onBrandSoft)
-                    .frame(width: 36, height: 36)
-                    .background(Color.brandSoft, in: RoundedRectangle(cornerRadius: Radius.field))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("확인 안 한 사진 \(viewModel.pendingPhotoCount)장")
-                        .font(.headline2)
-                        .foregroundStyle(Color.textPrimary)
-                    Text("마무리 전에 바로 확인할 수 있어요")
-                        .font(.caption1)
-                        .foregroundStyle(Color.textSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.textSecondary)
-            }
-            .card(padding: Spacing.s)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 오늘의 흐름: 그래프가 있으면 곡선, 없으면 목표 범위 띠 + 오늘 기록 점.
-    /// 이 옆에는 글루비를 두지 않는다(평온 규칙)
-    private var todayFlowCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("오늘의 흐름").font(.pretendard(17, relativeTo: .headline, weight: .bold)).foregroundStyle(Color.textPrimary)
-            switch viewModel.report.state {
-            case .loaded(let report, let points) where !points.isEmpty:
-                InteractiveGlucoseChart(day: viewModel.today, points: points, episodes: report.episodes,
-                                insulinEvents: report.insulinEvents ?? [], height: 220)
-            default:
-                GeometryReader { geometry in
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.mintSoft)
-                            .frame(height: 40).offset(y: 24)
-                        Rectangle().fill(Color.line).frame(height: 1).offset(y: 95)
-                        ForEach(Array(viewModel.todayDots.enumerated()), id: \.offset) { _, dot in
-                            Circle()
-                                .fill(dot.isInsulin ? Color(red: 0xC9 / 255, green: 0xA6 / 255, blue: 0xE0 / 255) : Color.brand)
-                                .frame(width: 12, height: 12)
-                                .position(x: max(6, min(geometry.size.width - 6, geometry.size.width * dot.position)), y: 80)
-                        }
-                    }
-                }
-                .frame(height: 96)
-                .accessibilityElement()
-                .accessibilityLabel("오늘 그래프 없음, 기록 \(viewModel.todayRecordCount)개")
-                Text("밤에 리브레 그래프를 올리면 여기가 채워져요. 지금은 오늘 남긴 기록 \(viewModel.todayRecordCount)개만 보여요.")
-                    .font(.pretendard(14, relativeTo: .subheadline))
-                    .foregroundStyle(Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, Spacing.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: - 쉬어가는 중

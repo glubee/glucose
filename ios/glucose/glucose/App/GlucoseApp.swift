@@ -106,11 +106,7 @@ struct GlucoseApp: App {
             DayCloseView()
                 .onAppear {
                     guard PendingPhotoStore.shared.photos.isEmpty,
-                          let data = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200))
-                            .image(actions: { context in
-                                UIColor.systemOrange.setFill()
-                                context.fill(CGRect(x: 0, y: 0, width: 200, height: 200))
-                            }).jpegData(compressionQuality: 0.8) else { return }
+                          let data = DemoFoodArt.jpeg(foods: ["비빔밥"]) else { return }
                     PendingPhotoStore.shared.add(imageData: data, context: .meal,
                                                  capturedAt: .now.addingTimeInterval(-3 * 3600))
                 }

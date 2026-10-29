@@ -2,8 +2,9 @@
 //  DayCloseViewModel.swift
 //  glucose
 //
-//  하루 마무리(v5): 그래프 → 사진 확인 → 인슐린 → 완성 (docs/ios-design-v4.md 0장, 디자이너 v5 "하루 마무리 보강").
-//  완성 = 그날 그래프 분석이 끝났거나 "기록만 저장"을 고른 상태 + 확인 대기 사진이 없음.
+//  하루 마무리 "글루비와 쓰는 줄노트"(디자이너 시안 01~09): 시작 → 한 장짜리 다이어리(그래프 · 음식 시간줄 ·
+//  빠진 음식 · 투여 기록 · 한마디) → 완성.
+//  완성 = 그래프 분석이 끝났거나 "기록만 저장"을 고름 + 확인 대기 사진 없음 + 빠진 음식·투여 질문에 답함.
 //
 
 import Foundation
@@ -11,19 +12,6 @@ import Foundation
 @MainActor
 @Observable
 final class DayCloseViewModel {
-
-    enum Step: Int, CaseIterable {
-        case graph, photos, insulin, done
-
-        var title: String {
-            switch self {
-            case .graph: "그래프"
-            case .photos: "사진 확인"
-            case .insulin: "인슐린"
-            case .done: "완성"
-            }
-        }
-    }
 
     enum GraphPhase: Equatable {
         case checking
@@ -40,7 +28,16 @@ final class DayCloseViewModel {
     }
 
     let day: Date
-    private(set) var step: Step = .graph
+    /// 시작 화면(01)을 지나 다이어리를 펼쳤는지
+    var started = false
+    /// "이 밖에 드신 것도 있나요?"에 답함(이게 전부예요)
+    var foodsAnswered = false
+    /// "기록하지 않은 투여가 있었나요?"에 답함(없어요 · 기록함)
+    var insulinAnswered = false
+    /// 오늘에 남길 한마디(선택, 기기에만 저장)
+    var note: String {
+        didSet { dayCloseStore.setNote(note, for: day) }
+    }
     let graphUploader = GraphUploadViewModel()
     let report: DailyReportViewModel
     /// 그래프가 짧아 "기록만 저장"을 골랐는지
@@ -58,18 +55,21 @@ final class DayCloseViewModel {
         self.report = DailyReportViewModel(day: target)
         self.photoStore = photoStore
         self.dayCloseStore = dayCloseStore
+        self.note = dayCloseStore.note(for: target)
         if dayCloseStore.isClosed(target) {
             isFinished = true
-            step = .done
+            started = true
         }
         #if DEBUG
-        // 시뮬레이터 확인용: 실행 인자 -dayCloseStep <0~3> (그래프 없이 "기록만 저장"한 것으로 본다)
+        // 시뮬레이터 확인용: 실행 인자 -dayCloseStep <0~3>
+        // 0 시작 화면, 1 다이어리(그래프 없이 "기록만 저장"), 2 빠진 음식까지 답함, 3 완성
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "-dayCloseStep"), index + 1 < arguments.count,
-           let raw = Int(arguments[index + 1]), let debugStep = Step(rawValue: raw) {
-            recordOnly = true
-            step = debugStep
-            if debugStep == .done { isFinished = true; streakBefore = 12 }
+           let raw = Int(arguments[index + 1]) {
+            recordOnly = raw >= 1
+            started = raw >= 1
+            foodsAnswered = raw >= 2
+            if raw >= 3 { isFinished = true; streakBefore = 12 }
         }
         #endif
     }
@@ -131,7 +131,6 @@ final class DayCloseViewModel {
     func saveRecordsOnly() {
         recordOnly = true
         graphUploader.reset()
-        step = .photos
     }
 
     // MARK: - 사진
@@ -158,24 +157,41 @@ final class DayCloseViewModel {
         await photoStore.uploadPending()
     }
 
-    // MARK: - 단계 이동
+    // MARK: - 진행
 
-    func goToPhotos() { step = .photos }
-    func goToInsulin() { step = .insulin }
+    var hasGraphOrRecordOnly: Bool { isGraphReady || recordOnly }
 
-    func back() {
-        guard let previous = Step(rawValue: step.rawValue - 1), !isFinished else { return }
-        step = previous
+    /// 위 진행 막대(0~1)
+    var progress: Double {
+        if isFinished { return 1 }
+        var value = 0.08
+        if hasGraphOrRecordOnly { value += 0.27 }
+        if hasGraphOrRecordOnly && pendingPhotos.isEmpty { value += 0.2 }
+        if foodsAnswered { value += 0.2 }
+        if insulinAnswered { value += 0.2 }
+        return min(value, 0.95)
     }
 
-    var canFinish: Bool { (isGraphReady || recordOnly) && pendingPhotos.isEmpty && !isFinished }
+    /// 진행 막대 오른쪽 초록 글씨: 지금 살펴볼 곳
+    var progressLabel: String {
+        if isFinished { return "오늘 돌아보기 완료" }
+        if !started { return "식사 돌아보기" }
+        if !hasGraphOrRecordOnly { return "그래프 붙이기" }
+        if !pendingPhotos.isEmpty { return "사진 확인하기" }
+        if !foodsAnswered { return "빠진 기록 살펴보기" }
+        if !insulinAnswered { return "투여 기록 살펴보기" }
+        return "오늘의 마지막"
+    }
+
+    var canFinish: Bool {
+        hasGraphOrRecordOnly && pendingPhotos.isEmpty && foodsAnswered && insulinAnswered && !isFinished
+    }
 
     func finish() async {
         guard canFinish else { return }
         streakBefore = dayCloseStore.streak(endingAt: day)
         dayCloseStore.markClosed(day, recordOnly: recordOnly)
         isFinished = true
-        step = .done
         WidgetSnapshot.refresh()
         // 마무리한 날의 알림은 빼고 다시 예약한다
         await NudgeScheduler.refresh()

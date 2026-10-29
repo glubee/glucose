@@ -11,6 +11,10 @@ import SwiftUI
 struct FoodPhotoThumbnail: View {
     let photoId: UUID
     var size: CGFloat = 44
+    /// 모서리 둥글기(크기 대비). 폴라로이드처럼 각진 사진은 작게
+    var cornerRatio: CGFloat = 0.25
+    /// 가로로 긴 사진(폴라로이드)일 때 높이. 비우면 정사각형
+    var height: CGFloat? = nil
 
     @State private var url: URL?
     @State private var failed = false
@@ -27,9 +31,9 @@ struct FoodPhotoThumbnail: View {
             remoteImage
             #endif
         }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.25))
-        .overlay(RoundedRectangle(cornerRadius: size * 0.25).strokeBorder(Color.canvas, lineWidth: 1.5))
+        .frame(width: size, height: height ?? size)
+        .clipShape(RoundedRectangle(cornerRadius: size * cornerRatio))
+        .overlay(RoundedRectangle(cornerRadius: size * cornerRatio).strokeBorder(Color.canvas, lineWidth: cornerRatio > 0.1 ? 1.5 : 0))
         .accessibilityLabel("음식 사진")
         .task(id: photoId) {
             url = nil

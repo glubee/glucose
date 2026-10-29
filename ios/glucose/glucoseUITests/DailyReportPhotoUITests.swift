@@ -1,5 +1,4 @@
 import XCTest
-import Vision
 
 @MainActor
 final class DailyReportPhotoUITests: XCTestCase {
@@ -16,10 +15,11 @@ final class DailyReportPhotoUITests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
 
-    func testStoryAppearsBeforeNumbersAndPreviewCanClose() {
+    func testAverageThenChartThenStoryAndPreviewCanClose() {
         let app = launch()
         XCTAssertTrue(app.staticTexts["하루 이야기"].waitForExistence(timeout: 8))
-        XCTAssertLessThan(app.staticTexts["하루 이야기"].frame.minY, app.staticTexts["평균 혈당"].frame.minY)
+        XCTAssertLessThan(app.staticTexts["평균 혈당"].frame.minY, app.staticTexts["하루 흐름"].frame.minY)
+        XCTAssertLessThan(app.staticTexts["하루 흐름"].frame.minY, app.staticTexts["하루 이야기"].frame.minY)
         app.buttons["closeDailyReportPreview"].tap()
         XCTAssertTrue(app.buttons["음식 찍기"].waitForExistence(timeout: 5))
     }
@@ -58,32 +58,20 @@ final class DailyReportPhotoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["사진 3장"].exists)
     }
 
-    func testDailyChartEventOpensPopupBeforeExplicitPhotoView() throws {
+    func testDailyChartPhotoIsDistinctFromSelectedValue() {
         let app = launch()
-        let event = app.scrollViews["dailyReportContent"].buttons["chartEvent-insulin-0"]
-        XCTAssertTrue(event.waitForExistence(timeout: 8))
-        reveal(event, in: app)
-        event.tap()
-        XCTAssertTrue(app.staticTexts["이 시각의 기록"].waitForExistence(timeout: 5))
-        let screenshot = app.screenshot()
-        let popup = XCTAttachment(screenshot: screenshot)
-        popup.name = "Inline event popup"
-        popup.lifetime = .keepAlways
-        add(popup)
-        let recognition = VNRecognizeTextRequest()
-        recognition.recognitionLanguages = ["ko-KR"]
-        recognition.recognitionLevel = .accurate
-        try VNImageRequestHandler(data: screenshot.pngRepresentation).perform([recognition])
-        let titleVisible = (recognition.results ?? []).contains {
-            $0.topCandidates(1).first?.string.replacingOccurrences(of: " ", with: "").contains("이시각의기록") == true
-        }
-        XCTAssertTrue(titleVisible, "팝업 제목은 접근성 트리뿐 아니라 실제 화면에서도 보여야 한다")
-        app.buttons["popupEvent-intake-0"].tap()
-        app.buttons["사진 크게 보기"].tap()
+        XCTAssertTrue(app.buttons["chartZoom-24"].waitForExistence(timeout: 8))
+        let record = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "08:10")).firstMatch
+        reveal(record, in: app)
+        record.tap()
+        // 고른 시각의 혈당은 그래프 위 사진과 겹치지 않게 그래프 밖 줄에 나온다.
+        XCTAssertTrue(app.buttons["선택 해제"].waitForExistence(timeout: 5))
+        let photo = app.buttons["photoTimeline-08:10"]
+        reveal(photo, in: app)
+        photo.tap()
         XCTAssertTrue(app.navigationBars["사진 기록"].waitForExistence(timeout: 5))
         app.buttons["closePhotoGallery"].tap()
-        app.buttons["closeChartEventPopup"].tap()
-        XCTAssertTrue(app.buttons["chartZoom-24"].exists)
+        XCTAssertTrue(app.buttons["photoTimeline-08:10"].waitForExistence(timeout: 5))
     }
 
     func testGapPhotoRemainsAvailableBelowChart() {
@@ -99,20 +87,16 @@ final class DailyReportPhotoUITests: XCTestCase {
 
     func testExpandedChartPhotoWorksAfterZoomAndCanClose() {
         let app = launch("-chartDetail")
-        XCTAssertTrue(app.buttons["detailChartZoom-3"].waitForExistence(timeout: 8))
-        let initialPhoto = app.buttons["chartPhoto-08:10"]
-        XCTAssertTrue(initialPhoto.waitForExistence(timeout: 5))
-        let originalX = initialPhoto.frame.midX
-        app.buttons["detailChartZoom-3"].tap()
-        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "chartPhoto-")).firstMatch
+        XCTAssertTrue(app.buttons["chartZoom-3"].waitForExistence(timeout: 8))
+        app.buttons["chartZoom-3"].tap()
+        XCTAssertTrue(app.staticTexts["chartVisibleRange"].waitForExistence(timeout: 5))
+        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "photoTimeline-")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 5))
+        reveal(photo, in: app)
         photo.tap()
         XCTAssertTrue(app.navigationBars["사진 기록"].waitForExistence(timeout: 5))
         app.buttons["closePhotoGallery"].tap()
-        XCTAssertTrue(app.buttons["detailChartZoom-24"].waitForExistence(timeout: 5))
-        app.buttons["detailChartZoom-24"].tap()
-        XCTAssertTrue(initialPhoto.waitForExistence(timeout: 5))
-        XCTAssertEqual(initialPhoto.frame.midX, originalX, accuracy: 2)
+        XCTAssertTrue(app.buttons["chartZoom-24"].waitForExistence(timeout: 5))
         app.buttons["closeChartDetail"].tap()
         XCTAssertTrue(app.buttons["음식 찍기"].waitForExistence(timeout: 5))
     }

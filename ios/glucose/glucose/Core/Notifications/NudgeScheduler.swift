@@ -9,7 +9,9 @@
 //  규칙(보드 "보내는 규칙과 쓰지 않는 말"):
 //  - 혈당 수치·높음/낮음, 먹은 음식, 인슐린 이름·단위를 넣지 않는다(잠금 화면에 보임)
 //  - 기록을 했는지·마무리를 했는지·며칠째 안 왔는지에만 반응한다
-//  - 하루 최대 2번(마무리 1 + 감정 1). 보채기를 보낸 날에는 조마조마를 보내지 않는다
+//  - 하루 최대 4번: 마무리 > 감정 > 끼니(아침·점심·저녁, 앞뒤 2시간 안 기록이 있으면 안 보냄) > 확인 안 한 사진.
+//    보채기를 보낸 날에는 조마조마를 보내지 않는다
+//  - 끼니 알림에는 "사진 찍기 / 투여 확인" 버튼을 단다(기록만 권하고 용량은 말하지 않는다)
 //  - 쉬어가는 중엔 보내지 않고, 끝난 다음 날 아침에 "다시 만나요" 한 번만
 //  - 23시~8시에는 보내지 않는다(조마조마는 22:59까지)
 //
@@ -26,12 +28,42 @@ enum NudgeScheduler {
     /// 이 시각 전에 오늘 기록이 없으면 보채기
     private static let nagHour = 15
 
+    private static let captureLink = "glubee://capture"
+    private static let insulinLink = "glubee://insulin"
+    private static let dailyLimit = 4
+    /// 끼니 알림의 바로가기 버튼(AppDelegate가 버튼 → 주소로 연다)
+    static let recordCategory = "glubee-record"
+    static let captureAction = "glubee-action-capture"
+    static let insulinAction = "glubee-action-insulin"
+
+    /// 앱 시작 때 한 번: 끼니 알림 버튼 등록
+    static func registerCategories() {
+        let capture = UNNotificationAction(identifier: captureAction, title: "사진 찍기", options: [.foreground])
+        let insulin = UNNotificationAction(identifier: insulinAction, title: "투여 확인", options: [.foreground])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: recordCategory, actions: [capture, insulin], intentIdentifiers: [])
+        ])
+    }
+
+    /// 알림 버튼 → 열 주소
+    static func url(forAction identifier: String) -> URL? {
+        switch identifier {
+        case captureAction: URL(string: captureLink)
+        case insulinAction: URL(string: insulinLink)
+        default: nil
+        }
+    }
+
+    private enum Kind: Int { case close = 0, emotion = 1, meal = 2, photo = 3 }
+
     private struct Nudge {
         let id: String
         let fire: Date
         let title: String
         let body: String
         let url: String
+        var kind: Kind = .emotion
+        var category: String? = nil
     }
 
     @MainActor
@@ -53,6 +85,7 @@ enum NudgeScheduler {
             content.body = nudge.body
             content.sound = .default
             content.userInfo = ["url": nudge.url]
+            if let category = nudge.category { content.categoryIdentifier = category }
             let components = ReportDay.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nudge.fire)
             let request = UNNotificationRequest(
                 identifier: identifierPrefix + nudge.id,
@@ -70,7 +103,9 @@ enum NudgeScheduler {
         let today = calendar.startOfDay(for: now)
         let time = preferences.dayCloseTime
         let streak = store.streak(endingAt: today)
-        let recordedToday = WidgetSnapshot.load().lastRecordAt.map { calendar.isDate($0, inSameDayAs: now) } ?? false
+        let lastRecordAt = WidgetSnapshot.load().lastRecordAt
+        let recordedToday = lastRecordAt.map { calendar.isDate($0, inSameDayAs: now) } ?? false
+        let pendingPhotoCount = PendingPhotoStore.shared.photos.filter { calendar.isDate($0.capturedAt, inSameDayAs: now) }.count
 
         func at(_ day: Date, _ hour: Int, _ minute: Int = 0) -> Date {
             calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
@@ -104,7 +139,7 @@ enum NudgeScheduler {
             // 평온: 매일 마무리 시각에 한 번
             if !closed {
                 nudges.append(Nudge(id: "close-\(dayKey)", fire: closeAt,
-                                    title: "하루 마무리할 시간이에요", body: "오늘 칸을 같이 채워요. 1분이면 돼요.", url: deepLink))
+                                    title: "하루 마무리할 시간이에요", body: "오늘 칸을 같이 채워요. 1분이면 돼요.", url: deepLink, kind: .close))
             }
 
             // 감정 알림은 하루 한 번만
@@ -143,8 +178,38 @@ enum NudgeScheduler {
                                     title: "글루비가 꿀단지 베고 자고 있어요",
                                     body: "깨우러 와줄래요? 천천히 와도 돼요.", url: homeLink))
             }
+
+            // 끼니 알림: 지난 시각은 건너뛰고, 오늘은 그 끼니 앞뒤 2시간 안에 이미 기록했으면 보내지 않는다
+            if !closed {
+                for reminder in preferences.mealReminders where reminder.isOn {
+                    let fire = clamp(at(day, reminder.hour, reminder.minute))
+                    if offset == 0, let last = lastRecordAt, abs(last.timeIntervalSince(fire)) <= 2 * 3600 { continue }
+                    nudges.append(Nudge(id: "meal-\(reminder.meal.rawValue)-\(dayKey)", fire: fire,
+                                        title: "\(reminder.name) 기록할 시간이에요",
+                                        body: "먹었다면 사진 한 장, 맞았다면 투여 확인만 눌러줘요.",
+                                        url: homeLink, kind: .meal, category: recordCategory))
+                }
+            }
+
+            // 확인 안 한 사진: 오늘, 마무리 1시간 전, 사진이 남아 있을 때만
+            if offset == 0 && !closed && preferences.pendingPhotoReminder && pendingPhotoCount > 0 {
+                nudges.append(Nudge(id: "photos-\(dayKey)", fire: clamp(closeAt.addingTimeInterval(-3600)),
+                                    title: "확인 안 한 사진이 있어요",
+                                    body: "무엇을 먹었는지 같이 확인하고 하루를 마무리해요.",
+                                    url: "glubee://home", kind: .photo))
+            }
         }
-        return nudges
+        return capped(nudges)
+    }
+
+    /// 하루 상한: 마무리 > 감정 > 끼니(이른 시각 먼저) > 사진 순으로 남긴다
+    private static func capped(_ nudges: [Nudge]) -> [Nudge] {
+        let calendar = ReportDay.calendar
+        let byDay = Dictionary(grouping: nudges) { calendar.startOfDay(for: $0.fire) }
+        return byDay.values.flatMap { day in
+            day.sorted { ($0.kind.rawValue, $0.fire) < ($1.kind.rawValue, $1.fire) }.prefix(dailyLimit)
+        }
+        .sorted { $0.fire < $1.fire }
     }
 
     #if DEBUG

@@ -35,18 +35,9 @@ enum ReportSamples {
         }
     }
 
-    private static let photoImages: [UUID: UIImage] = Dictionary(uniqueKeysWithValues: (1...5).map { index in
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 240)).image { context in
-            UIColor(red: 0.98, green: 0.94, blue: 0.84, alpha: 1).setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
-            UIColor.white.setFill()
-            UIBezierPath(ovalIn: CGRect(x: 55, y: 20, width: 210, height: 200)).fill()
-            UIColor.systemOrange.withAlphaComponent(0.8).setFill()
-            UIBezierPath(roundedRect: CGRect(x: 100, y: 60, width: 100, height: 70), cornerRadius: 25).fill()
-            UIColor.systemGreen.withAlphaComponent(0.7).setFill()
-            UIBezierPath(ovalIn: CGRect(x: 100 + index * 8, y: 130, width: 60, height: 45)).fill()
-        }
-        return (photoID(index), image)
+    /// 예시 기록마다 음식 이름에 맞는 그림(DemoFoodArt)
+    private static let photoImages: [UUID: UIImage] = Dictionary(uniqueKeysWithValues: records(.now).compactMap { record in
+        record.photoId.map { ($0, DemoFoodArt.image(foods: record.items.map(\.name))) }
     })
 
     static func image(for photoId: UUID) -> UIImage? {

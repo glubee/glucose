@@ -102,7 +102,7 @@ struct QuickActionsWidget: Widget {
                 .containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("빠른 기록")
-        .description("연속일을 보고, 사진 찍기와 인슐린 기록을 한 번에 열어요.")
+        .description("연속일을 보고, 사진 찍기와 인슐린 투여 확인을 한 번에 열어요. 혈당이나 음식은 보이지 않아요.")
         .supportedFamilies([.systemMedium])
     }
 }
@@ -149,13 +149,13 @@ struct QuickActionsView: View {
 
 struct CaptureWidget: Widget {
     var body: some WidgetConfiguration {
-        singleActionConfiguration(.capture, kind: "CaptureWidget", description: "누르면 바로 카메라가 열려요.")
+        singleActionConfiguration(.capture, kind: "CaptureWidget", description: "누르면 바로 카메라가 열려요. 찍은 사진은 홈이나 하루 마무리에서 확인해요.")
     }
 }
 
 struct InsulinWidget: Widget {
     var body: some WidgetConfiguration {
-        singleActionConfiguration(.insulin, kind: "InsulinWidget", description: "누르면 바로 인슐린 투여 확인이 열려요.")
+        singleActionConfiguration(.insulin, kind: "InsulinWidget", description: "누르면 평소 인슐린이 채워진 투여 확인이 열려요.")
     }
 }
 
@@ -210,7 +210,7 @@ struct StreakLockWidget: Widget {
                 .containerBackground(.clear, for: .widget)
         }
         .configurationDisplayName("연속 완성일")
-        .description("잠금 화면에서 글루비와 연속일을 봐요.")
+        .description("잠금 화면에서 글루비 얼굴과 연속일만 보여줘요.")
         .supportedFamilies([.accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }
