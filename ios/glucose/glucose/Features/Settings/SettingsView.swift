@@ -23,6 +23,8 @@ struct SettingsView: View {
     #if DEBUG
     @State private var demoStatus: String?
     @State private var demoRunning = false
+    /// 실제 기록을 백업할 날(기본: 데모 영상에 쓰는 실제 하루, 2026-10-29)
+    @State private var backupDay = ReportDay.date(fromAPIString: "2026-10-29") ?? .now
     #endif
 
     var body: some View {
@@ -166,6 +168,14 @@ struct SettingsView: View {
             Button("벌집·연속 서버 기준으로 다시 채우기") {
                 runDemo { "그래프 있는 \(await DemoDayCloseSync.run())일을 채웠어요." }
             }
+            // 실제 기록 날 지키기: 백업한 날은 시나리오가 지우거나 덮지 않고, 시나리오 넣을 때 그대로 되살린다
+            DatePicker("실제 기록 날", selection: $backupDay, in: ...Date.now, displayedComponents: .date)
+            Button("이 날 실제 기록 백업하기") {
+                runDemo { await DemoDayBackup.backup(day: backupDay) }
+            }
+            Button("백업한 날 기록 되살리기") {
+                runDemo { await DemoDayBackup.restoreAll() }
+            }
             if demoRunning { ProgressView() }
             if let demoStatus {
                 Text(demoStatus).font(.caption1).foregroundStyle(Color.textSecondary).textSelection(.enabled)
@@ -173,7 +183,7 @@ struct SettingsView: View {
         } header: {
             Text("데모 데이터 (개발용)")
         } footer: {
-            Text("데모 계정에서만 쓰세요. 시나리오는 그래프 곡선에 맞춘 식사·처치·인슐린 기록이고, 이미 기록이 있는 날은 건너뛰어요.")
+            Text("데모 계정에서만 쓰세요. 시나리오는 그래프 곡선에 맞춘 식사·처치·인슐린 기록이고, 이미 기록이 있는 날은 건너뛰어요. 백업한 실제 기록 날(\(DemoDayBackup.protectedDays.sorted().joined(separator: ", ")))은 지우지 않고 그대로 되살려요. 백업은 Mac의 ~/glubee-demo-backup에 저장되고 저장소에는 들어가지 않아요.")
         }
         .disabled(demoRunning)
     }

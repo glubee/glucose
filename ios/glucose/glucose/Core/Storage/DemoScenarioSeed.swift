@@ -23,12 +23,15 @@ enum DemoScenarioSeed {
         var created = 0
         var skippedDays: [String] = []
         var failures: [String] = []
+        /// 백업해 둔 실제 기록 날 복원 결과
+        var restored: String?
 
         var text: String {
             guard let anchor else { return "최근 60일 안에서 그래프를 찾지 못했어요. 로그인 계정과 그래프 업로드를 확인해 주세요." }
             var lines = ["기준(가장 최근 그래프): \(anchor)", "새로 넣은 기록: \(created)건"]
-            if !skippedDays.isEmpty { lines.append("이미 기록이 있어 건너뛴 날: \(skippedDays.joined(separator: ", "))") }
+            if !skippedDays.isEmpty { lines.append("건너뛴 날(이미 기록 있음·백업한 날): \(skippedDays.joined(separator: ", "))") }
             if !failures.isEmpty { lines.append("실패 \(failures.count)건: \(failures.prefix(3).joined(separator: " / "))") }
+            if let restored { lines.append(restored) }
             return lines.joined(separator: "\n")
         }
     }
@@ -139,10 +142,16 @@ enum DemoScenarioSeed {
         }
         report.anchor = ReportDay.apiString(from: anchor)
 
+        // 실제 기록을 백업해 둔 날(DemoDayBackup)은 시나리오를 넣지 않고 백업을 그대로 되살린다
+        let protected = DemoDayBackup.protectedDays
         for (originalDay, records) in scenarios.sorted(by: { $0.key < $1.key }) {
             guard let original = ReportDay.date(fromAPIString: originalDay),
                   let day = calendar.date(byAdding: .day, value: shift, to: original) else { continue }
             let dayString = ReportDay.apiString(from: day)
+            if protected.contains(dayString) {
+                report.skippedDays.append(dayString)
+                continue
+            }
             if let daily: DailyReport = try? await APIClient.shared.send(path: "/v1/reports/daily/\(dayString)"),
                !daily.episodes.isEmpty || daily.insulinEventsCount > 0 {
                 report.skippedDays.append(dayString)
@@ -157,6 +166,9 @@ enum DemoScenarioSeed {
                 }
             }
         }
+        if !protected.isEmpty {
+            report.restored = await DemoDayBackup.restoreAll()
+        }
         print("[demoSeed] \(report.text)")
         WidgetSnapshot.refresh(noteRecord: true)
         return report
@@ -170,11 +182,13 @@ enum DemoScenarioSeed {
               let shift = calendar.dateComponents([.day], from: originalLast, to: anchor).day else {
             return "최근 60일 안에서 그래프를 찾지 못했어요."
         }
+        // 실제 기록을 백업해 둔 날은 지우지 않는다
+        let protected = DemoDayBackup.protectedDays
         let days = Set(scenarios.keys.compactMap { key -> String? in
             guard let original = ReportDay.date(fromAPIString: key),
                   let day = calendar.date(byAdding: .day, value: shift, to: original) else { return nil }
             return ReportDay.apiString(from: day)
-        })
+        }).subtracting(protected)
         let repository = LiveRecordRepository()
         var targets: [RecordItem] = []
         var cursor: String?
@@ -199,7 +213,8 @@ enum DemoScenarioSeed {
             }
             if (try? await APIClient.shared.sendVoid(path: path, method: .delete)) != nil { removed += 1 }
         }
-        return "시나리오 날짜 \(days.count)일의 기록 \(removed)건을 지웠어요."
+        let kept = protected.isEmpty ? "" : " 백업한 날(\(protected.sorted().joined(separator: ", ")))은 지우지 않았어요."
+        return "시나리오 날짜 \(days.count)일의 기록 \(removed)건을 지웠어요." + kept
     }
 
     private static func post(_ record: Record, on day: Date) async throws {
