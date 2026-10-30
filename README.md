@@ -1,7 +1,21 @@
-# Glubee 🐝 — 사진 한 장으로 남기는 혈당 다이어리
+<div align="center">
 
-> **먹을 때 사진 한 번, 맞을 때 클릭 한 번.**
-> 하루 끝에 리브레 그래프를 붙이면, 그날의 식사·인슐린·혈당 곡선이 한 장의 다이어리로 완성됩니다.
+<img src="ios/glucose/glucose/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png" width="120" alt="Glubee 앱 아이콘" />
+
+# Glubee 🐝
+
+### 사진 한 장으로 남기는 혈당 다이어리
+
+**먹을 때 사진 한 번, 맞을 때 클릭 한 번.**<br/>
+하루 끝에 리브레 그래프를 붙이면, 그날의 식사·인슐린·혈당 곡선이 한 장의 다이어리로 완성돼요.
+
+![iOS](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-F05138?logo=swift&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F?logo=springboot&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+
+</div>
 
 Glubee는 CGM(연속혈당측정기, 예: FreeStyle Libre)을 쓰며 인슐린을 맞는 사람을 위한 iOS 앱과 백엔드입니다.
 식사 사진과 인슐린 기록을 남기고, **일일 그래프 이미지**에서 읽은 혈당 곡선과 맞춰 일일·주간 리포트를 만듭니다.
@@ -42,12 +56,10 @@ flowchart LR
     B -. "벌집 한 칸 · 연속 완성일" .-> E(("🐝"))
 ```
 
-<!-- 목업 이미지: 실제 사용자 기록(음식 사진·혈당 그래프)이 담긴 원본은 저장소에 넣지 않는다.
-     가상 데이터로 다시 만든 이미지가 생기면 docs/images/ 에 두고 아래 주석을 푼다.
-![원탭 기록](docs/images/flow_1_record.png)
--->
 
 ### ① 원탭 기록 — 먹을 때 사진 한 번, 맞을 때 클릭 한 번
+
+<p align="center"><img src="docs/images/flow_1_record.png" width="100%" alt="원탭 기록: 홈 화면 위젯, 카메라, 음식 확인, 인슐린 투여 확인" /></p>
 
 | 화면 | 하는 일 |
 |---|---|
@@ -61,6 +73,10 @@ flowchart LR
 ### ② 하루 마무리 — 그래프를 붙이고, 빠진 기록을 함께 살펴봐요
 
 저녁 알림(기본 21:00)이나 홈에서 시작합니다. 한 장의 줄노트 다이어리를 위에서 아래로 내려가며 채웁니다.
+
+<p align="center"><img src="docs/images/flow_2_dayclose_a.png" width="100%" alt="하루 마무리: 그래프 붙이기, 곡선 위 하루 기록, 빠진 음식 확인" /></p>
+
+<p align="center"><img src="docs/images/flow_2_dayclose_b.png" width="100%" alt="하루 마무리: 빠진 인슐린 확인, 오늘의 한마디, 벌집 한 칸 완성" /></p>
 
 | 단계 | 화면 | 하는 일 |
 |---|---|---|
@@ -76,6 +92,8 @@ flowchart LR
 
 ### ③ 일일 리포트 — 그래프와 식사가 한 화면에
 
+<p align="center"><img src="docs/images/flow_3_daily.png" width="100%" alt="일일 리포트: 곡선 위 사진·인슐린, 하루 이야기, 흐름 안내·음식별 관찰" /></p>
+
 | 화면 | 하는 일 |
 |---|---|
 | **곡선 위 사진·인슐린** | 평균 혈당 아래에 하루 곡선이 있고, 그 위에 음식 사진 썸네일과 인슐린 표시가 올라갑니다. 곡선을 누르면 그 시각의 값을 볼 수 있습니다. 날짜를 누르면 달력으로 다른 날로 이동합니다. |
@@ -83,6 +101,8 @@ flowchart LR
 | **흐름 안내·음식별 관찰** | "이렇게 볼 수 있어요"는 근거 자료와 함께 보여주는 일반 정보입니다(의료인 검토 전이라 서버 설정으로 켜고 끕니다). 음식별 관찰에서는 기록 전후 구간의 값과 근거 건수를 보여줍니다. |
 
 ### ④ 주간 리포트 — 한 주를 겹쳐 보고 요약해요
+
+<p align="center"><img src="docs/images/flow_4_weekly.png" width="100%" alt="주간 리포트: 한 주 겹쳐 보기, 이번 주 이야기, 요일별·시간대별" /></p>
 
 | 화면 | 하는 일 |
 |---|---|
