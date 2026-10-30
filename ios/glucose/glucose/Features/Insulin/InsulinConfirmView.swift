@@ -86,6 +86,37 @@ struct InsulinConfirmView: View {
     // MARK: - 확인 카드
 
     private var compact: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                compactContent
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.top, Spacing.l)
+                    .padding(.bottom, Spacing.m)
+            }
+            .scrollDismissesKeyboard(.interactively)
+
+            VStack(spacing: Spacing.xxs) {
+                Button {
+                    Task { await save() }
+                } label: {
+                    if viewModel.isSaving { ProgressView().tint(Color.onButton) } else { Text("투여 확인") }
+                }
+                .buttonStyle(.glubeePrimary)
+                .disabled(viewModel.isSaving || !extrasValid)
+                Button("닫기") { dismiss() }
+                    .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: Metrics.minTapTarget)
+            }
+            .padding(.horizontal, Spacing.l)
+            .padding(.top, Spacing.xs)
+            .padding(.bottom, Spacing.xs)
+        }
+        .background(Color.canvas)
+        .presentationDetents([.large])
+    }
+
+    private var compactContent: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
             Text("지금 맞을 인슐린")
                 .font(.pretendard(15, relativeTo: .subheadline, weight: .semibold))
@@ -126,46 +157,34 @@ struct InsulinConfirmView: View {
             // 지금 맞은 게 아니면 실제 투여 시각으로 바꾼다
             HStack {
                 Text("실제 투여 시각").font(.body2).foregroundStyle(Color.textSecondary)
-                Spacer()
+                Spacer(minLength: Spacing.xs)
                 DatePicker("실제 투여 시각", selection: $viewModel.occurredAt, in: ...Date.now,
                            displayedComponents: [.date, .hourAndMinute])
                     .labelsHidden()
                     .accessibilityIdentifier("insulinTimePicker")
             }
+            .padding(.horizontal, Spacing.m)
+            .frame(minHeight: Metrics.buttonHeight)
+            .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
 
             togetherSection
 
             if let message = viewModel.errorMessage ?? extraError {
                 Text(message).font(.caption1).foregroundStyle(Color.alert)
             }
-
-            Spacer(minLength: 0)
-
-            Button {
-                Task { await save() }
-            } label: {
-                if viewModel.isSaving { ProgressView().tint(Color.onButton) } else { Text("투여 확인") }
-            }
-            .buttonStyle(.glubeePrimary)
-            .disabled(viewModel.isSaving || !extrasValid)
-            Button("닫기") { dismiss() }
-                .font(.pretendard(15, relativeTo: .subheadline, weight: .medium))
-                .foregroundStyle(Color.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: Metrics.minTapTarget)
         }
-        .padding(.horizontal, Spacing.l)
-        .padding(.top, Spacing.l)
-        .padding(.bottom, Spacing.xs)
-        .background(Color.canvas)
-        .presentationDetents([.medium, .large])
     }
 
     // MARK: - 입력
 
     private var form: some View {
-        VStack(alignment: .leading, spacing: Spacing.l) {
+        VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: "인슐린 투여 확인", subtitle: "투여한 내용과 시각을 확인해주세요.", onClose: { dismiss() })
+                .padding(.horizontal, Spacing.gutter)
+                .padding(.top, Spacing.l)
+                .padding(.bottom, Spacing.m)
 
+            // 좌우 여백은 스크롤 안쪽에 둔다(바깥에 두면 스위치 끝이 잘린다)
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.l) {
                     if !usualInsulins.isEmpty {
@@ -222,6 +241,8 @@ struct InsulinConfirmView: View {
                         Text(message).font(.caption1).foregroundStyle(Color.alert)
                     }
                 }
+                .padding(.horizontal, Spacing.gutter)
+                .padding(.bottom, Spacing.m)
             }
             .scrollDismissesKeyboard(.interactively)
 
@@ -232,11 +253,12 @@ struct InsulinConfirmView: View {
             }
             .buttonStyle(.glubeePrimary)
             .disabled(!viewModel.isSaveEnabled || viewModel.isSaving || !extrasValid)
+            .padding(.horizontal, Spacing.gutter)
+            .padding(.top, Spacing.xs)
+            .padding(.bottom, Spacing.s)
         }
-        .padding(.horizontal, Spacing.gutter)
-        .padding(.top, Spacing.l)
-        .padding(.bottom, Spacing.s)
         .background(Color.canvas)
+        .presentationDetents([.large])
         .onAppear {
             // 평소 단위가 없으면 바로 숫자를 칠 수 있게
             if unitsText.isEmpty && !viewModel.kind.isEmpty { unitsFocused = true }
@@ -388,35 +410,44 @@ struct InsulinConfirmView: View {
     private var extrasValid: Bool { extras.allSatisfy(\.isValid) }
 
     private var togetherSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            if !extras.isEmpty {
+                Text("함께 맞은 인슐린 · 같은 시각으로 각각 저장돼요")
+                    .font(.body2).foregroundStyle(Color.textSecondary)
+            }
             ForEach($extras) { $dose in
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "plus")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.insulin)
-                        .accessibilityHidden(true)
-                    TextField("함께 맞은 인슐린", text: $dose.kind)
-                        .font(.body1)
-                        .padding(.horizontal, Spacing.s)
-                        .frame(minHeight: Metrics.minTapTarget)
-                        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
-                        .accessibilityIdentifier("insulinTogetherKind")
-                    TextField("단위", text: $dose.unitsText)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .font(.body1.monospacedDigit())
-                        .padding(.horizontal, Spacing.s)
-                        .frame(width: 72)
-                        .frame(minHeight: Metrics.minTapTarget)
-                        .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
-                        .accessibilityIdentifier("insulinTogetherUnits")
-                    Text("U").foregroundStyle(Color.textSecondary)
-                    Button { extras.removeAll { $0.id == dose.id } } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(Color.textSecondary)
+                VStack(spacing: 0) {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "syringe.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.insulin)
+                            .accessibilityHidden(true)
+                        TextField("제품 (예: 기저 인슐린)", text: $dose.kind)
+                            .font(.body1)
+                            .accessibilityIdentifier("insulinTogetherKind")
+                        Button { withAnimation(.spring(duration: 0.25)) { extras.removeAll { $0.id == dose.id } } } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        .frame(width: Metrics.minTapTarget, height: Metrics.minTapTarget)
+                        .accessibilityLabel("함께 맞은 인슐린 빼기")
                     }
-                    .frame(width: 32, height: Metrics.minTapTarget)
-                    .accessibilityLabel("함께 맞은 인슐린 빼기")
+                    .frame(minHeight: Metrics.minTapTarget)
+                    Divider().overlay(Color.line)
+                    HStack(spacing: Spacing.xs) {
+                        TextField("단위", text: $dose.unitsText)
+                            .keyboardType(.decimalPad)
+                            .font(.body1.monospacedDigit())
+                            .accessibilityIdentifier("insulinTogetherUnits")
+                        Text("U").foregroundStyle(Color.textSecondary)
+                            .padding(.trailing, Spacing.s)
+                    }
+                    .frame(minHeight: Metrics.minTapTarget)
                 }
+                .padding(.leading, Spacing.m)
+                .background(Color.surfaceMuted, in: RoundedRectangle(cornerRadius: Radius.field))
+                .overlay(RoundedRectangle(cornerRadius: Radius.field).strokeBorder(Color.insulin.opacity(0.35), lineWidth: 1))
             }
             Button(action: addTogether) {
                 Label(extras.isEmpty ? "함께 맞은 인슐린 더하기" : "하나 더 더하기", systemImage: "plus.circle")
@@ -425,10 +456,6 @@ struct InsulinConfirmView: View {
                     .frame(minHeight: Metrics.minTapTarget)
             }
             .accessibilityIdentifier("insulinAddTogether")
-            if !extras.isEmpty {
-                Text("같은 시각으로 각각 저장돼요.")
-                    .font(.caption1).foregroundStyle(Color.textSecondary)
-            }
         }
     }
 
