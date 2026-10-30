@@ -56,7 +56,7 @@ final class DayCloseViewModel {
         self.photoStore = photoStore
         self.dayCloseStore = dayCloseStore
         self.note = dayCloseStore.note(for: target)
-        if dayCloseStore.isClosed(target) {
+        if dayCloseStore.isClosed(target) && !Self.isDemoReplay(target) {
             isFinished = true
             started = true
         }
@@ -75,6 +75,17 @@ final class DayCloseViewModel {
     }
 
     var dayTitle: String { ReportDay.displayString(from: day) }
+
+    /// 데모 영상용(DEBUG): 이미 마무리한 날이라도 처음부터 다시 진행하는 날. 실제 사용자 하루 2026-10-29
+    static let demoReplayDays: Set<String> = ["2026-10-29"]
+
+    static func isDemoReplay(_ day: Date) -> Bool {
+        #if DEBUG
+        return demoReplayDays.contains(ReportDay.apiString(from: day))
+        #else
+        return false
+        #endif
+    }
 
     // MARK: - 그래프
 
@@ -189,7 +200,9 @@ final class DayCloseViewModel {
 
     func finish() async {
         guard canFinish else { return }
-        streakBefore = dayCloseStore.streak(endingAt: day)
+        // 이미 마무리한 날을 다시 하는 경우(데모 재현) 연출은 이 날을 빼고 센 연속에서 시작한다
+        let streak = dayCloseStore.streak(endingAt: day)
+        streakBefore = dayCloseStore.isClosed(day) ? max(0, streak - 1) : streak
         dayCloseStore.markClosed(day, recordOnly: recordOnly)
         isFinished = true
         WidgetSnapshot.refresh()

@@ -103,12 +103,12 @@ final class DayCloseStore {
 
     func markClosed(_ day: Date, recordOnly: Bool = false) {
         let dayKey = key(day)
-        stored.closedDays.insert(dayKey)
+        let isFirstClose = stored.closedDays.insert(dayKey).inserted
         stored.honeypotSavedDays.remove(dayKey)
         if recordOnly { stored.recordOnlyDays.insert(dayKey) }
-        // 7일 연속마다 꿀단지 1개
+        // 7일 연속마다 꿀단지 1개(같은 날을 다시 마무리해도 두 번 주지 않는다)
         let streak = streak(endingAt: day)
-        if streak > 0, streak % Self.daysPerHoneypot == 0 {
+        if isFirstClose, streak > 0, streak % Self.daysPerHoneypot == 0 {
             stored.honeypots = min(Self.maxHoneypots, stored.honeypots + 1)
         }
     }
