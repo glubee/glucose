@@ -26,4 +26,12 @@ final class DayCloseStoreTests: XCTestCase {
         XCTAssertTrue(DayCloseViewModel.isDemoReplay(day("2026-10-29")))
         XCTAssertFalse(DayCloseViewModel.isDemoReplay(day("2026-10-28")))
     }
+
+    func testReplayDayStartsFromGraphUploadEvenIfGraphExists() {
+        let replay = DayCloseViewModel(day: day("2026-10-29"), dayCloseStore: makeStore())
+        XCTAssertEqual(replay.graphPhase, .needsUpload)
+        // 다른 날은 서버 그래프 상태(불러오는 중)를 그대로 따른다
+        let normal = DayCloseViewModel(day: day("2026-10-28"), dayCloseStore: makeStore())
+        XCTAssertEqual(normal.graphPhase, .checking)
+    }
 }

@@ -34,6 +34,9 @@ final class DayCloseViewModel {
     var foodsAnswered = false
     /// "기록하지 않은 투여가 있었나요?"에 답함(없어요 · 기록함)
     var insulinAnswered = false
+    /// 데모 재현(DEBUG, 10/29): 서버에 그래프가 있어도 이 화면에선 처음처럼 "붙이기"부터 보여준다.
+    /// 서버 그래프는 지우지 않는다. 같은 날 스크린샷을 다시 올리면(덮어쓰기) 붙은 것으로 본다
+    private var replayGraphPending = false
     /// 오늘에 남길 한마디(선택, 기기에만 저장)
     var note: String {
         didSet { dayCloseStore.setNote(note, for: day) }
@@ -56,6 +59,7 @@ final class DayCloseViewModel {
         self.photoStore = photoStore
         self.dayCloseStore = dayCloseStore
         self.note = dayCloseStore.note(for: target)
+        replayGraphPending = Self.isDemoReplay(target)
         if dayCloseStore.isClosed(target) && !Self.isDemoReplay(target) {
             isFinished = true
             started = true
@@ -102,6 +106,12 @@ final class DayCloseViewModel {
         case .idle, .done:
             break
         }
+        if replayGraphPending {
+            if case .done(let date, _) = graphUploader.state, date != ReportDay.apiString(from: day) {
+                return .otherDay(ReportDay.displayString(fromAPIString: date))
+            }
+            return .needsUpload
+        }
         switch report.state {
         case .loading:
             return .checking
@@ -131,7 +141,10 @@ final class DayCloseViewModel {
 
     /// 분석이 끝나면 그날 리포트를 다시 읽어 그래프가 들어왔는지 본다
     func graphUploadChanged() async {
-        if case .done = graphUploader.state { await refresh() }
+        if case .done(let date, _) = graphUploader.state {
+            if date == ReportDay.apiString(from: day) { replayGraphPending = false }
+            await refresh()
+        }
     }
 
     func chooseAnotherScreenshot() {
