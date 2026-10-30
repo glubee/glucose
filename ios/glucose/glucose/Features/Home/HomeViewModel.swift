@@ -45,6 +45,8 @@ final class HomeViewModel {
     var weekStates: [HoneyCellState] { store.weekStates(containing: today) }
     var rest: RestPeriod? { store.isResting() ? store.rest : nil }
     var isTodayClosed: Bool { store.isClosed(today) }
+    /// 다이어리에 펼친 날을 이미 마무리했는지
+    var isDiaryDayClosed: Bool { store.isClosed(diaryDay) }
 
     /// 위젯으로 찍고 아직 확인하지 않은 사진 수(날짜 상관없이)
     var pendingPhotoCount: Int { photos.photos.count }

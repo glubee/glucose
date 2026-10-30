@@ -125,4 +125,17 @@ final class HomeRecordsUITests: XCTestCase {
         app.buttons["dayPickerConfirm"].tap()
         XCTAssertTrue(app.staticTexts["오늘의 다이어리"].waitForExistence(timeout: 5))
     }
+
+    func testPastDiaryDayCanBeClosedFromHome() {
+        let app = launch()
+        let previous = app.buttons["이전 날 다이어리"]
+        for _ in 0..<4 where !previous.isHittable { app.swipeUp() }
+        previous.tap()
+        let close = app.buttons["pastDayClose"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(close.label.contains("마무리"))
+        close.tap()
+        XCTAssertTrue(app.buttons["dayCloseStart"].waitForExistence(timeout: 5)
+                      || app.buttons["dayCloseDone"].waitForExistence(timeout: 2))
+    }
 }

@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var selectedPendingPhoto: PendingPhoto?
     @State private var showAllRecords = false
     @State private var highlightedID: String?
+    /// 지난 날 다이어리에서 연 하루 마무리
+    @State private var pastDayClose: DayToClose?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -51,6 +53,9 @@ struct HomeView: View {
             PhotoCaptureView(context: request.context, opensCamera: request.opensCamera)
         }
         .sheet(isPresented: $showInsulin, onDismiss: refresh) { InsulinConfirmView() }
+        .fullScreenCover(item: $pastDayClose, onDismiss: { Task { await viewModel.refresh() } }) { item in
+            DayCloseView(day: item.day)
+        }
         .sheet(isPresented: $showPendingPhotos, onDismiss: refresh) { PendingPhotosView(store: viewModel.photos) }
         .sheet(isPresented: $showAllRecords) { RecordsView() }
         .sheet(item: $selectedPendingPhoto, onDismiss: refresh) { photo in
@@ -77,8 +82,27 @@ struct HomeView: View {
         return presented ? nil : viewModel.timeline.focusID
     }
 
+    /// 오늘을 보고 있으면 평소처럼(아침 유예 시간엔 어제), 지난 날을 보고 있으면 그날을 마무리한다
     private func openDayClose() {
-        DeepLinkRouter.shared.handle(URL(string: "glubee://day-close")!)
+        if viewModel.isDiaryToday {
+            DeepLinkRouter.shared.handle(URL(string: "glubee://day-close")!)
+        } else {
+            pastDayClose = DayToClose(day: viewModel.diaryDay)
+        }
+    }
+
+    private struct DayToClose: Identifiable {
+        let day: Date
+        var id: Date { day }
+    }
+
+    private var pastDayCloseTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = ReportDay.calendar.timeZone
+        formatter.dateFormat = "M월 d일"
+        let day = formatter.string(from: viewModel.diaryDay)
+        return viewModel.isDiaryDayClosed ? "\(day) 마무리 다시 보기" : "\(day) 마무리하기"
     }
 
     /// 연속 숫자가 0부터 올라가며 나타난다
@@ -172,7 +196,11 @@ struct HomeView: View {
                     Button { showInsulin = true } label: { Label("인슐린", systemImage: "syringe.fill") }
                         .buttonStyle(.glubeeSoft)
                 }
-                if !viewModel.isTodayClosed {
+                if !viewModel.isDiaryToday {
+                    Button(pastDayCloseTitle, action: openDayClose)
+                        .buttonStyle(viewModel.isDiaryDayClosed ? .glubeeSoft : .glubeePrimary)
+                        .accessibilityIdentifier("pastDayClose")
+                } else if !viewModel.isTodayClosed {
                     Button("하루 마무리하기", action: openDayClose).buttonStyle(.glubeePrimary)
                 }
             }
