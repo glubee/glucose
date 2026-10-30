@@ -30,6 +30,9 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
+	<!-- 홈 화면에 보이는 앱 이름. 타깃·저장소 이름(glucose)은 그대로 둔다 -->
+	<key>CFBundleDisplayName</key>
+	<string>Glubee</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
